@@ -25,6 +25,8 @@ app.use('/api/cost-centers', require('./routes/costCenters'));
 app.use('/api/locations', require('./routes/locations')); // New locations routes
 app.use('/api/projects', require('./routes/projects')); // New projects routes
 app.use('/api/punchout', require('./routes/punchout'));
+app.use('/api/approval-flows', require('./routes/approvalFlows')); // Approval flows management
+app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -37,7 +39,7 @@ app.get('/api/health', (req, res) => {
 
 // Root endpoint
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'ExpenseHub API - Enhanced Version',
     version: '2.0.0',
     endpoints: {
@@ -48,7 +50,9 @@ app.get('/', (req, res) => {
       costCenters: '/api/cost-centers',
       locations: '/api/locations',
       projects: '/api/projects',
-      punchout: '/api/punchout'
+      punchout: '/api/punchout',
+      approvalFlows: '/api/approval-flows',
+      expenseApprovals: '/api/expense-approvals'
     }
   });
 });
