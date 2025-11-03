@@ -1,0 +1,251 @@
+/* Header */
+.header {
+  background-color: #2563eb;
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.header-title h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  font-size: 0.875rem;
+  color: #bfdbfe;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cart-icon-wrapper {
+  position: relative;
+  cursor: pointer;
+}
+
+.cart-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  background-color: #ef4444;
+  color: white;
+  font-size: 0.75rem;
+  border-radius: 9999px;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-info {
+  text-align: right;
+}
+
+.user-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.user-id {
+  font-size: 0.75rem;
+  color: #bfdbfe;
+}
+
+/* Navigation */
+.nav {
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-tab {
+  padding: 1rem 0.5rem;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-tab:hover {
+  color: #374151;
+  border-bottom-color: #d1d5db;
+}
+
+.nav-tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.nav-badge {
+  margin-left: 0.5rem;
+  background-color: #2563eb;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+}
+
+
+/* Navigation Dropdown */
+.nav-tab-wrapper {
+  position: relative;
+}
+
+.nav-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  min-width: 180px;
+  z-index: 1000;
+  margin-top: 0;
+  animation: dropdownFadeIn 0.2s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nav-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border: none;
+  background: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-dropdown-item:first-child {
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+.nav-dropdown-item:last-child {
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+.nav-dropdown-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.nav-dropdown-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+/* Header User Info (Additional) */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.user-role {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: capitalize;
+}
+
+/* Enhanced Navigation Micro-interactions */
+.nav-tab {
+  position: relative;
+}
+
+.nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background-color: #2563eb;
+  transition: width 0.3s ease;
+}
+
+.nav-tab:hover::after {
+  width: 80%;
+}
+
+.nav-tab.active::after {
+  width: 100%;
+}

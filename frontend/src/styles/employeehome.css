@@ -1,0 +1,508 @@
+/* ========================================
+   EMPLOYEE HOME SCREEN
+   ======================================== */
+
+.employee-home {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+}
+
+/* Hero Section - Reimbursement Status */
+.reimbursement-hero {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  color: white;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.3);
+}
+
+.hero-icon {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hero-content {
+  flex: 1;
+}
+
+.hero-amount {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem 0;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.hero-label {
+  font-size: 1rem;
+  opacity: 0.95;
+  margin: 0 0 1rem 0;
+  font-weight: 500;
+}
+
+.hero-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  backdrop-filter: blur(10px);
+}
+
+.breakdown-item svg {
+  flex-shrink: 0;
+}
+
+.breakdown-approved {
+  border-left: 3px solid #10b981;
+}
+
+.breakdown-pending {
+  border-left: 3px solid #fbbf24;
+}
+
+.hero-subtitle {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+/* Primary Action Button - Submit Expense */
+.btn-submit-expense {
+  width: 100%;
+  background: white;
+  border: none;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.btn-submit-expense:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.15);
+}
+
+.btn-submit-expense:active {
+  transform: translateY(0);
+}
+
+.btn-icon-wrapper {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-text {
+  flex: 1;
+  text-align: left;
+}
+
+.btn-title {
+  display: block;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.btn-subtitle {
+  display: block;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.btn-arrow {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+/* Quick Stats */
+.quick-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-item {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon-pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.stat-icon-approved {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0 0;
+}
+
+/* Recent Section */
+.recent-section {
+  margin-bottom: 2rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #6366f1;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn-link:hover {
+  background: #eff6ff;
+}
+
+/* Expense Cards - Simple Version */
+.expense-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.expense-card-simple {
+  background: white;
+  border-radius: 1rem;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.expense-card-simple:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transform: translateX(4px);
+}
+
+.expense-card-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.expense-date {
+  background: #f3f4f6;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.date-day {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1;
+}
+
+.date-month {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin-top: 0.25rem;
+}
+
+.expense-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.expense-title {
+  font-size: 0.938rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.expense-meta {
+  font-size: 0.813rem;
+  color: #6b7280;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.expense-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.expense-amount {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* Empty State - Inline */
+.empty-state-inline {
+  background: white;
+  border: 2px dashed #e5e7eb;
+  border-radius: 1rem;
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.empty-icon {
+  color: #d1d5db;
+  margin-bottom: 1rem;
+}
+
+.empty-state-inline h3 {
+  font-size: 1.125rem;
+  color: #111827;
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state-inline p {
+  color: #6b7280;
+  margin: 0 0 1.5rem 0;
+}
+
+/* Secondary Actions */
+.secondary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.action-tile {
+  background: white;
+  border: 2px solid #f3f4f6;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.action-tile:hover {
+  border-color: #6366f1;
+  background: #fafafa;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.action-tile-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.action-tile-content h4 {
+  font-size: 0.938rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+}
+
+.action-tile-content p {
+  font-size: 0.813rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Loading Skeletons */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+  border-radius: 1rem;
+}
+
+.skeleton-hero {
+  height: 200px;
+  margin-bottom: 1.5rem;
+}
+
+.skeleton-button {
+  height: 80px;
+  margin-bottom: 1.5rem;
+}
+
+.skeleton-list {
+  height: 300px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .reimbursement-hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+  }
+
+  .hero-icon {
+    margin: 0 auto;
+  }
+
+  .hero-amount {
+    font-size: 2.5rem;
+  }
+
+  .hero-subtitle {
+    justify-content: center;
+  }
+
+  .quick-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-title {
+    font-size: 1rem;
+  }
+
+  .btn-subtitle {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .employee-home {
+    padding: 0 0.5rem 1.5rem;
+  }
+
+  .reimbursement-hero {
+    padding: 1.25rem;
+  }
+
+  .hero-amount {
+    font-size: 2rem;
+  }
+
+  .btn-submit-expense {
+    padding: 1.25rem;
+  }
+
+  .expense-card-left {
+    gap: 0.75rem;
+  }
+
+  .expense-date {
+    padding: 0.375rem 0.5rem;
+  }
+
+  .date-day {
+    font-size: 1.125rem;
+  }
+}

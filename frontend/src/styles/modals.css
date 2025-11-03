@@ -1,0 +1,262 @@
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 32px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* User Info Display */
+.user-info-display {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.user-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.user-info-row:last-child {
+  border-bottom: none;
+}
+
+.user-info-row .label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.user-info-row .value {
+  font-size: 14px;
+  color: #111827;
+}
+
+/* Form Hint Enhancement */
+.form-hint strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* Responsive Modal */
+@media (max-width: 640px) {
+  .modal {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .modal-header {
+    padding: 16px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+  }
+
+  .modal-footer button {
+    width: 100%;
+  }
+
+  .user-info {
+    padding: 6px 12px;
+  }
+
+  .user-name {
+    font-size: 13px;
+  }
+
+  .user-role {
+    font-size: 11px;
+  }
+}
+
+/* Print Styles for User Management */
+@media print {
+  .modal-overlay,
+  .btn-icon,
+  .header-cart,
+  .btn.btn-secondary {
+    display: none !important;
+  }
+}
+
+/* ===================================
+   Project Submission Styles
+   Add these to your App.css
+   =================================== */
+
+/* Rejection Reason Display */
+.rejection-reason {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #991b1b;
+}
+
+.rejection-reason strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #7f1d1d;
+}
+
+/* Approval Actions */
+.approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-sm {
+  padding: 8px 12px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-success {
+  background-color: #10b981;
+  color: white;
+  border: 1px solid #059669;
+}
+
+.btn-success:hover {
+  background-color: #059669;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  border: 1px solid #dc2626;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+/* Submitted By Info */
+.text-xs {
+  font-size: 12px;
+}
+
+.mt-1 {
+  margin-top: 4px;
+}
+
+/* Status Icons in Badges */
+.badge svg {
+  vertical-align: middle;
+}
+
+/* Responsive Approval Actions */
+@media (max-width: 640px) {
+  .approval-actions {
+    flex-direction: column;
+  }
+
+  .approval-actions .btn-sm {
+    width: 100%;
+    justify-content: center;
+  }
+}

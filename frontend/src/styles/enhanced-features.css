@@ -1,0 +1,576 @@
+/* ===================================
+   ENHANCED FEATURES STYLES
+   Smart suggestions, receipt upload, loading states
+   =================================== */
+
+/* Smart Suggestion Banner */
+.smart-suggestion-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #065f46;
+  font-weight: 500;
+  animation: slideInUp 0.4s ease-out;
+}
+
+/* Receipt Upload Options */
+.receipt-upload-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.receipt-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  position: relative;
+}
+
+.receipt-option-btn:hover {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-color: #9ca3af;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.receipt-option-btn svg {
+  color: #6b7280;
+  transition: all 0.3s ease;
+}
+
+.receipt-option-btn:hover svg {
+  color: #2563eb;
+  transform: scale(1.1);
+}
+
+.receipt-option-btn span {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.receipt-option-btn p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.camera-btn {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border-color: #93c5fd;
+}
+
+.camera-btn:hover {
+  background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
+}
+
+.upload-btn {
+  position: relative;
+}
+
+/* Receipt Preview */
+.receipt-preview-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.receipt-preview {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  object-fit: contain;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Button Spinner */
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 8px;
+}
+
+/* Loading States */
+.page-loading {
+  padding: 40px 0;
+}
+
+.form-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Optimistic UI Feedback */
+.expense-item-optimistic {
+  opacity: 0.6;
+  position: relative;
+}
+
+.expense-item-optimistic::after {
+  content: 'Syncing...';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 11px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Success Checkmark Animation */
+@keyframes checkmark {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.checkmark-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 2;
+  stroke: #10b981;
+  fill: none;
+  animation: checkmark 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.checkmark-check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  stroke: #10b981;
+  animation: checkmark 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
+}
+
+/* Enhanced Tooltips */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
+.tooltip::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 8px 12px;
+  background: #1f2937;
+  color: white;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  border: 6px solid transparent;
+  border-top-color: #1f2937;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.tooltip:hover::before,
+.tooltip:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+/* Character Counter */
+.form-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.character-count {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+.character-count.warning {
+  color: #f59e0b;
+}
+
+.character-count.danger {
+  color: #ef4444;
+}
+
+/* Vendor Autocomplete Styling */
+input[list] {
+  position: relative;
+}
+
+datalist {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress Indicator */
+.upload-progress {
+  margin-top: 12px;
+}
+
+.upload-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  transition: width 0.3s ease;
+  animation: shimmer 2s infinite linear;
+}
+
+.upload-progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Offline Indicator */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #f59e0b;
+  color: white;
+  padding: 12px;
+  text-align: center;
+  font-weight: 500;
+  z-index: 9999;
+  animation: slideInUp 0.3s ease-out;
+}
+
+.offline-banner svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+/* Syncing Indicator */
+.syncing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: #dbeafe;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.syncing-dot {
+  width: 8px;
+  height: 8px;
+  background: #3b82f6;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Empty State Improvements */
+.empty-state-enhanced {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.empty-state-illustration {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 24px;
+  opacity: 0.5;
+}
+
+.empty-state-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.empty-state-description {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 24px;
+  max-width: 400px;
+}
+
+.empty-state-action {
+  margin-top: 16px;
+}
+
+/* Action Buttons Group */
+.action-buttons-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.action-buttons-group .btn {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Floating Action Button (Mobile) */
+.fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 100;
+}
+
+.fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.5);
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+.fab svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* Expense Detail Modal Enhancements */
+.expense-detail-modal {
+  max-width: 600px;
+}
+
+.expense-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.expense-detail-amount {
+  font-size: 32px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.expense-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.expense-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expense-detail-label {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.expense-detail-value {
+  font-size: 15px;
+  color: #111827;
+  font-weight: 500;
+}
+
+.expense-receipt-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.expense-receipt-image {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+/* Quick Actions Menu */
+.quick-actions-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 180px;
+  z-index: 100;
+  animation: slideInUp 0.2s ease-out;
+}
+
+.quick-action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-size: 14px;
+  color: #374151;
+}
+
+.quick-action-item:hover {
+  background: #f3f4f6;
+}
+
+.quick-action-item svg {
+  color: #6b7280;
+}
+
+.quick-action-item.danger {
+  color: #dc2626;
+}
+
+.quick-action-item.danger svg {
+  color: #dc2626;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 640px) {
+  .receipt-upload-options {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-option-btn {
+    padding: 20px;
+  }
+
+  .action-buttons-group {
+    flex-direction: column;
+  }
+
+  .action-buttons-group .btn {
+    width: 100%;
+  }
+
+  .expense-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fab {
+    bottom: 16px;
+    right: 16px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .smart-suggestion-banner {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .receipt-upload-options,
+  .camera-capture-modal,
+  .fab,
+  .smart-suggestion-banner,
+  .action-buttons-group {
+    display: none !important;
+  }
+
+  .receipt-preview-container {
+    page-break-inside: avoid;
+  }
+}
+
+/* Dark Mode Support (Future) */
+@media (prefers-color-scheme: dark) {
+  .receipt-option-btn {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .receipt-option-btn:hover {
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  }
+
+  .receipt-preview-container {
+    background: #1f2937;
+    border-color: #374151;
+  }
+}

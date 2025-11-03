@@ -1,0 +1,542 @@
+const express = require('express');
+const router = express.Router();
+const { body, validationResult } = require('express-validator');
+const db = require('../config/database');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
+
+// Helper function to determine cost type based on category and amount
+const determineCostType = (category, amount) => {
+  const capexKeywords = ['equipment', 'hardware', 'furniture', 'fixtures', 'vehicle'];
+  const capexThreshold = 2500; // Expenses over $2,500 may be CAPEX
+
+  const categoryLower = category.toLowerCase();
+  const hasCapexKeyword = capexKeywords.some(keyword => categoryLower.includes(keyword));
+
+  if (hasCapexKeyword && amount >= capexThreshold) {
+    return 'CAPEX';
+  }
+
+  return 'OPEX';
+};
+
+// Get all expenses for current user with advanced filtering
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { 
+      status, 
+      category, 
+      costType, 
+      locationId, 
+      projectId, 
+      costCenterId,
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount
+    } = req.query;
+
+    let query = `
+      SELECT e.*, 
+             cc.code as cost_center_code, cc.name as cost_center_name,
+             l.code as location_code, l.name as location_name,
+             p.code as project_code, p.name as project_name,
+             u.first_name || ' ' || u.last_name as approved_by_name
+      FROM expenses e
+      LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
+      LEFT JOIN locations l ON e.location_id = l.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      LEFT JOIN users u ON e.approved_by = u.id
+      WHERE e.user_id = $1
+    `;
+
+    const params = [req.user.id];
+    let paramIndex = 2;
+
+    if (status) {
+      query += ` AND e.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (category) {
+      query += ` AND e.category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    if (costType) {
+      query += ` AND e.cost_type = $${paramIndex}`;
+      params.push(costType);
+      paramIndex++;
+    }
+
+    if (locationId) {
+      query += ` AND e.location_id = $${paramIndex}`;
+      params.push(locationId);
+      paramIndex++;
+    }
+
+    if (projectId) {
+      query += ` AND e.project_id = $${paramIndex}`;
+      params.push(projectId);
+      paramIndex++;
+    }
+
+    if (costCenterId) {
+      query += ` AND e.cost_center_id = $${paramIndex}`;
+      params.push(costCenterId);
+      paramIndex++;
+    }
+
+    if (startDate) {
+      query += ` AND e.date >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND e.date <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
+    if (minAmount) {
+      query += ` AND e.amount >= $${paramIndex}`;
+      params.push(minAmount);
+      paramIndex++;
+    }
+
+    if (maxAmount) {
+      query += ` AND e.amount <= $${paramIndex}`;
+      params.push(maxAmount);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY e.date DESC, e.created_at DESC`;
+
+    const result = await db.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch expenses error:', error);
+    res.status(500).json({ error: 'Server error fetching expenses' });
+  }
+});
+
+// Get single expense
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT e.*, 
+              cc.code as cost_center_code, cc.name as cost_center_name,
+              l.code as location_code, l.name as location_name,
+              p.code as project_code, p.name as project_name,
+              u.first_name || ' ' || u.last_name as approved_by_name
+       FROM expenses e
+       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
+       LEFT JOIN locations l ON e.location_id = l.id
+       LEFT JOIN projects p ON e.project_id = p.id
+       LEFT JOIN users u ON e.approved_by = u.id
+       WHERE e.id = $1 AND e.user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Fetch expense error:', error);
+    res.status(500).json({ error: 'Server error fetching expense' });
+  }
+});
+
+// Create new expense with enhanced dimensions
+router.post('/', authMiddleware, [
+  body('date').isISO8601().toDate(),
+  body('description').notEmpty().trim(),
+  body('category').notEmpty().trim(),
+  body('amount').isFloat({ min: 0.01 }),
+  body('costCenterId').isInt(),
+  body('locationId').optional().isInt(),
+  body('projectId').optional().isInt(),
+  body('costType').optional().isIn(['OPEX', 'CAPEX']),
+  body('paymentMethod').optional().trim(),
+  body('vendorName').optional().trim(),
+  body('glAccount').optional().trim(),
+  body('notes').optional().trim(),
+  body('isReimbursable').optional().isBoolean()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { 
+      date, description, category, amount, costCenterId, 
+      locationId, projectId, costType, paymentMethod, 
+      vendorName, glAccount, notes, isReimbursable 
+    } = req.body;
+
+    // Auto-determine cost type if not provided
+    const finalCostType = costType || determineCostType(category, amount);
+
+    const result = await db.query(
+      `INSERT INTO expenses (
+        user_id, cost_center_id, location_id, project_id, 
+        date, description, category, amount, cost_type,
+        payment_method, vendor_name, gl_account, notes, is_reimbursable
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        req.user.id, costCenterId, locationId, projectId,
+        date, description, category, amount, finalCostType,
+        paymentMethod, vendorName, glAccount, notes, isReimbursable || false
+      ]
+    );
+
+    res.status(201).json({
+      message: 'Expense created successfully',
+      expense: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create expense error:', error);
+    res.status(500).json({ error: 'Server error creating expense' });
+  }
+});
+
+// Update expense
+router.put('/:id', authMiddleware, [
+  body('date').optional().isISO8601().toDate(),
+  body('description').optional().trim(),
+  body('category').optional().trim(),
+  body('amount').optional().isFloat({ min: 0.01 }),
+  body('costCenterId').optional().isInt(),
+  body('locationId').optional().isInt(),
+  body('projectId').optional().isInt(),
+  body('costType').optional().isIn(['OPEX', 'CAPEX']),
+  body('paymentMethod').optional().trim(),
+  body('vendorName').optional().trim(),
+  body('glAccount').optional().trim(),
+  body('notes').optional().trim(),
+  body('isReimbursable').optional().isBoolean()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Check if expense exists and belongs to user
+    const checkResult = await db.query(
+      'SELECT status FROM expenses WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    // Don't allow updates to approved/rejected expenses
+    if (checkResult.rows[0].status !== 'pending') {
+      return res.status(400).json({ error: 'Cannot update expense that has been approved or rejected' });
+    }
+
+    const { 
+      date, description, category, amount, costCenterId,
+      locationId, projectId, costType, paymentMethod,
+      vendorName, glAccount, notes, isReimbursable
+    } = req.body;
+
+    const result = await db.query(
+      `UPDATE expenses 
+       SET date = COALESCE($1, date),
+           description = COALESCE($2, description),
+           category = COALESCE($3, category),
+           amount = COALESCE($4, amount),
+           cost_center_id = COALESCE($5, cost_center_id),
+           location_id = COALESCE($6, location_id),
+           project_id = COALESCE($7, project_id),
+           cost_type = COALESCE($8, cost_type),
+           payment_method = COALESCE($9, payment_method),
+           vendor_name = COALESCE($10, vendor_name),
+           gl_account = COALESCE($11, gl_account),
+           notes = COALESCE($12, notes),
+           is_reimbursable = COALESCE($13, is_reimbursable),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $14 AND user_id = $15
+       RETURNING *`,
+      [
+        date, description, category, amount, costCenterId,
+        locationId, projectId, costType, paymentMethod,
+        vendorName, glAccount, notes, isReimbursable,
+        req.params.id, req.user.id
+      ]
+    );
+
+    res.json({
+      message: 'Expense updated successfully',
+      expense: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update expense error:', error);
+    res.status(500).json({ error: 'Server error updating expense' });
+  }
+});
+
+// Delete expense
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    // Check if expense exists and belongs to user
+    const checkResult = await db.query(
+      'SELECT status FROM expenses WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    // Don't allow deletion of approved expenses
+    if (checkResult.rows[0].status === 'approved') {
+      return res.status(400).json({ error: 'Cannot delete approved expense' });
+    }
+
+    await db.query(
+      'DELETE FROM expenses WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+
+    res.json({ message: 'Expense deleted successfully' });
+  } catch (error) {
+    console.error('Delete expense error:', error);
+    res.status(500).json({ error: 'Server error deleting expense' });
+  }
+});
+
+// Get all pending expenses (for managers/admins) with filters
+router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const { locationId, projectId, costCenterId, costType } = req.query;
+
+    let query = `
+      SELECT e.*, 
+             u.first_name || ' ' || u.last_name as employee_name,
+             u.employee_id,
+             cc.code as cost_center_code, cc.name as cost_center_name,
+             l.code as location_code, l.name as location_name,
+             p.code as project_code, p.name as project_name
+      FROM expenses e
+      JOIN users u ON e.user_id = u.id
+      LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
+      LEFT JOIN locations l ON e.location_id = l.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE e.status = 'pending'
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (locationId) {
+      query += ` AND e.location_id = $${paramIndex}`;
+      params.push(locationId);
+      paramIndex++;
+    }
+
+    if (projectId) {
+      query += ` AND e.project_id = $${paramIndex}`;
+      params.push(projectId);
+      paramIndex++;
+    }
+
+    if (costCenterId) {
+      query += ` AND e.cost_center_id = $${paramIndex}`;
+      params.push(costCenterId);
+      paramIndex++;
+    }
+
+    if (costType) {
+      query += ` AND e.cost_type = $${paramIndex}`;
+      params.push(costType);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY e.date DESC, e.created_at DESC`;
+
+    const result = await db.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch pending expenses error:', error);
+    res.status(500).json({ error: 'Server error fetching pending expenses' });
+  }
+});
+
+// Approve expense
+router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE expenses 
+       SET status = 'approved',
+           approved_by = $1,
+           approved_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND status = 'pending'
+       RETURNING *`,
+      [req.user.id, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or already processed' });
+    }
+
+    res.json({
+      message: 'Expense approved successfully',
+      expense: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Approve expense error:', error);
+    res.status(500).json({ error: 'Server error approving expense' });
+  }
+});
+
+// Reject expense
+router.post('/:id/reject', authMiddleware, isManagerOrAdmin, [
+  body('reason').notEmpty().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { reason } = req.body;
+
+    const result = await db.query(
+      `UPDATE expenses 
+       SET status = 'rejected',
+           approved_by = $1,
+           approved_at = CURRENT_TIMESTAMP,
+           rejection_reason = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 AND status = 'pending'
+       RETURNING *`,
+      [req.user.id, reason, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or already processed' });
+    }
+
+    res.json({
+      message: 'Expense rejected',
+      expense: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Reject expense error:', error);
+    res.status(500).json({ error: 'Server error rejecting expense' });
+  }
+});
+
+// Get expense analytics/summary
+router.get('/analytics/summary', authMiddleware, async (req, res) => {
+  try {
+    const { startDate, endDate, locationId, projectId, costCenterId } = req.query;
+
+    let query = `
+      SELECT 
+        COUNT(*) as total_count,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COALESCE(AVG(amount), 0) as avg_amount,
+        COALESCE(SUM(CASE WHEN cost_type = 'CAPEX' THEN amount ELSE 0 END), 0) as capex_total,
+        COALESCE(SUM(CASE WHEN cost_type = 'OPEX' THEN amount ELSE 0 END), 0) as opex_total,
+        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as approved_total,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_total,
+        COALESCE(SUM(CASE WHEN status = 'rejected' THEN amount ELSE 0 END), 0) as rejected_total,
+        COALESCE(SUM(CASE WHEN is_reimbursable THEN amount ELSE 0 END), 0) as reimbursable_total
+      FROM expenses
+      WHERE user_id = $1
+    `;
+
+    const params = [req.user.id];
+    let paramIndex = 2;
+
+    if (startDate) {
+      query += ` AND date >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND date <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
+    if (locationId) {
+      query += ` AND location_id = $${paramIndex}`;
+      params.push(locationId);
+      paramIndex++;
+    }
+
+    if (projectId) {
+      query += ` AND project_id = $${paramIndex}`;
+      params.push(projectId);
+      paramIndex++;
+    }
+
+    if (costCenterId) {
+      query += ` AND cost_center_id = $${paramIndex}`;
+      params.push(costCenterId);
+      paramIndex++;
+    }
+
+    const result = await db.query(query, params);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Fetch analytics error:', error);
+    res.status(500).json({ error: 'Server error fetching analytics' });
+  }
+});
+
+// Get expense breakdown by category
+router.get('/analytics/by-category', authMiddleware, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    let query = `
+      SELECT 
+        category,
+        COUNT(*) as count,
+        COALESCE(SUM(amount), 0) as total_amount
+      FROM expenses
+      WHERE user_id = $1 AND status = 'approved'
+    `;
+
+    const params = [req.user.id];
+    let paramIndex = 2;
+
+    if (startDate) {
+      query += ` AND date >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND date <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
+    query += ` GROUP BY category ORDER BY total_amount DESC`;
+
+    const result = await db.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch category breakdown error:', error);
+    res.status(500).json({ error: 'Server error fetching category breakdown' });
+  }
+});
+
+module.exports = router;
