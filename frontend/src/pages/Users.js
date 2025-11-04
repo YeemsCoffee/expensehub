@@ -1,14 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit2, Shield, User as UserIcon, Mail, Briefcase } from 'lucide-react';
+import { Edit2, Shield, User as UserIcon, Mail, Briefcase, Plus, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 
 const Users = () => {
+  const toast = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editFormData, setEditFormData] = useState({
     role: ''
+  });
+  const [createFormData, setCreateFormData] = useState({
+    email: '',
+    password: '',
+    firstName: '',
+    lastName: '',
+    employeeId: '',
+    department: '',
+    role: 'employee'
   });
   const [error, setError] = useState('');
 
@@ -44,6 +56,20 @@ const Users = () => {
     setError('');
   };
 
+  const handleCancelCreate = () => {
+    setShowCreateModal(false);
+    setCreateFormData({
+      email: '',
+      password: '',
+      firstName: '',
+      lastName: '',
+      employeeId: '',
+      department: '',
+      role: 'employee'
+    });
+    setError('');
+  };
+
   const handleUpdateRole = async (e) => {
     e.preventDefault();
     setError('');
@@ -53,7 +79,7 @@ const Users = () => {
         role: editFormData.role
       });
 
-      alert('User role updated successfully!');
+      toast.success('User role updated successfully!');
       fetchUsers();
       handleCancelEdit();
     } catch (err) {
@@ -61,11 +87,40 @@ const Users = () => {
     }
   };
 
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      await api.post('/users', createFormData);
+      toast.success('User created successfully!');
+      fetchUsers();
+      handleCancelCreate();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create user');
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!window.confirm(`Are you sure you want to delete user ${userName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/users/${userId}`);
+      toast.success('User deleted successfully');
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
   const getRoleBadgeClass = (role) => {
     switch(role) {
       case 'admin': return 'badge-danger';
       case 'manager': return 'badge-warning';
-      case 'employee': return 'badge-info';
+      case 'developer': return 'badge-info';
+      case 'employee': return 'badge-secondary';
       default: return 'badge-secondary';
     }
   };
@@ -74,6 +129,7 @@ const Users = () => {
     switch(role) {
       case 'admin': return <Shield size={16} />;
       case 'manager': return <Briefcase size={16} />;
+      case 'developer': return <Shield size={16} />;
       case 'employee': return <UserIcon size={16} />;
       default: return <UserIcon size={16} />;
     }
@@ -85,12 +141,20 @@ const Users = () => {
 
   return (
     <div>
-      <h2 className="page-title">User Management</h2>
-      <p className="text-gray-600 mb-6">Manage user access rights and roles</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div>
+          <h2 className="page-title" style={{ marginBottom: '0.5rem' }}>User Management</h2>
+          <p className="text-gray-600">Manage user access rights and roles</p>
+        </div>
+        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+          <Plus size={18} />
+          Add New User
+        </button>
+      </div>
 
       <div className="card">
         <h3 className="card-title">All Users ({users.length})</h3>
-        
+
         <div className="table-wrapper">
           <table className="table">
             <thead>
@@ -138,13 +202,23 @@ const Users = () => {
                     <td>{user.department || '-'}</td>
                     <td>{new Date(user.created_at).toLocaleDateString()}</td>
                     <td>
-                      <button
-                        onClick={() => handleEditClick(user)}
-                        className="btn-icon"
-                        title="Edit Role"
-                      >
-                        <Edit2 size={16} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleEditClick(user)}
+                          className="btn-icon"
+                          title="Edit Role"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
+                          className="btn-icon"
+                          title="Delete User"
+                          style={{ color: '#ef4444' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -153,6 +227,130 @@ const Users = () => {
           </table>
         </div>
       </div>
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={handleCancelCreate}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Add New User</h3>
+              <button onClick={handleCancelCreate} className="modal-close">×</button>
+            </div>
+
+            <div className="modal-body">
+              {error && (
+                <div className="error-message mb-4">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateUser}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">First Name *</label>
+                    <input
+                      type="text"
+                      value={createFormData.firstName}
+                      onChange={(e) => setCreateFormData({ ...createFormData, firstName: e.target.value })}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Last Name *</label>
+                    <input
+                      type="text"
+                      value={createFormData.lastName}
+                      onChange={(e) => setCreateFormData({ ...createFormData, lastName: e.target.value })}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Email *</label>
+                    <input
+                      type="email"
+                      value={createFormData.email}
+                      onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
+                      className="form-input"
+                      required
+                      placeholder="user@yeemscoffee.com"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Employee ID *</label>
+                    <input
+                      type="text"
+                      value={createFormData.employeeId}
+                      onChange={(e) => setCreateFormData({ ...createFormData, employeeId: e.target.value })}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Password *</label>
+                    <input
+                      type="password"
+                      value={createFormData.password}
+                      onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
+                      className="form-input"
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Department</label>
+                    <input
+                      type="text"
+                      value={createFormData.department}
+                      onChange={(e) => setCreateFormData({ ...createFormData, department: e.target.value })}
+                      className="form-input"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Role *</label>
+                  <select
+                    value={createFormData.role}
+                    onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value })}
+                    className="form-select"
+                    required
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                    <option value="developer">Developer</option>
+                  </select>
+                  <p className="form-hint">
+                    <strong>Employee:</strong> Can submit and view own expenses<br/>
+                    <strong>Manager:</strong> Can approve expenses<br/>
+                    <strong>Admin:</strong> Full system access<br/>
+                    <strong>Developer:</strong> Full system access including user management
+                  </p>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="submit" className="btn btn-primary">
+                    <Plus size={18} />
+                    Create User
+                  </button>
+                  <button type="button" onClick={handleCancelCreate} className="btn btn-secondary">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Role Modal */}
       {showEditModal && (
@@ -185,8 +383,10 @@ const Users = () => {
                 </div>
                 <div className="user-info-row">
                   <span className="label">Current Role:</span>
-                  <span className={`badge ${getRoleBadgeClass(editingUser.role)}`}>
-                    {editingUser.role}
+                  <span className="value">
+                    <span className={`badge ${getRoleBadgeClass(editingUser.role)}`}>
+                      {editingUser.role}
+                    </span>
                   </span>
                 </div>
               </div>
@@ -204,11 +404,13 @@ const Users = () => {
                     <option value="employee">Employee</option>
                     <option value="manager">Manager</option>
                     <option value="admin">Admin</option>
+                    <option value="developer">Developer</option>
                   </select>
                   <p className="form-hint">
                     <strong>Employee:</strong> Can submit and view own expenses<br/>
-                    <strong>Manager:</strong> Can approve expenses and manage cost centers, locations, projects<br/>
-                    <strong>Admin:</strong> Full system access including user management
+                    <strong>Manager:</strong> Can approve expenses<br/>
+                    <strong>Admin:</strong> Full system access<br/>
+                    <strong>Developer:</strong> Full system access including user management
                   </p>
                 </div>
 

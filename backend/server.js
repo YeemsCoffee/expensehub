@@ -18,6 +18,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users')); // User management
 app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/vendors', require('./routes/vendors'));
 app.use('/api/cart', require('./routes/cart'));

@@ -286,6 +286,40 @@ router.put('/:id', authMiddleware, [
   }
 });
 
+// Rescind expense (user withdraws their own pending expense)
+router.post('/:id/rescind', authMiddleware, async (req, res) => {
+  try {
+    // Check if expense exists and belongs to user
+    const checkResult = await db.query(
+      'SELECT status FROM expenses WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    // Can only rescind pending expenses
+    if (checkResult.rows[0].status !== 'pending') {
+      return res.status(400).json({ error: 'Can only rescind pending expenses' });
+    }
+
+    await db.query(
+      `UPDATE expenses
+       SET status = 'rejected',
+           rejection_reason = 'Rescinded by submitter',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
+    res.json({ message: 'Expense rescinded successfully' });
+  } catch (error) {
+    console.error('Rescind expense error:', error);
+    res.status(500).json({ error: 'Server error rescinding expense' });
+  }
+});
+
 // Delete expense
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
