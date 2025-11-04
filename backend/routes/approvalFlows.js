@@ -116,24 +116,14 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
       });
     }
 
-    // Verify all approvers exist and have appropriate roles
+    // Verify all approvers exist
     const approverCheck = await db.query(
-      'SELECT id, role FROM users WHERE id = ANY($1)',
+      'SELECT id FROM users WHERE id = ANY($1)',
       [approvers]
     );
 
     if (approverCheck.rows.length !== approvers.length) {
       return res.status(400).json({ error: 'One or more approvers not found' });
-    }
-
-    const invalidApprovers = approverCheck.rows.filter(
-      u => !['manager', 'admin', 'developer'].includes(u.role)
-    );
-
-    if (invalidApprovers.length > 0) {
-      return res.status(400).json({
-        error: 'All approvers must be managers, admins, or developers'
-      });
     }
 
     // Create the approval flow
@@ -195,22 +185,12 @@ router.put('/:id', authMiddleware, isAdminOrDeveloper, [
     // Verify approvers if provided
     if (approvers && approvers.length > 0) {
       const approverCheck = await db.query(
-        'SELECT id, role FROM users WHERE id = ANY($1)',
+        'SELECT id FROM users WHERE id = ANY($1)',
         [approvers]
       );
 
       if (approverCheck.rows.length !== approvers.length) {
         return res.status(400).json({ error: 'One or more approvers not found' });
-      }
-
-      const invalidApprovers = approverCheck.rows.filter(
-        u => !['manager', 'admin', 'developer'].includes(u.role)
-      );
-
-      if (invalidApprovers.length > 0) {
-        return res.status(400).json({
-          error: 'All approvers must be managers, admins, or developers'
-        });
       }
     }
 
