@@ -12,7 +12,7 @@ const PUNCHOUT_VENDORS = {
         ? process.env.AMAZON_PUNCHOUT_TEST_URL
         : process.env.AMAZON_PUNCHOUT_URL,
       fromIdentity: process.env.AMAZON_IDENTITY || process.env.AMAZON_SENDER_ID,
-      toIdentity: 'amazon.com',
+      toIdentity: 'Amazon',
       senderIdentity: process.env.AMAZON_SENDER_ID || 'yeemscoffeeexpensehub',
       sharedSecret: process.env.AMAZON_SHARED_SECRET,
       returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/punchout/return`,
