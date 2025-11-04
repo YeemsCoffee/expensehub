@@ -6,7 +6,7 @@
     "install-backend": "cd backend && npm install",
     "install-frontend": "cd frontend && npm install",
     "install-all": "npm run install-backend && npm run install-frontend",
-    "build": "cd backend && npm install && cd ../frontend && npm install && npm run build",
+    "build": "cd backend && npm install && cd ../frontend && npm install && REACT_APP_API_URL=${REACT_APP_API_URL:-/api} npm run build",
     "start": "cd backend && NODE_ENV=production node server.js",
     "dev": "concurrently \"cd backend && npm start\" \"cd frontend && npm start\""
   },

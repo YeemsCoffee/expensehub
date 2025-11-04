@@ -27,4 +27,20 @@ services:
         generateValue: true
       - key: REACT_APP_API_URL
         value: /api
+      - key: FRONTEND_URL
+        sync: false
+      - key: AMAZON_PUNCHOUT_MODE
+        value: test
+      - key: AMAZON_IDENTITY
+        value: yeemscoffeeexpensehub
+      - key: AMAZON_SENDER_ID
+        value: yeemscoffeeexpensehub
+      - key: AMAZON_SHARED_SECRET
+        sync: false
+      - key: AMAZON_PUNCHOUT_URL
+        value: https://abintegrations.amazon.com/punchout
+      - key: AMAZON_PUNCHOUT_TEST_URL
+        value: https://abintegrations.amazon.com/punchout/test
+      - key: AMAZON_PO_URL
+        value: https://https-ats.amazonsedi.com/7137afbf-3670-4d4a-bfbe-2387d8c50c92
     healthCheckPath: /api/health
