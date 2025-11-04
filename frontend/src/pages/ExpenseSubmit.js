@@ -4,6 +4,7 @@ import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 import CameraCapture from '../components/CameraCapture';
 import { useToast } from '../components/Toast';
+import Tesseract from 'tesseract.js';
 
 const ExpenseSubmit = () => {
   const toast = useToast();
@@ -151,49 +152,116 @@ const ExpenseSubmit = () => {
     return 'OPEX';
   };
 
-  // OCR-like function to extract data from receipt
+  // Real OCR function using Tesseract.js
   const processReceiptWithOCR = async (file) => {
     setIsProcessingReceipt(true);
-    toast.info('✨ Processing receipt...', { duration: 2000 });
+    toast.info('✨ Reading receipt with AI...', { duration: 3000 });
 
     try {
-      // Simulate OCR processing - in production, you'd use:
-      // - Tesseract.js for client-side OCR
-      // - Google Vision API
-      // - AWS Textract
-      // - OpenAI GPT-4 Vision
+      // Use Tesseract.js to extract text from the image
+      const result = await Tesseract.recognize(
+        file,
+        'eng',
+        {
+          logger: (m) => {
+            // Show progress updates
+            if (m.status === 'recognizing text') {
+              const progress = Math.round(m.progress * 100);
+              console.log(`OCR Progress: ${progress}%`);
+            }
+          }
+        }
+      );
 
-      // For demo, extract from filename patterns and simulate
-      const fileName = file.name.toLowerCase();
+      const text = result.data.text;
+      console.log('Extracted text:', text);
 
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!text || text.trim().length === 0) {
+        toast.info('📄 Could not read text from receipt. Please fill in manually.');
+        return;
+      }
 
-      // Mock extracted data (in production, this would come from actual OCR)
+      // Parse the extracted text
       const extractedData = {
         amount: null,
         vendorName: null,
-        date: null,
-        category: null
+        date: null
       };
 
-      // Try to extract amount from common patterns
-      const amountMatch = fileName.match(/(\d+[\.]?\d{0,2})/);
-      if (amountMatch) {
-        extractedData.amount = amountMatch[1];
+      // Extract amount - look for currency patterns
+      // Matches: $45.99, 45.99, $45, 45, etc.
+      const amountPatterns = [
+        /\$?\s?(\d+[,.]?\d{0,2})\s*(?:total|amount|sum|balance|due|paid)/i,
+        /(?:total|amount|sum|balance|due|paid)[\s:$]*(\d+[,.]?\d{0,2})/i,
+        /\$\s?(\d+\.\d{2})/,
+        /(?:^|\s)(\d+\.\d{2})(?:\s|$)/
+      ];
+
+      for (const pattern of amountPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          extractedData.amount = match[1].replace(',', '');
+          break;
+        }
       }
 
-      // Common vendor patterns
-      const vendors = ['amazon', 'staples', 'walmart', 'target', 'costco', 'homedepot'];
-      const foundVendor = vendors.find(v => fileName.includes(v));
-      if (foundVendor) {
-        extractedData.vendorName = foundVendor.charAt(0).toUpperCase() + foundVendor.slice(1);
+      // Extract vendor name - look for common patterns
+      const vendorPatterns = [
+        // Common stores/vendors
+        { pattern: /walmart/i, name: 'Walmart' },
+        { pattern: /target/i, name: 'Target' },
+        { pattern: /costco/i, name: 'Costco' },
+        { pattern: /amazon/i, name: 'Amazon' },
+        { pattern: /staples/i, name: 'Staples' },
+        { pattern: /home\s?depot/i, name: 'Home Depot' },
+        { pattern: /best\s?buy/i, name: 'Best Buy' },
+        { pattern: /office\s?depot/i, name: 'Office Depot' },
+        { pattern: /whole\s?foods/i, name: 'Whole Foods' },
+        { pattern: /safeway/i, name: 'Safeway' },
+        { pattern: /cvs/i, name: 'CVS' },
+        { pattern: /walgreens/i, name: 'Walgreens' },
+        { pattern: /trader\s?joe/i, name: 'Trader Joes' },
+        { pattern: /uber/i, name: 'Uber' },
+        { pattern: /lyft/i, name: 'Lyft' },
+        { pattern: /starbucks/i, name: 'Starbucks' }
+      ];
+
+      for (const { pattern, name } of vendorPatterns) {
+        if (pattern.test(text)) {
+          extractedData.vendorName = name;
+          break;
+        }
       }
 
-      // Extract date if in filename
-      const dateMatch = fileName.match(/(\d{4}[-_]\d{2}[-_]\d{2})/);
-      if (dateMatch) {
-        extractedData.date = dateMatch[1].replace(/_/g, '-');
+      // Extract date - look for various date formats
+      const datePatterns = [
+        /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,  // MM/DD/YYYY or MM-DD-YYYY
+        /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,  // YYYY/MM/DD or YYYY-MM-DD
+        /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})[,\s]+(\d{4})/i
+      ];
+
+      for (const pattern of datePatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          try {
+            let dateStr;
+            if (match[0].match(/^\d{4}/)) {
+              // YYYY-MM-DD format
+              dateStr = match[0];
+            } else if (match[0].match(/^\d{1,2}[\/\-]/)) {
+              // MM/DD/YYYY format - convert to YYYY-MM-DD
+              const [_, month, day, year] = match;
+              const fullYear = year.length === 2 ? `20${year}` : year;
+              dateStr = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            if (dateStr) {
+              extractedData.date = dateStr;
+              break;
+            }
+          } catch (e) {
+            console.log('Date parsing error:', e);
+          }
+        }
       }
 
       // Auto-populate fields with extracted data
@@ -214,12 +282,12 @@ const ExpenseSubmit = () => {
       if (fieldsPopulated > 0) {
         toast.success(`✅ Auto-filled ${fieldsPopulated} field(s) from receipt!`);
       } else {
-        toast.info('📄 Receipt uploaded. Please fill in the details manually.');
+        toast.info('📄 Receipt processed. Could not extract data automatically.');
       }
 
     } catch (error) {
       console.error('OCR processing error:', error);
-      toast.warning('Could not auto-fill from receipt. Please enter details manually.');
+      toast.error('Failed to process receipt. Please fill in details manually.');
     } finally {
       setIsProcessingReceipt(false);
     }
