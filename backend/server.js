@@ -27,6 +27,7 @@ app.use('/api/locations', require('./routes/locations')); // New locations route
 app.use('/api/projects', require('./routes/projects')); // New projects routes
 app.use('/api/punchout', require('./routes/punchout'));
 app.use('/api/approval-flows', require('./routes/approvalFlows')); // Approval flows management
+app.use('/api/approval-rules', require('./routes/approvalRules')); // Org-chart-based approval rules
 app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
 
 // Health check endpoint
