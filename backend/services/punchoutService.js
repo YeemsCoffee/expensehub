@@ -9,13 +9,17 @@ class PunchoutService {
   generateCxmlPunchoutRequest(vendorConfig, userId, userEmail, costCenter) {
     const timestamp = new Date().toISOString();
     const payloadId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-    
+
+    // Amazon Business uses NetworkId domain, not DUNS
+    const fromDomain = vendorConfig.fromDomain || 'NetworkId';
+    const deploymentMode = process.env.AMAZON_PUNCHOUT_MODE === 'test' ? 'test' : 'production';
+
     const cxmlRequest = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
   <Header>
     <From>
-      <Credential domain="DUNS">
+      <Credential domain="${fromDomain}">
         <Identity>${vendorConfig.fromIdentity}</Identity>
       </Credential>
     </From>
@@ -32,12 +36,12 @@ class PunchoutService {
       <UserAgent>ExpenseHub Procurement v1.0</UserAgent>
     </Sender>
   </Header>
-  <Request deploymentMode="production">
+  <Request deploymentMode="${deploymentMode}">
     <PunchOutSetupRequest operation="create">
       <BuyerCookie>${userId}</BuyerCookie>
       <Extrinsic name="UserEmail">${userEmail}</Extrinsic>
-      <Extrinsic name="CostCenter">${costCenter || ''}</Extrinsic>
       <Extrinsic name="UniqueName">${userId}</Extrinsic>
+      ${costCenter ? `<Extrinsic name="CostCenter">${costCenter}</Extrinsic>` : ''}
       <BrowserFormPost>
         <URL>${vendorConfig.returnUrl}</URL>
       </BrowserFormPost>
@@ -45,12 +49,20 @@ class PunchoutService {
         <Name xml:lang="en-US">${userEmail}</Name>
         <Email>${userEmail}</Email>
       </Contact>
-      <SupplierSetup>
-        <URL>${vendorConfig.punchoutUrl}</URL>
-      </SupplierSetup>
     </PunchOutSetupRequest>
   </Request>
 </cXML>`;
+
+    // Log the request for debugging
+    console.log('=== cXML PunchOut Request ===');
+    console.log('Timestamp:', timestamp);
+    console.log('PayloadID:', payloadId);
+    console.log('From Identity:', vendorConfig.fromIdentity);
+    console.log('Sender Identity:', vendorConfig.senderIdentity);
+    console.log('Deployment Mode:', deploymentMode);
+    console.log('Return URL:', vendorConfig.returnUrl);
+    console.log('Full cXML:', cxmlRequest);
+    console.log('=============================');
 
     return cxmlRequest;
   }
