@@ -7,12 +7,18 @@ const PUNCHOUT_VENDORS = {
     type: 'cxml',
     enabled: true,
     config: {
-      punchoutUrl: 'https://punchout.amazon.com/punchout',
-      fromIdentity: 'YOUR_COMPANY_DUNS_NUMBER', // Get from Amazon Business
+      // Use test URL if in test mode, otherwise production URL
+      punchoutUrl: process.env.AMAZON_PUNCHOUT_MODE === 'test'
+        ? process.env.AMAZON_PUNCHOUT_TEST_URL
+        : process.env.AMAZON_PUNCHOUT_URL,
+      fromIdentity: process.env.AMAZON_IDENTITY || process.env.AMAZON_SENDER_ID,
       toIdentity: 'amazon.com',
-      senderIdentity: 'YOUR_COMPANY_ID',
-      sharedSecret: process.env.AMAZON_PUNCHOUT_SECRET,
-      returnUrl: `${process.env.FRONTEND_URL}/punchout/return`
+      senderIdentity: process.env.AMAZON_SENDER_ID || 'yeemscoffeeexpensehub',
+      sharedSecret: process.env.AMAZON_SHARED_SECRET,
+      returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/punchout/return`,
+      // Purchase order configuration (OAG)
+      poUrl: process.env.AMAZON_PO_URL,
+      poEnabled: !!process.env.AMAZON_PO_URL
     },
     logo: '/logos/amazon-business.png',
     categories: ['Office Supplies', 'Technology', 'Facilities']
