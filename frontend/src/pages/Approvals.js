@@ -32,16 +32,16 @@ const Approvals = () => {
     }
   };
 
-  const handleApprove = async (expenseId, approvalStepId) => {
+  const handleApprove = async (expenseId) => {
     setActioningId(expenseId);
-    
+
     try {
-      await api.post(`/expense-approvals/${approvalStepId}/approve`, {
+      await api.post(`/expense-approvals/${expenseId}/approve`, {
         comments: comments[expenseId] || ''
       });
 
       toast.success('Expense approved successfully');
-      
+
       // Remove from list
       setPendingApprovals(prev => prev.filter(item => item.expense_id !== expenseId));
       setComments(prev => {
@@ -57,7 +57,7 @@ const Approvals = () => {
     }
   };
 
-  const handleReject = async (expenseId, approvalStepId) => {
+  const handleReject = async (expenseId) => {
     if (!comments[expenseId] || comments[expenseId].trim() === '') {
       toast.error('Please provide a reason for rejection');
       return;
@@ -66,12 +66,12 @@ const Approvals = () => {
     setActioningId(expenseId);
 
     try {
-      await api.post(`/expense-approvals/${approvalStepId}/reject`, {
+      await api.post(`/expense-approvals/${expenseId}/reject`, {
         comments: comments[expenseId]
       });
 
       toast.success('Expense rejected');
-      
+
       // Remove from list
       setPendingApprovals(prev => prev.filter(item => item.expense_id !== expenseId));
       setComments(prev => {
@@ -179,8 +179,8 @@ const Approvals = () => {
                         <Calendar size={14} />
                         {formatDate(item.date)}
                       </span>
-                      <span className="approval-level">
-                        Level {item.approval_level} of {item.total_levels}
+                      <span className="approval-submitter-id">
+                        Emp ID: {item.submitter_employee_id}
                       </span>
                     </div>
                   </div>
@@ -228,34 +228,16 @@ const Approvals = () => {
                           {item.cost_type}
                         </span>
                       </div>
+                      <div className="detail-item">
+                        <label>Status</label>
+                        <StatusBadge status={item.status} />
+                      </div>
                       {item.notes && (
                         <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
                           <label>Notes</label>
                           <span>{item.notes}</span>
                         </div>
                       )}
-                    </div>
-
-                    {/* Approval Flow Info */}
-                    <div className="approval-flow-info">
-                      <div className="approval-flow-label">Approval Flow: {item.approval_flow_name}</div>
-                      <div className="approval-progress">
-                        {item.approval_chain && item.approval_chain.map((step, index) => (
-                          <React.Fragment key={index}>
-                            {index > 0 && <div className="approval-arrow">→</div>}
-                            <div className={`approval-step-indicator ${
-                              step.status === 'approved' ? 'approved' :
-                              step.level === item.approval_level ? 'current' : 'pending'
-                            }`}>
-                              <div className="step-number">Level {step.level}</div>
-                              <div className="step-approver">{step.approver_name}</div>
-                              {step.status === 'approved' && (
-                                <CheckCircle size={16} className="step-icon" />
-                              )}
-                            </div>
-                          </React.Fragment>
-                        ))}
-                      </div>
                     </div>
 
                     {/* Comments/Actions */}
@@ -280,7 +262,7 @@ const Approvals = () => {
 
                       <div className="action-buttons">
                         <button
-                          onClick={() => handleReject(item.expense_id, item.approval_step_id)}
+                          onClick={() => handleReject(item.expense_id)}
                           className="btn btn-danger"
                           disabled={actioningId === item.expense_id}
                         >
@@ -298,7 +280,7 @@ const Approvals = () => {
                         </button>
 
                         <button
-                          onClick={() => handleApprove(item.expense_id, item.approval_step_id)}
+                          onClick={() => handleApprove(item.expense_id)}
                           className="btn btn-primary"
                           disabled={actioningId === item.expense_id}
                         >
@@ -431,6 +413,11 @@ const Approvals = () => {
           font-size: 0.875rem;
           color: #6366f1;
           font-weight: 600;
+        }
+
+        .approval-submitter-id {
+          font-size: 0.875rem;
+          color: #6b7280;
         }
 
         .approval-amount-section {

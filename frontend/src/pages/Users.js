@@ -6,12 +6,17 @@ import { useToast } from '../components/Toast';
 const Users = () => {
   const toast = useToast();
   const [users, setUsers] = useState([]);
+  const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditManagerModal, setShowEditManagerModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editFormData, setEditFormData] = useState({
     role: ''
+  });
+  const [editManagerFormData, setEditManagerFormData] = useState({
+    managerId: ''
   });
   const [createFormData, setCreateFormData] = useState({
     email: '',
@@ -20,7 +25,8 @@ const Users = () => {
     lastName: '',
     employeeId: '',
     department: '',
-    role: 'employee'
+    role: 'employee',
+    managerId: ''
   });
   const [error, setError] = useState('');
 
@@ -28,6 +34,8 @@ const Users = () => {
     try {
       const response = await api.get('/users');
       setUsers(response.data);
+      // Filter managers for dropdown
+      setManagers(response.data.filter(u => u.role === 'manager'));
       setLoading(false);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -53,6 +61,22 @@ const Users = () => {
     setEditingUser(null);
     setShowEditModal(false);
     setEditFormData({ role: '' });
+    setError('');
+  };
+
+  const handleEditManagerClick = (user) => {
+    setEditingUser(user);
+    setEditManagerFormData({
+      managerId: user.manager_id || ''
+    });
+    setShowEditManagerModal(true);
+    setError('');
+  };
+
+  const handleCancelEditManager = () => {
+    setEditingUser(null);
+    setShowEditManagerModal(false);
+    setEditManagerFormData({ managerId: '' });
     setError('');
   };
 
@@ -87,12 +111,41 @@ const Users = () => {
     }
   };
 
+  const handleUpdateManager = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      await api.put(`/users/${editingUser.id}/manager`, {
+        managerId: editManagerFormData.managerId || null
+      });
+
+      toast.success('Manager updated successfully!');
+      fetchUsers();
+      handleCancelEditManager();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update manager');
+    }
+  };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setError('');
 
     try {
-      await api.post('/users', createFormData);
+      const userData = { ...createFormData };
+      // Convert empty string to null for managerId
+      if (userData.managerId === '') {
+        userData.managerId = null;
+      }
+      await api.post('/users', userData);
+
+      // If a manager was assigned, also update the manager relationship
+      if (userData.managerId) {
+        // This will be handled in the backend through a second call after user creation
+        // We'll need to update this once we get the created user ID
+      }
+
       toast.success('User created successfully!');
       fetchUsers();
       handleCancelCreate();
@@ -163,6 +216,7 @@ const Users = () => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Manager</th>
                 <th>Department</th>
                 <th>Created</th>
                 <th>Actions</th>
@@ -171,7 +225,7 @@ const Users = () => {
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
                     <p className="text-gray-500">No users found</p>
                   </td>
                 </tr>
@@ -199,6 +253,7 @@ const Users = () => {
                         <span className="ml-1">{user.role}</span>
                       </span>
                     </td>
+                    <td>{user.manager_name || '-'}</td>
                     <td>{user.department || '-'}</td>
                     <td>{new Date(user.created_at).toLocaleDateString()}</td>
                     <td>
@@ -209,6 +264,14 @@ const Users = () => {
                           title="Edit Role"
                         >
                           <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleEditManagerClick(user)}
+                          className="btn-icon"
+                          title="Assign Manager"
+                          style={{ color: '#8b5cf6' }}
+                        >
+                          <Briefcase size={16} />
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
@@ -337,6 +400,25 @@ const Users = () => {
                   </p>
                 </div>
 
+                <div className="form-group">
+                  <label className="form-label">Manager</label>
+                  <select
+                    value={createFormData.managerId}
+                    onChange={(e) => setCreateFormData({ ...createFormData, managerId: e.target.value })}
+                    className="form-select"
+                  >
+                    <option value="">No Manager</option>
+                    {managers.map((manager) => (
+                      <option key={manager.id} value={manager.id}>
+                        {manager.first_name} {manager.last_name} ({manager.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="form-hint">
+                    Assign a manager for this user. Managers can approve their team members' expenses.
+                  </p>
+                </div>
+
                 <div className="modal-footer">
                   <button type="submit" className="btn btn-primary">
                     <Plus size={18} />
@@ -419,6 +501,75 @@ const Users = () => {
                     Update Role
                   </button>
                   <button type="button" onClick={handleCancelEdit} className="btn btn-secondary">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Manager Modal */}
+      {showEditManagerModal && (
+        <div className="modal-overlay" onClick={handleCancelEditManager}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Assign Manager</h3>
+              <button onClick={handleCancelEditManager} className="modal-close">×</button>
+            </div>
+
+            <div className="modal-body">
+              {error && (
+                <div className="error-message mb-4">
+                  {error}
+                </div>
+              )}
+
+              <div className="user-info-display">
+                <div className="user-info-row">
+                  <span className="label">Name:</span>
+                  <span className="value">{editingUser.first_name} {editingUser.last_name}</span>
+                </div>
+                <div className="user-info-row">
+                  <span className="label">Email:</span>
+                  <span className="value">{editingUser.email}</span>
+                </div>
+                <div className="user-info-row">
+                  <span className="label">Employee ID:</span>
+                  <span className="value">{editingUser.employee_id}</span>
+                </div>
+                <div className="user-info-row">
+                  <span className="label">Current Manager:</span>
+                  <span className="value">{editingUser.manager_name || 'None'}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateManager}>
+                <div className="form-group">
+                  <label className="form-label">New Manager</label>
+                  <select
+                    value={editManagerFormData.managerId}
+                    onChange={(e) => setEditManagerFormData({ managerId: e.target.value })}
+                    className="form-select"
+                  >
+                    <option value="">No Manager</option>
+                    {managers.map((manager) => (
+                      <option key={manager.id} value={manager.id}>
+                        {manager.first_name} {manager.last_name} ({manager.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="form-hint">
+                    Select a manager for this user. The manager will be able to approve this user's expense submissions.
+                  </p>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="submit" className="btn btn-primary">
+                    Update Manager
+                  </button>
+                  <button type="button" onClick={handleCancelEditManager} className="btn btn-secondary">
                     Cancel
                   </button>
                 </div>

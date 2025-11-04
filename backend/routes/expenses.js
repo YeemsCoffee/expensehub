@@ -165,7 +165,8 @@ router.post('/', authMiddleware, [
   body('vendorName').optional().trim(),
   body('glAccount').optional().trim(),
   body('notes').optional().trim(),
-  body('isReimbursable').optional().isBoolean()
+  body('isReimbursable').optional().isBoolean(),
+  body('assignedApproverId').optional().isInt()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -173,27 +174,40 @@ router.post('/', authMiddleware, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { 
-      date, description, category, amount, costCenterId, 
-      locationId, projectId, costType, paymentMethod, 
-      vendorName, glAccount, notes, isReimbursable 
+    const {
+      date, description, category, amount, costCenterId,
+      locationId, projectId, costType, paymentMethod,
+      vendorName, glAccount, notes, isReimbursable,
+      assignedApproverId
     } = req.body;
 
     // Auto-determine cost type if not provided
     const finalCostType = costType || determineCostType(category, amount);
 
+    // If no approver specified, use user's default manager
+    let approverId = assignedApproverId;
+    if (!approverId) {
+      const userResult = await db.query(
+        'SELECT manager_id FROM users WHERE id = $1',
+        [req.user.id]
+      );
+      approverId = userResult.rows[0]?.manager_id || null;
+    }
+
     const result = await db.query(
       `INSERT INTO expenses (
-        user_id, cost_center_id, location_id, project_id, 
+        user_id, cost_center_id, location_id, project_id,
         date, description, category, amount, cost_type,
-        payment_method, vendor_name, gl_account, notes, is_reimbursable
+        payment_method, vendor_name, gl_account, notes, is_reimbursable,
+        assigned_approver_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         req.user.id, costCenterId, locationId, projectId,
         date, description, category, amount, finalCostType,
-        paymentMethod, vendorName, glAccount, notes, isReimbursable || false
+        paymentMethod, vendorName, glAccount, notes, isReimbursable || false,
+        approverId
       ]
     );
 

@@ -17,9 +17,12 @@ const isAdminOrDeveloper = (req, res, next) => {
 router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, email, first_name, last_name, employee_id, department, role, is_active, created_at
-       FROM users
-       ORDER BY created_at DESC`
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.employee_id,
+              u.department, u.role, u.is_active, u.created_at, u.manager_id,
+              m.first_name || ' ' || m.last_name as manager_name
+       FROM users u
+       LEFT JOIN users m ON u.manager_id = m.id
+       ORDER BY u.created_at DESC`
     );
 
     res.json(result.rows);
@@ -36,7 +39,8 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
   body('firstName').notEmpty().trim(),
   body('lastName').notEmpty().trim(),
   body('employeeId').notEmpty().trim(),
-  body('role').isIn(['employee', 'manager', 'admin', 'developer'])
+  body('role').isIn(['employee', 'manager', 'admin', 'developer']),
+  body('managerId').optional({ nullable: true }).isInt()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -44,7 +48,7 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, employeeId, department, role } = req.body;
+    const { email, password, firstName, lastName, employeeId, department, role, managerId } = req.body;
 
     // Check if user already exists
     const userExists = await db.query(
@@ -62,10 +66,10 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
 
     // Create user
     const result = await db.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, employee_id, department, role)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, email, first_name, last_name, employee_id, department, role, created_at`,
-      [email, passwordHash, firstName, lastName, employeeId, department || null, role]
+      `INSERT INTO users (email, password_hash, first_name, last_name, employee_id, department, role, manager_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, email, first_name, last_name, employee_id, department, role, manager_id, created_at`,
+      [email, passwordHash, firstName, lastName, employeeId, department || null, role, managerId || null]
     );
 
     const user = result.rows[0];
@@ -130,6 +134,54 @@ router.put('/:id/role', authMiddleware, isAdminOrDeveloper, [
   } catch (error) {
     console.error('Update user role error:', error);
     res.status(500).json({ error: 'Server error updating user role' });
+  }
+});
+
+// Update user's manager (admin/developer only)
+router.put('/:id/manager', authMiddleware, isAdminOrDeveloper, [
+  body('managerId').optional({ nullable: true }).isInt()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { managerId } = req.body;
+
+    // Validate manager exists and has manager role
+    if (managerId) {
+      const managerCheck = await db.query(
+        'SELECT role FROM users WHERE id = $1',
+        [managerId]
+      );
+
+      if (managerCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Manager not found' });
+      }
+
+      if (managerCheck.rows[0].role !== 'manager') {
+        return res.status(400).json({ error: 'Selected user must have manager role' });
+      }
+    }
+
+    const result = await db.query(
+      `UPDATE users
+       SET manager_id = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id`,
+      [managerId, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'Manager updated successfully' });
+  } catch (error) {
+    console.error('Update user manager error:', error);
+    res.status(500).json({ error: 'Server error updating manager' });
   }
 });
 
