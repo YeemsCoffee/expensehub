@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -18,6 +19,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users')); // User management
 app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/vendors', require('./routes/vendors'));
 app.use('/api/cart', require('./routes/cart'));
@@ -26,6 +28,7 @@ app.use('/api/locations', require('./routes/locations')); // New locations route
 app.use('/api/projects', require('./routes/projects')); // New projects routes
 app.use('/api/punchout', require('./routes/punchout'));
 app.use('/api/approval-flows', require('./routes/approvalFlows')); // Approval flows management
+app.use('/api/approval-rules', require('./routes/approvalRules')); // Org-chart-based approval rules
 app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
 
 // Health check endpoint
@@ -37,30 +40,40 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'ExpenseHub API - Enhanced Version',
-    version: '2.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      expenses: '/api/expenses',
-      vendors: '/api/vendors',
-      cart: '/api/cart',
-      costCenters: '/api/cost-centers',
-      locations: '/api/locations',
-      projects: '/api/projects',
-      punchout: '/api/punchout',
-      approvalFlows: '/api/approval-flows',
-      expenseApprovals: '/api/expense-approvals'
-    }
-  });
-});
+// Serve static files from React build (only in production)
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
+  // Handle React routing - return index.html for all non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+  });
+} else {
+  // Root endpoint (development only)
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'ExpenseHub API - Enhanced Version',
+      version: '2.0.0',
+      endpoints: {
+        auth: '/api/auth',
+        expenses: '/api/expenses',
+        vendors: '/api/vendors',
+        cart: '/api/cart',
+        costCenters: '/api/cost-centers',
+        locations: '/api/locations',
+        projects: '/api/projects',
+        punchout: '/api/punchout',
+        approvalFlows: '/api/approval-flows',
+        expenseApprovals: '/api/expense-approvals'
+      }
+    });
+  });
+
+  // 404 handler (development only)
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+  });
+}
 
 // Error handler
 app.use((err, req, res, next) => {

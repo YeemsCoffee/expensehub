@@ -13,11 +13,11 @@ const ExpenseSubmit = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState(null);
-  
+
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
   const [suggestedCategory, setSuggestedCategory] = useState('');
-  
+
   const [newExpense, setNewExpense] = useState({
     date: new Date().toISOString().split('T')[0], // Default to today
     description: '',
@@ -105,6 +105,7 @@ const ExpenseSubmit = () => {
 
       setCostCenters(ccResponse.data);
       setLocations(locResponse.data);
+
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -222,7 +223,7 @@ const ExpenseSubmit = () => {
       addToRecentExpenses(newExpense);
 
       toast.success('Expense report submitted successfully! ✓');
-      
+
       // Reset form but keep smart defaults
       setNewExpense({
         date: new Date().toISOString().split('T')[0],

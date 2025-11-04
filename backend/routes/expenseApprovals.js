@@ -4,7 +4,7 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 
-// Get all pending approvals for the current user
+// Get all pending approvals for the current user (org-chart-based)
 router.get('/pending-for-me', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const query = `
@@ -17,11 +17,10 @@ router.get('/pending-for-me', authMiddleware, isManagerOrAdmin, async (req, res)
         e.cost_type,
         e.notes,
         e.vendor_name,
+        e.approval_chain,
+        e.current_approval_level,
         submitter.first_name || ' ' || submitter.last_name as submitted_by,
-        ast.id as approval_step_id,
-        ast.level as approval_level,
-        ea.total_levels,
-        af.name as approval_flow_name,
+        submitter.employee_id as submitter_employee_id,
         cc.code as cost_center_code,
         cc.name as cost_center_name,
         l.code as location_code,
@@ -29,217 +28,208 @@ router.get('/pending-for-me', authMiddleware, isManagerOrAdmin, async (req, res)
         p.code as project_code,
         p.name as project_name,
         e.created_at as submitted_at,
-        (
-          SELECT json_agg(
-            json_build_object(
-              'level', s.level,
-              'approver_id', s.approver_id,
-              'approver_name', u.first_name || ' ' || u.last_name,
-              'status', s.status,
-              'approved_at', s.approved_at
-            ) ORDER BY s.level
-          )
-          FROM approval_steps s
-          JOIN users u ON s.approver_id = u.id
-          WHERE s.expense_approval_id = ea.id
-        ) as approval_chain
-      FROM approval_steps ast
-      JOIN expense_approvals ea ON ast.expense_approval_id = ea.id
-      JOIN expenses e ON ea.expense_id = e.id
-      JOIN approval_flows af ON ea.approval_flow_id = af.id
+        e.status
+      FROM expenses e
       JOIN users submitter ON e.user_id = submitter.id
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
-      WHERE ast.approver_id = $1
-        AND ast.status = 'pending'
-        AND ea.current_level = ast.level
-        AND ea.status = 'pending'
+      WHERE e.status = 'pending'
+        AND e.approval_chain IS NOT NULL
       ORDER BY e.created_at ASC
     `;
 
-    const result = await db.query(query, [req.user.id]);
-    res.json(result.rows);
+    const result = await db.query(query);
+
+    // Filter expenses where current user is the approver at current level
+    const myApprovals = result.rows.filter(expense => {
+      if (!expense.approval_chain) return false;
+
+      const chain = typeof expense.approval_chain === 'string'
+        ? JSON.parse(expense.approval_chain)
+        : expense.approval_chain;
+
+      const currentLevelApprover = chain.find(step => step.level === expense.current_approval_level);
+      return currentLevelApprover && currentLevelApprover.user_id === req.user.id;
+    });
+
+    res.json(myApprovals);
   } catch (error) {
     console.error('Fetch pending approvals error:', error);
     res.status(500).json({ error: 'Server error fetching pending approvals' });
   }
 });
 
-// Approve an expense approval step
-router.post('/:approvalStepId/approve', authMiddleware, isManagerOrAdmin, [
+// Approve an expense (org-chart-based hierarchical approval)
+router.post('/:expenseId/approve', authMiddleware, isManagerOrAdmin, [
   body('comments').optional().trim()
 ], async (req, res) => {
-  const client = await db.pool.connect();
-
   try {
-    await client.query('BEGIN');
-
     const { comments } = req.body;
-    const approvalStepId = req.params.approvalStepId;
+    const expenseId = req.params.expenseId;
 
-    // Check if this approval step exists and belongs to the current user
-    const stepCheck = await client.query(
-      `SELECT ast.*, ea.id as expense_approval_id, ea.expense_id, ea.current_level, ea.total_levels
-       FROM approval_steps ast
-       JOIN expense_approvals ea ON ast.expense_approval_id = ea.id
-       WHERE ast.id = $1 AND ast.approver_id = $2 AND ast.status = 'pending'`,
-      [approvalStepId, req.user.id]
+    // Get the expense with approval chain
+    const expenseResult = await db.query(
+      `SELECT id, status, approval_chain, current_approval_level
+       FROM expenses
+       WHERE id = $1 AND status = 'pending'`,
+      [expenseId]
     );
 
-    if (stepCheck.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Approval step not found or already processed' });
+    if (expenseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or already processed' });
     }
 
-    const step = stepCheck.rows[0];
+    const expense = expenseResult.rows[0];
+    const chain = typeof expense.approval_chain === 'string'
+      ? JSON.parse(expense.approval_chain)
+      : expense.approval_chain;
 
-    // Make sure this is the current level
-    if (step.level !== step.current_level) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'This approval is not ready to be processed yet' });
+    if (!chain || chain.length === 0) {
+      return res.status(400).json({ error: 'No approval chain defined for this expense' });
     }
 
-    // Update the approval step to approved
-    await client.query(
-      `UPDATE approval_steps
-       SET status = 'approved',
-           comments = $1,
-           approved_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [comments, approvalStepId]
-    );
+    // Find current level approver
+    const currentLevelApprover = chain.find(step => step.level === expense.current_approval_level);
 
-    // Check if this was the last approval level
-    if (step.current_level >= step.total_levels) {
-      // This was the final approval - mark expense as fully approved
-      await client.query(
-        `UPDATE expense_approvals
-         SET status = 'approved',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [step.expense_approval_id]
-      );
+    if (!currentLevelApprover || currentLevelApprover.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You are not authorized to approve this expense at this level' });
+    }
 
-      await client.query(
+    // Update current level to approved
+    const updatedChain = chain.map(step => {
+      if (step.level === expense.current_approval_level) {
+        return {
+          ...step,
+          status: 'approved',
+          approved_by: req.user.id,
+          approved_at: new Date().toISOString(),
+          comments: comments || null
+        };
+      }
+      return step;
+    });
+
+    // Check if this is the last level
+    const isLastLevel = expense.current_approval_level >= chain.length;
+
+    if (isLastLevel) {
+      // Final approval - mark expense as approved
+      await db.query(
         `UPDATE expenses
          SET status = 'approved',
              approved_by = $1,
              approved_at = CURRENT_TIMESTAMP,
-             fully_approved_at = CURRENT_TIMESTAMP,
+             approval_chain = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2`,
-        [req.user.id, step.expense_id]
+         WHERE id = $3`,
+        [req.user.id, JSON.stringify(updatedChain), expenseId]
       );
+
+      res.json({
+        message: 'Expense fully approved',
+        finalApproval: true
+      });
     } else {
-      // Move to the next approval level
-      await client.query(
-        `UPDATE expense_approvals
-         SET current_level = current_level + 1,
+      // Move to next level
+      await db.query(
+        `UPDATE expenses
+         SET current_approval_level = $1,
+             approval_chain = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [step.expense_approval_id]
+         WHERE id = $3`,
+        [expense.current_approval_level + 1, JSON.stringify(updatedChain), expenseId]
       );
+
+      const nextApprover = chain.find(step => step.level === expense.current_approval_level + 1);
+
+      res.json({
+        message: 'Expense approved at this level',
+        finalApproval: false,
+        nextLevel: expense.current_approval_level + 1,
+        nextApprover: nextApprover ? nextApprover.user_name : 'Unknown'
+      });
     }
-
-    await client.query('COMMIT');
-
-    res.json({
-      message: step.current_level >= step.total_levels
-        ? 'Expense fully approved'
-        : 'Approval recorded, moved to next level',
-      isFinalApproval: step.current_level >= step.total_levels
-    });
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Approve expense error:', error);
     res.status(500).json({ error: 'Server error approving expense' });
-  } finally {
-    client.release();
   }
 });
 
-// Reject an expense approval step
-router.post('/:approvalStepId/reject', authMiddleware, isManagerOrAdmin, [
+// Reject an expense (org-chart-based - rejection at any level fails the whole expense)
+router.post('/:expenseId/reject', authMiddleware, isManagerOrAdmin, [
   body('comments').notEmpty().trim().withMessage('Comments are required for rejection')
 ], async (req, res) => {
-  const client = await db.pool.connect();
-
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    await client.query('BEGIN');
-
     const { comments } = req.body;
-    const approvalStepId = req.params.approvalStepId;
+    const expenseId = req.params.expenseId;
 
-    // Check if this approval step exists and belongs to the current user
-    const stepCheck = await client.query(
-      `SELECT ast.*, ea.id as expense_approval_id, ea.expense_id, ea.current_level
-       FROM approval_steps ast
-       JOIN expense_approvals ea ON ast.expense_approval_id = ea.id
-       WHERE ast.id = $1 AND ast.approver_id = $2 AND ast.status = 'pending'`,
-      [approvalStepId, req.user.id]
+    // Get the expense with approval chain
+    const expenseResult = await db.query(
+      `SELECT id, status, approval_chain, current_approval_level
+       FROM expenses
+       WHERE id = $1 AND status = 'pending'`,
+      [expenseId]
     );
 
-    if (stepCheck.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Approval step not found or already processed' });
+    if (expenseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or already processed' });
     }
 
-    const step = stepCheck.rows[0];
+    const expense = expenseResult.rows[0];
+    const chain = typeof expense.approval_chain === 'string'
+      ? JSON.parse(expense.approval_chain)
+      : expense.approval_chain;
 
-    // Make sure this is the current level
-    if (step.level !== step.current_level) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'This approval is not ready to be processed yet' });
+    if (!chain || chain.length === 0) {
+      return res.status(400).json({ error: 'No approval chain defined for this expense' });
     }
 
-    // Update the approval step to rejected
-    await client.query(
-      `UPDATE approval_steps
-       SET status = 'rejected',
-           comments = $1,
-           approved_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [comments, approvalStepId]
-    );
+    // Find current level approver
+    const currentLevelApprover = chain.find(step => step.level === expense.current_approval_level);
 
-    // Mark the entire expense approval as rejected
-    await client.query(
-      `UPDATE expense_approvals
-       SET status = 'rejected',
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [step.expense_approval_id]
-    );
+    if (!currentLevelApprover || currentLevelApprover.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You are not authorized to reject this expense at this level' });
+    }
 
-    // Mark the expense as rejected
-    await client.query(
+    // Update current level to rejected and mark expense as rejected
+    const updatedChain = chain.map(step => {
+      if (step.level === expense.current_approval_level) {
+        return {
+          ...step,
+          status: 'rejected',
+          approved_by: req.user.id,
+          approved_at: new Date().toISOString(),
+          comments: comments
+        };
+      }
+      return step;
+    });
+
+    // Rejection at any level rejects the entire expense
+    await db.query(
       `UPDATE expenses
        SET status = 'rejected',
            approved_by = $1,
            approved_at = CURRENT_TIMESTAMP,
            rejection_reason = $2,
+           approval_chain = $3,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
-      [req.user.id, comments, step.expense_id]
+       WHERE id = $4`,
+      [req.user.id, comments, JSON.stringify(updatedChain), expenseId]
     );
-
-    await client.query('COMMIT');
 
     res.json({
       message: 'Expense rejected'
     });
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Reject expense error:', error);
     res.status(500).json({ error: 'Server error rejecting expense' });
-  } finally {
-    client.release();
   }
 });
 

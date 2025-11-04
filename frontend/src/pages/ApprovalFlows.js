@@ -23,12 +23,11 @@ const ApprovalFlows = () => {
     maxAmount: null,
     costCenterId: null,
     isActive: true,
-    approvers: [] // Array of user IDs in order
+    levels: [] // Array of arrays - each level contains multiple user IDs
   });
 
-  // Drag and drop state
-  const [draggedApprover, setDraggedApprover] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  // State for adding approvers
+  const [selectedLevel, setSelectedLevel] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -42,8 +41,8 @@ const ApprovalFlows = () => {
       ]);
       
       setApprovalFlows(flowsRes.data);
-      // Filter to only managers and admins who can approve
-      setUsers(usersRes.data.filter(u => ['manager', 'admin'].includes(u.role)));
+      // Show all users - any role can be an approver
+      setUsers(usersRes.data);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -62,7 +61,7 @@ const ApprovalFlows = () => {
         maxAmount: flow.max_amount,
         costCenterId: flow.cost_center_id,
         isActive: flow.is_active,
-        approvers: flow.approvers || []
+        levels: flow.levels || []
       });
     } else {
       setEditingFlow(null);
@@ -73,15 +72,17 @@ const ApprovalFlows = () => {
         maxAmount: null,
         costCenterId: null,
         isActive: true,
-        approvers: []
+        levels: [[]] // Start with one empty level
       });
     }
+    setSelectedLevel(null);
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingFlow(null);
+    setSelectedLevel(null);
     setFormData({
       name: '',
       description: '',
@@ -89,64 +90,56 @@ const ApprovalFlows = () => {
       maxAmount: null,
       costCenterId: null,
       isActive: true,
-      approvers: []
+      levels: []
     });
   };
 
-  const handleAddApprover = (userId) => {
-    if (!formData.approvers.includes(userId)) {
-      setFormData({
-        ...formData,
-        approvers: [...formData.approvers, userId]
-      });
-    }
-  };
-
-  const handleRemoveApprover = (userId) => {
+  const handleAddLevel = () => {
     setFormData({
       ...formData,
-      approvers: formData.approvers.filter(id => id !== userId)
+      levels: [...formData.levels, []]
     });
   };
 
-  // Drag and drop handlers
-  const handleDragStart = (e, index) => {
-    setDraggedApprover(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
-  };
-
-  const handleDrop = (e, dropIndex) => {
-    e.preventDefault();
-    
-    if (draggedApprover === null) return;
-    
-    const newApprovers = [...formData.approvers];
-    const draggedItem = newApprovers[draggedApprover];
-    
-    // Remove from old position
-    newApprovers.splice(draggedApprover, 1);
-    
-    // Insert at new position
-    newApprovers.splice(dropIndex, 0, draggedItem);
-    
+  const handleRemoveLevel = (levelIndex) => {
+    const newLevels = formData.levels.filter((_, idx) => idx !== levelIndex);
     setFormData({
       ...formData,
-      approvers: newApprovers
+      levels: newLevels
     });
-    
-    setDraggedApprover(null);
-    setDragOverIndex(null);
   };
 
-  const handleDragEnd = () => {
-    setDraggedApprover(null);
-    setDragOverIndex(null);
+  const handleAddApproverToLevel = (levelIndex, userId) => {
+    const newLevels = formData.levels.map((level, idx) => {
+      if (idx === levelIndex) {
+        // Check if user is already in this level
+        if (level.includes(userId)) return level;
+        return [...level, userId];
+      }
+      return level;
+    });
+    setFormData({
+      ...formData,
+      levels: newLevels
+    });
+  };
+
+  const handleRemoveApproverFromLevel = (levelIndex, userId) => {
+    const newLevels = formData.levels.map((level, idx) => {
+      if (idx === levelIndex) {
+        return level.filter(id => id !== userId);
+      }
+      return level;
+    });
+    setFormData({
+      ...formData,
+      levels: newLevels
+    });
+  };
+
+  // Check if user is already in any level
+  const isUserInFlow = (userId) => {
+    return formData.levels.some(level => level.includes(userId));
   };
 
   const handleSubmit = async (e) => {
@@ -158,8 +151,15 @@ const ApprovalFlows = () => {
       return;
     }
 
-    if (formData.approvers.length === 0) {
-      toast.error('Please add at least one approver');
+    if (formData.levels.length === 0) {
+      toast.error('Please add at least one approval level');
+      return;
+    }
+
+    // Check that each level has at least one approver
+    const hasEmptyLevel = formData.levels.some(level => level.length === 0);
+    if (hasEmptyLevel) {
+      toast.error('Each approval level must have at least one approver');
       return;
     }
 
@@ -176,7 +176,7 @@ const ApprovalFlows = () => {
         maxAmount: formData.maxAmount ? parseFloat(formData.maxAmount) : null,
         costCenterId: formData.costCenterId,
         isActive: formData.isActive,
-        approvers: formData.approvers
+        levels: formData.levels
       };
 
       if (editingFlow) {
@@ -336,17 +336,25 @@ const ApprovalFlows = () => {
                 <div className="approval-chain">
                   <div className="approval-chain-label">Approval Chain:</div>
                   <div className="approval-chain-steps">
-                    {flow.approvers && flow.approvers.map((approverId, index) => {
-                      const approver = getUserById(approverId);
+                    {flow.levels && flow.levels.map((level, levelIndex) => {
                       return (
-                        <React.Fragment key={index}>
-                          {index > 0 && <ArrowRight size={16} className="approval-arrow" />}
+                        <React.Fragment key={levelIndex}>
+                          {levelIndex > 0 && <ArrowRight size={16} className="approval-arrow" />}
                           <div className="approval-step">
-                            <Users size={14} />
-                            <span>
-                              {approver ? `${approver.first_name} ${approver.last_name}` : 'Unknown User'}
-                            </span>
-                            <span className="approval-step-level">Level {index + 1}</span>
+                            <div className="approval-step-level">Level {levelIndex + 1}</div>
+                            <div className="approval-step-approvers">
+                              {level.map((approverId, approverIndex) => {
+                                const approver = getUserById(approverId);
+                                return (
+                                  <div key={approverId} className="approver-badge">
+                                    <Users size={12} />
+                                    <span>
+                                      {approver ? `${approver.first_name} ${approver.last_name}` : 'Unknown'}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </React.Fragment>
                       );
@@ -442,83 +450,105 @@ const ApprovalFlows = () => {
                   </div>
                 </div>
 
-                {/* Approval Chain - Drag and Drop */}
+                {/* Approval Chain - Levels */}
                 <div className="form-section">
-                  <h4 className="form-section-title">Approval Chain (Drag to Reorder)</h4>
-                  
-                  {formData.approvers.length === 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h4 className="form-section-title" style={{ marginBottom: 0 }}>Approval Levels</h4>
+                    <button
+                      type="button"
+                      onClick={handleAddLevel}
+                      className="btn btn-sm btn-primary"
+                    >
+                      <Plus size={16} />
+                      Add Level
+                    </button>
+                  </div>
+
+                  {formData.levels.length === 0 ? (
                     <div className="empty-approvers">
                       <Users size={32} style={{ color: '#9ca3af', marginBottom: '0.5rem' }} />
-                      <p>No approvers added yet</p>
-                      <p className="text-sm text-gray-600">Select users below to build your approval chain</p>
+                      <p>No approval levels yet</p>
+                      <p className="text-sm text-gray-600">Click "Add Level" to create your first approval level</p>
                     </div>
                   ) : (
-                    <div className="approval-chain-builder">
-                      {formData.approvers.map((approverId, index) => {
-                        const approver = getUserById(approverId);
-                        return (
-                          <div
-                            key={approverId}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, index)}
-                            onDragOver={(e) => handleDragOver(e, index)}
-                            onDrop={(e) => handleDrop(e, index)}
-                            onDragEnd={handleDragEnd}
-                            className={`approver-item ${dragOverIndex === index ? 'drag-over' : ''}`}
-                          >
-                            <div className="approver-drag-handle">
-                              <GripVertical size={20} />
+                    <div className="levels-builder">
+                      {formData.levels.map((level, levelIndex) => (
+                        <div key={levelIndex} className="level-card">
+                          <div className="level-header">
+                            <div className="level-title">
+                              <div className="level-badge">Level {levelIndex + 1}</div>
+                              <span className="text-sm text-gray-600">
+                                {level.length} approver{level.length !== 1 ? 's' : ''}
+                              </span>
                             </div>
-                            
-                            <div className="approver-level">
-                              Level {index + 1}
-                            </div>
-
-                            <div className="approver-info">
-                              <strong>{approver ? `${approver.first_name} ${approver.last_name}` : 'Unknown'}</strong>
-                              <span className="text-sm text-gray-600">{approver?.email}</span>
-                            </div>
-
-                            <span className={`badge ${approver?.role === 'admin' ? 'badge-danger' : 'badge-warning'}`}>
-                              {approver?.role}
-                            </span>
-
                             <button
                               type="button"
-                              onClick={() => handleRemoveApprover(approverId)}
+                              onClick={() => handleRemoveLevel(levelIndex)}
                               className="btn btn-sm btn-danger"
+                              title="Remove Level"
                             >
                               <Trash2 size={14} />
                             </button>
                           </div>
-                        );
-                      })}
+
+                          <div className="level-approvers">
+                            {level.length === 0 ? (
+                              <p className="text-sm text-gray-600">No approvers in this level yet</p>
+                            ) : (
+                              <div className="approver-chips">
+                                {level.map(approverId => {
+                                  const approver = getUserById(approverId);
+                                  return (
+                                    <div key={approverId} className="approver-chip">
+                                      <Users size={14} />
+                                      <span>{approver ? `${approver.first_name} ${approver.last_name}` : 'Unknown'}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveApproverFromLevel(levelIndex, approverId)}
+                                        className="chip-remove"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="level-actions">
+                            <label className="form-label text-sm">Add approver to Level {levelIndex + 1}:</label>
+                            <div className="approver-select-list">
+                              {users
+                                .filter(user => !level.includes(user.id))
+                                .map(user => (
+                                  <button
+                                    key={user.id}
+                                    type="button"
+                                    onClick={() => handleAddApproverToLevel(levelIndex, user.id)}
+                                    className="approver-select-option"
+                                  >
+                                    <div>
+                                      <strong>{user.first_name} {user.last_name}</strong>
+                                      <span className="text-sm text-gray-600">{user.email}</span>
+                                    </div>
+                                    <span className={`badge ${user.role === 'admin' ? 'badge-danger' : 'badge-warning'}`}>
+                                      {user.role}
+                                    </span>
+                                  </button>
+                                ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
-                  {/* Available Approvers */}
-                  <div className="available-approvers">
-                    <label className="form-label">Add Approvers</label>
-                    <div className="approver-list">
-                      {users
-                        .filter(user => !formData.approvers.includes(user.id))
-                        .map(user => (
-                          <button
-                            key={user.id}
-                            type="button"
-                            onClick={() => handleAddApprover(user.id)}
-                            className="approver-option"
-                          >
-                            <div>
-                              <strong>{user.first_name} {user.last_name}</strong>
-                              <span className="text-sm text-gray-600">{user.email}</span>
-                            </div>
-                            <span className={`badge ${user.role === 'admin' ? 'badge-danger' : 'badge-warning'}`}>
-                              {user.role}
-                            </span>
-                          </button>
-                        ))}
-                    </div>
+                  <div className="info-box" style={{ marginTop: '1rem' }}>
+                    <AlertCircle size={16} />
+                    <span>
+                      You can add multiple approvers to the same level. All approvers at a level can approve expenses independently.
+                    </span>
                   </div>
                 </div>
 
@@ -629,9 +659,9 @@ const ApprovalFlows = () => {
 
         .approval-step {
           display: flex;
-          align-items: center;
+          flex-direction: column;
           gap: 0.5rem;
-          padding: 0.5rem 0.75rem;
+          padding: 0.75rem;
           background: #f3f4f6;
           border-radius: 6px;
           font-size: 0.875rem;
@@ -639,103 +669,137 @@ const ApprovalFlows = () => {
 
         .approval-step-level {
           font-size: 0.75rem;
-          color: #6b7280;
-          margin-left: 0.25rem;
+          font-weight: 600;
+          color: #6366f1;
+          margin-bottom: 0.25rem;
+        }
+
+        .approval-step-approvers {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .approver-badge {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          font-size: 0.75rem;
+          color: #4b5563;
         }
 
         .approval-arrow {
           color: #9ca3af;
         }
 
-        .approval-chain-builder {
+        .levels-builder {
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
-          margin-bottom: 1.5rem;
+          gap: 1.5rem;
         }
 
-        .approver-item {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          padding: 1rem;
-          background: white;
+        .level-card {
           border: 2px solid #e5e7eb;
           border-radius: 8px;
-          cursor: move;
-          transition: all 0.2s;
+          padding: 1rem;
+          background: #f9fafb;
         }
 
-        .approver-item:hover {
-          border-color: #6366f1;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        .level-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+          padding-bottom: 0.75rem;
+          border-bottom: 1px solid #e5e7eb;
         }
 
-        .approver-item.drag-over {
-          border-color: #6366f1;
-          background: #eff6ff;
+        .level-title {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
         }
 
-        .approver-drag-handle {
-          color: #9ca3af;
-          cursor: grab;
-        }
-
-        .approver-drag-handle:active {
-          cursor: grabbing;
-        }
-
-        .approver-level {
+        .level-badge {
           font-size: 0.875rem;
           font-weight: 600;
           color: #6366f1;
           background: #eff6ff;
-          padding: 0.25rem 0.75rem;
+          padding: 0.375rem 0.75rem;
           border-radius: 4px;
         }
 
-        .approver-info {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
+        .level-approvers {
+          margin-bottom: 1rem;
+          min-height: 40px;
         }
 
-        .available-approvers {
-          margin-top: 1.5rem;
-          padding-top: 1.5rem;
-          border-top: 1px solid #e5e7eb;
-        }
-
-        .approver-list {
+        .approver-chips {
           display: flex;
-          flex-direction: column;
+          flex-wrap: wrap;
           gap: 0.5rem;
-          max-height: 200px;
-          overflow-y: auto;
-          padding: 0.5rem;
-          background: #f9fafb;
+        }
+
+        .approver-chip {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.375rem 0.625rem;
+          background: white;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 0.875rem;
+        }
+
+        .chip-remove {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #9ca3af;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          margin-left: 0.25rem;
+        }
+
+        .chip-remove:hover {
+          color: #ef4444;
+        }
+
+        .level-actions {
+          background: white;
+          padding: 0.75rem;
           border-radius: 6px;
         }
 
-        .approver-option {
+        .approver-select-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.375rem;
+          max-height: 150px;
+          overflow-y: auto;
+          margin-top: 0.5rem;
+        }
+
+        .approver-select-option {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0.75rem;
-          background: white;
+          padding: 0.625rem;
+          background: #f9fafb;
           border: 1px solid #e5e7eb;
           border-radius: 6px;
           cursor: pointer;
           transition: all 0.2s;
+          text-align: left;
         }
 
-        .approver-option:hover {
+        .approver-select-option:hover {
           border-color: #6366f1;
           background: #eff6ff;
         }
 
-        .approver-option div {
+        .approver-select-option div {
           display: flex;
           flex-direction: column;
           align-items: start;

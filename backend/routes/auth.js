@@ -145,6 +145,42 @@ router.post('/login', [
   }
 });
 
+// Get current user (with manager info for org chart)
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.employee_id,
+              u.department, u.role, u.manager_id, u.created_at,
+              m.first_name || ' ' || m.last_name as manager_name
+       FROM users u
+       LEFT JOIN users m ON u.manager_id = m.id
+       WHERE u.id = $1`,
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      employeeId: user.employee_id,
+      department: user.department,
+      role: user.role,
+      manager_id: user.manager_id,
+      manager_name: user.manager_name,
+      createdAt: user.created_at
+    });
+  } catch (error) {
+    console.error('User fetch error:', error);
+    res.status(500).json({ error: 'Server error fetching user' });
+  }
+});
+
 // Get current user profile
 router.get('/profile', authMiddleware, async (req, res) => {
   try {

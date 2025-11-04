@@ -4,8 +4,16 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isAdmin } = require('../middleware/auth');
 
-// Get all approval flows (admin only)
-router.get('/', authMiddleware, isAdmin, async (req, res) => {
+// Middleware to check if user is admin or developer
+const isAdminOrDeveloper = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'developer') {
+    return res.status(403).json({ error: 'Access denied. Admin or developer rights required.' });
+  }
+  next();
+};
+
+// Get all approval flows (admin/developer only)
+router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT af.*, 
@@ -23,7 +31,7 @@ router.get('/', authMiddleware, isAdmin, async (req, res) => {
 });
 
 // Get single approval flow
-router.get('/:id', authMiddleware, isAdmin, async (req, res) => {
+router.get('/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT af.*, 
@@ -45,13 +53,14 @@ router.get('/:id', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-// Create new approval flow (admin only)
-router.post('/', authMiddleware, isAdmin, [
+// Create new approval flow (admin/developer only)
+router.post('/', authMiddleware, isAdminOrDeveloper, [
   body('name').notEmpty().trim(),
   body('minAmount').isFloat({ min: 0 }),
   body('maxAmount').optional({ nullable: true }).isFloat({ min: 0 }),
-  body('approvers').isArray({ min: 1 }),
-  body('approvers.*').isInt(),
+  body('levels').isArray({ min: 1 }),
+  body('levels.*').isArray({ min: 1 }),
+  body('levels.*.*').isInt(),
   body('isActive').optional().isBoolean(),
   body('costCenterId').optional({ nullable: true }).isInt()
 ], async (req, res) => {
@@ -61,18 +70,18 @@ router.post('/', authMiddleware, isAdmin, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { 
-      name, description, minAmount, maxAmount, 
-      costCenterId, isActive, approvers 
+    const {
+      name, description, minAmount, maxAmount,
+      costCenterId, isActive, levels
     } = req.body;
 
     // Check for overlapping amount ranges
     let overlapQuery = `
-      SELECT id, name, min_amount, max_amount 
-      FROM approval_flows 
+      SELECT id, name, min_amount, max_amount
+      FROM approval_flows
       WHERE is_active = true
     `;
-    
+
     const overlapParams = [];
     let paramIndex = 1;
 
@@ -101,44 +110,37 @@ router.post('/', authMiddleware, isAdmin, [
     }
 
     const overlapResult = await db.query(overlapQuery, overlapParams);
-    
+
     if (overlapResult.rows.length > 0) {
-      return res.status(400).json({ 
-        error: 'This amount range overlaps with existing approval flow: ' + overlapResult.rows[0].name 
+      return res.status(400).json({
+        error: 'This amount range overlaps with existing approval flow: ' + overlapResult.rows[0].name
       });
     }
 
-    // Verify all approvers exist and have appropriate roles
+    // Flatten levels to get all unique approver IDs
+    const allApproverIds = [...new Set(levels.flat())];
+
+    // Verify all approvers exist
     const approverCheck = await db.query(
-      'SELECT id, role FROM users WHERE id = ANY($1)',
-      [approvers]
+      'SELECT id FROM users WHERE id = ANY($1)',
+      [allApproverIds]
     );
 
-    if (approverCheck.rows.length !== approvers.length) {
+    if (approverCheck.rows.length !== allApproverIds.length) {
       return res.status(400).json({ error: 'One or more approvers not found' });
-    }
-
-    const invalidApprovers = approverCheck.rows.filter(
-      u => !['manager', 'admin'].includes(u.role)
-    );
-
-    if (invalidApprovers.length > 0) {
-      return res.status(400).json({ 
-        error: 'All approvers must be managers or admins' 
-      });
     }
 
     // Create the approval flow
     const result = await db.query(
       `INSERT INTO approval_flows (
-        name, description, min_amount, max_amount, 
-        cost_center_id, is_active, approvers, created_by
+        name, description, min_amount, max_amount,
+        cost_center_id, is_active, levels, created_by
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`,
       [
         name, description, minAmount, maxAmount,
-        costCenterId, isActive !== false, approvers, req.user.id
+        costCenterId, isActive !== false, JSON.stringify(levels), req.user.id
       ]
     );
 
@@ -152,13 +154,14 @@ router.post('/', authMiddleware, isAdmin, [
   }
 });
 
-// Update approval flow (admin only)
-router.put('/:id', authMiddleware, isAdmin, [
+// Update approval flow (admin/developer only)
+router.put('/:id', authMiddleware, isAdminOrDeveloper, [
   body('name').optional().notEmpty().trim(),
   body('minAmount').optional().isFloat({ min: 0 }),
   body('maxAmount').optional({ nullable: true }).isFloat({ min: 0 }),
-  body('approvers').optional().isArray({ min: 1 }),
-  body('approvers.*').optional().isInt(),
+  body('levels').optional().isArray({ min: 1 }),
+  body('levels.*').optional().isArray({ min: 1 }),
+  body('levels.*.*').optional().isInt(),
   body('isActive').optional().isBoolean(),
   body('costCenterId').optional({ nullable: true }).isInt()
 ], async (req, res) => {
@@ -179,48 +182,39 @@ router.put('/:id', authMiddleware, isAdmin, [
     }
 
     const existingFlow = checkResult.rows[0];
-    const { 
-      name, description, minAmount, maxAmount, 
-      costCenterId, isActive, approvers 
+    const {
+      name, description, minAmount, maxAmount,
+      costCenterId, isActive, levels
     } = req.body;
 
-    // Verify approvers if provided
-    if (approvers && approvers.length > 0) {
+    // Verify approvers if levels provided
+    if (levels && levels.length > 0) {
+      const allApproverIds = [...new Set(levels.flat())];
       const approverCheck = await db.query(
-        'SELECT id, role FROM users WHERE id = ANY($1)',
-        [approvers]
+        'SELECT id FROM users WHERE id = ANY($1)',
+        [allApproverIds]
       );
 
-      if (approverCheck.rows.length !== approvers.length) {
+      if (approverCheck.rows.length !== allApproverIds.length) {
         return res.status(400).json({ error: 'One or more approvers not found' });
-      }
-
-      const invalidApprovers = approverCheck.rows.filter(
-        u => !['manager', 'admin'].includes(u.role)
-      );
-
-      if (invalidApprovers.length > 0) {
-        return res.status(400).json({ 
-          error: 'All approvers must be managers or admins' 
-        });
       }
     }
 
     const result = await db.query(
-      `UPDATE approval_flows 
+      `UPDATE approval_flows
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            min_amount = COALESCE($3, min_amount),
            max_amount = COALESCE($4, max_amount),
            cost_center_id = COALESCE($5, cost_center_id),
            is_active = COALESCE($6, is_active),
-           approvers = COALESCE($7, approvers),
+           levels = COALESCE($7, levels),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $8
        RETURNING *`,
       [
         name, description, minAmount, maxAmount,
-        costCenterId, isActive, approvers, req.params.id
+        costCenterId, isActive, levels ? JSON.stringify(levels) : null, req.params.id
       ]
     );
 
@@ -234,8 +228,8 @@ router.put('/:id', authMiddleware, isAdmin, [
   }
 });
 
-// Delete approval flow (admin only)
-router.delete('/:id', authMiddleware, isAdmin, async (req, res) => {
+// Delete approval flow (admin/developer only)
+router.delete('/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     // Check if any expenses are using this flow
     const usageCheck = await db.query(
