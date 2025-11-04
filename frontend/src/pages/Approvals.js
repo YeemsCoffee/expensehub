@@ -324,7 +324,7 @@ const Approvals = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
