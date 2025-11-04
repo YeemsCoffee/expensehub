@@ -10,7 +10,8 @@ const Register = ({ onRegisterSuccess, onNavigateToLogin }) => {
     password: '',
     confirmPassword: '',
     firstName: '',
-    lastName: ''
+    lastName: '',
+    employeeId: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,7 +57,8 @@ const Register = ({ onRegisterSuccess, onNavigateToLogin }) => {
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
-        lastName: formData.lastName
+        lastName: formData.lastName,
+        employeeId: formData.employeeId
       });
 
       // Save token and user info
@@ -135,6 +137,19 @@ const Register = ({ onRegisterSuccess, onNavigateToLogin }) => {
               onChange={handleChange}
               className="form-input"
               placeholder="john.doe@yeemscoffee.com"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Employee ID</label>
+            <input
+              type="text"
+              name="employeeId"
+              value={formData.employeeId}
+              onChange={handleChange}
+              className="form-input"
+              placeholder="E12345"
               required
             />
           </div>

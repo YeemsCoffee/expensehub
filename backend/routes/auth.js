@@ -11,7 +11,8 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
   body('firstName').notEmpty().trim(),
-  body('lastName').notEmpty().trim()
+  body('lastName').notEmpty().trim(),
+  body('employeeId').notEmpty().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -19,7 +20,7 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName } = req.body;
+    const { email, password, firstName, lastName, employeeId } = req.body;
 
     // Check email domain restriction
     const allowedDomain = 'yeemscoffee.com';
@@ -33,16 +34,13 @@ router.post('/register', [
 
     // Check if user already exists
     const userExists = await db.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
+      'SELECT id FROM users WHERE email = $1 OR employee_id = $2',
+      [email, employeeId]
     );
 
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'User with this email already exists' });
+      return res.status(400).json({ error: 'User with this email or employee ID already exists' });
     }
-
-    // Auto-generate employee ID (E + timestamp + random)
-    const employeeId = `E${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
