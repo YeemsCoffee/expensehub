@@ -42,8 +42,8 @@ const ApprovalFlows = () => {
       ]);
       
       setApprovalFlows(flowsRes.data);
-      // Filter to only managers and admins who can approve
-      setUsers(usersRes.data.filter(u => ['manager', 'admin'].includes(u.role)));
+      // Filter to only managers, admins, and developers who can approve
+      setUsers(usersRes.data.filter(u => ['manager', 'admin', 'developer'].includes(u.role)));
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);

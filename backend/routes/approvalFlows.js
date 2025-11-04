@@ -119,12 +119,12 @@ router.post('/', authMiddleware, isAdmin, [
     }
 
     const invalidApprovers = approverCheck.rows.filter(
-      u => !['manager', 'admin'].includes(u.role)
+      u => !['manager', 'admin', 'developer'].includes(u.role)
     );
 
     if (invalidApprovers.length > 0) {
-      return res.status(400).json({ 
-        error: 'All approvers must be managers or admins' 
+      return res.status(400).json({
+        error: 'All approvers must be managers, admins, or developers'
       });
     }
 
@@ -196,12 +196,12 @@ router.put('/:id', authMiddleware, isAdmin, [
       }
 
       const invalidApprovers = approverCheck.rows.filter(
-        u => !['manager', 'admin'].includes(u.role)
+        u => !['manager', 'admin', 'developer'].includes(u.role)
       );
 
       if (invalidApprovers.length > 0) {
-        return res.status(400).json({ 
-          error: 'All approvers must be managers or admins' 
+        return res.status(400).json({
+          error: 'All approvers must be managers, admins, or developers'
         });
       }
     }
