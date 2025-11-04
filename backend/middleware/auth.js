@@ -28,7 +28,7 @@ const isAdmin = (req, res, next) => {
 
 // Middleware to check if user is manager or admin
 const isManagerOrAdmin = (req, res, next) => {
-  if (req.user.role !== 'manager' && req.user.role !== 'admin') {
+  if (req.user.role !== 'manager' && req.user.role !== 'admin' && req.user.role !== 'developer') {
     return res.status(403).json({ error: 'Access denied. Manager or admin rights required.' });
   }
   next();
