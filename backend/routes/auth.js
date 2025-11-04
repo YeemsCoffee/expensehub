@@ -11,8 +11,7 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
   body('firstName').notEmpty().trim(),
-  body('lastName').notEmpty().trim(),
-  body('employeeId').notEmpty().trim()
+  body('lastName').notEmpty().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -20,27 +19,30 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, employeeId, department } = req.body;
+    const { email, password, firstName, lastName } = req.body;
 
     // Check email domain restriction
     const allowedDomain = 'yeemscoffee.com';
     const emailDomain = email.split('@')[1];
-    
+
     if (emailDomain !== allowedDomain) {
-      return res.status(400).json({ 
-        error: `Only ${allowedDomain} email addresses are allowed to register.` 
+      return res.status(400).json({
+        error: `Only ${allowedDomain} email addresses are allowed to register.`
       });
     }
 
     // Check if user already exists
     const userExists = await db.query(
-      'SELECT id FROM users WHERE email = $1 OR employee_id = $2',
-      [email, employeeId]
+      'SELECT id FROM users WHERE email = $1',
+      [email]
     );
 
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'User with this email or employee ID already exists' });
+      return res.status(400).json({ error: 'User with this email already exists' });
     }
+
+    // Auto-generate employee ID (E + timestamp + random)
+    const employeeId = `E${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -51,7 +53,7 @@ router.post('/register', [
       `INSERT INTO users (email, password_hash, first_name, last_name, employee_id, department)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, first_name, last_name, employee_id, department, role, created_at`,
-      [email, passwordHash, firstName, lastName, employeeId, department]
+      [email, passwordHash, firstName, lastName, employeeId, null]
     );
 
     const user = result.rows[0];
