@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Filter, X, Download } from 'lucide-react';
+import { Filter, X, Download, Edit2, Trash2, XCircle } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 
 const ExpenseHistory = () => {
+  const toast = useToast();
   const [expenses, setExpenses] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
-  
+
   const [filters, setFilters] = useState({
     status: '',
     category: '',
@@ -63,6 +65,46 @@ const ExpenseHistory = () => {
     });
   };
 
+  const handleRescind = async (expenseId) => {
+    if (!window.confirm('Are you sure you want to rescind this expense? It will change the status to rejected.')) {
+      return;
+    }
+
+    try {
+      await api.post(`/expenses/${expenseId}/rescind`);
+      toast.success('Expense rescinded successfully');
+      fetchData();
+    } catch (err) {
+      console.error('Error rescinding expense:', err);
+      toast.error(err.response?.data?.error || 'Failed to rescind expense');
+    }
+  };
+
+  const handleDelete = async (expenseId) => {
+    if (!window.confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/expenses/${expenseId}`);
+      toast.success('Expense deleted successfully');
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting expense:', err);
+      toast.error(err.response?.data?.error || 'Failed to delete expense');
+    }
+  };
+
+  const canModifyExpense = (expense) => {
+    // Can only modify pending or rejected expenses
+    return expense.status === 'pending' || expense.status === 'rejected';
+  };
+
+  const canRescind = (expense) => {
+    // Can only rescind pending expenses
+    return expense.status === 'pending';
+  };
+
   if (loading) {
     return <div className="page-title">Loading expenses...</div>;
   }
@@ -72,7 +114,7 @@ const ExpenseHistory = () => {
   return (
     <div>
       <h2 className="page-title">Expense History</h2>
-      
+
       <div className="card mb-4">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 className="card-title">
@@ -170,11 +212,11 @@ const ExpenseHistory = () => {
                 <th>Date</th>
                 <th>Description</th>
                 <th>Category</th>
-                <th>Cost Type</th>
                 <th>Cost Center</th>
                 <th>Location</th>
                 <th>Amount</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -197,16 +239,50 @@ const ExpenseHistory = () => {
                       </div>
                     </td>
                     <td>{expense.category}</td>
-                    <td>
-                      <span className={`badge ${expense.cost_type === 'CAPEX' ? 'badge-info' : 'badge-secondary'}`}>
-                        {expense.cost_type || 'OPEX'}
-                      </span>
-                    </td>
                     <td>{expense.cost_center_code}</td>
                     <td>{expense.location_code || '-'}</td>
                     <td>{formatCurrency(parseFloat(expense.amount))}</td>
                     <td>
                       <StatusBadge status={expense.status} />
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {canRescind(expense) && (
+                          <button
+                            onClick={() => handleRescind(expense.id)}
+                            className="btn-icon"
+                            title="Rescind (withdraw) expense"
+                            style={{ color: '#f59e0b' }}
+                          >
+                            <XCircle size={18} />
+                          </button>
+                        )}
+                        {canModifyExpense(expense) && (
+                          <button
+                            onClick={() => window.location.href = `/expenses-submit?edit=${expense.id}`}
+                            className="btn-icon"
+                            title="Edit expense"
+                            style={{ color: '#3b82f6' }}
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                        )}
+                        {canModifyExpense(expense) && (
+                          <button
+                            onClick={() => handleDelete(expense.id)}
+                            className="btn-icon"
+                            title="Delete expense"
+                            style={{ color: '#ef4444' }}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                        {!canModifyExpense(expense) && expense.status === 'approved' && (
+                          <span className="text-xs text-gray-500" style={{ padding: '4px' }}>
+                            Approved
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -173,33 +173,82 @@ router.post('/', authMiddleware, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { 
-      date, description, category, amount, costCenterId, 
-      locationId, projectId, costType, paymentMethod, 
-      vendorName, glAccount, notes, isReimbursable 
+    const {
+      date, description, category, amount, costCenterId,
+      locationId, projectId, costType, paymentMethod,
+      vendorName, glAccount, notes, isReimbursable
     } = req.body;
 
     // Auto-determine cost type if not provided
     const finalCostType = costType || determineCostType(category, amount);
 
+    // Find applicable approval rule based on amount
+    const ruleResult = await db.query(
+      'SELECT * FROM find_approval_rule($1, $2)',
+      [amount, costCenterId]
+    );
+
+    let approvalChain = null;
+    let approvalRuleId = null;
+    let currentApprovalLevel = 1;
+
+    if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
+      approvalRuleId = ruleResult.rows[0].find_approval_rule;
+
+      // Get the rule details
+      const rule = await db.query(
+        'SELECT * FROM approval_rules WHERE id = $1',
+        [approvalRuleId]
+      );
+
+      if (rule.rows.length > 0) {
+        const levelsRequired = rule.rows[0].levels_required;
+
+        // Get manager chain from org chart
+        const chainResult = await db.query(
+          'SELECT * FROM get_manager_chain($1, $2)',
+          [req.user.id, levelsRequired]
+        );
+
+        if (chainResult.rows.length > 0) {
+          // Build approval chain
+          approvalChain = chainResult.rows.map(row => ({
+            level: row.level,
+            user_id: row.manager_id,
+            user_name: row.manager_name,
+            user_email: row.manager_email,
+            status: 'pending'
+          }));
+        } else {
+          return res.status(400).json({
+            error: 'Cannot determine approval chain. You may not have enough managers in your reporting hierarchy.',
+            details: `This expense requires ${levelsRequired} level(s) of approval, but your org chart does not have enough managers assigned.`
+          });
+        }
+      }
+    }
+
     const result = await db.query(
       `INSERT INTO expenses (
-        user_id, cost_center_id, location_id, project_id, 
+        user_id, cost_center_id, location_id, project_id,
         date, description, category, amount, cost_type,
-        payment_method, vendor_name, gl_account, notes, is_reimbursable
+        payment_method, vendor_name, gl_account, notes, is_reimbursable,
+        approval_rule_id, approval_chain, current_approval_level
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [
         req.user.id, costCenterId, locationId, projectId,
         date, description, category, amount, finalCostType,
-        paymentMethod, vendorName, glAccount, notes, isReimbursable || false
+        paymentMethod, vendorName, glAccount, notes, isReimbursable || false,
+        approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel
       ]
     );
 
     res.status(201).json({
       message: 'Expense created successfully',
-      expense: result.rows[0]
+      expense: result.rows[0],
+      approvalChain: approvalChain
     });
   } catch (error) {
     console.error('Create expense error:', error);
@@ -283,6 +332,40 @@ router.put('/:id', authMiddleware, [
   } catch (error) {
     console.error('Update expense error:', error);
     res.status(500).json({ error: 'Server error updating expense' });
+  }
+});
+
+// Rescind expense (user withdraws their own pending expense)
+router.post('/:id/rescind', authMiddleware, async (req, res) => {
+  try {
+    // Check if expense exists and belongs to user
+    const checkResult = await db.query(
+      'SELECT status FROM expenses WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    // Can only rescind pending expenses
+    if (checkResult.rows[0].status !== 'pending') {
+      return res.status(400).json({ error: 'Can only rescind pending expenses' });
+    }
+
+    await db.query(
+      `UPDATE expenses
+       SET status = 'rejected',
+           rejection_reason = 'Rescinded by submitter',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
+    res.json({ message: 'Expense rescinded successfully' });
+  } catch (error) {
+    console.error('Rescind expense error:', error);
+    res.status(500).json({ error: 'Server error rescinding expense' });
   }
 });
 
