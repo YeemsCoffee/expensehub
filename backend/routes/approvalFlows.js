@@ -4,8 +4,16 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isAdmin } = require('../middleware/auth');
 
-// Get all approval flows (admin only)
-router.get('/', authMiddleware, isAdmin, async (req, res) => {
+// Middleware to check if user is admin or developer
+const isAdminOrDeveloper = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'developer') {
+    return res.status(403).json({ error: 'Access denied. Admin or developer rights required.' });
+  }
+  next();
+};
+
+// Get all approval flows (admin/developer only)
+router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT af.*, 
@@ -23,7 +31,7 @@ router.get('/', authMiddleware, isAdmin, async (req, res) => {
 });
 
 // Get single approval flow
-router.get('/:id', authMiddleware, isAdmin, async (req, res) => {
+router.get('/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT af.*, 
@@ -45,8 +53,8 @@ router.get('/:id', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
-// Create new approval flow (admin only)
-router.post('/', authMiddleware, isAdmin, [
+// Create new approval flow (admin/developer only)
+router.post('/', authMiddleware, isAdminOrDeveloper, [
   body('name').notEmpty().trim(),
   body('minAmount').isFloat({ min: 0 }),
   body('maxAmount').optional({ nullable: true }).isFloat({ min: 0 }),
@@ -152,8 +160,8 @@ router.post('/', authMiddleware, isAdmin, [
   }
 });
 
-// Update approval flow (admin only)
-router.put('/:id', authMiddleware, isAdmin, [
+// Update approval flow (admin/developer only)
+router.put('/:id', authMiddleware, isAdminOrDeveloper, [
   body('name').optional().notEmpty().trim(),
   body('minAmount').optional().isFloat({ min: 0 }),
   body('maxAmount').optional({ nullable: true }).isFloat({ min: 0 }),
@@ -234,8 +242,8 @@ router.put('/:id', authMiddleware, isAdmin, [
   }
 });
 
-// Delete approval flow (admin only)
-router.delete('/:id', authMiddleware, isAdmin, async (req, res) => {
+// Delete approval flow (admin/developer only)
+router.delete('/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     // Check if any expenses are using this flow
     const usageCheck = await db.query(
