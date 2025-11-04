@@ -5,7 +5,7 @@
 -- =============================================
 -- Create approval_rules table
 -- =============================================
--- This table stores simple rules: amount range ’ how many levels up to approve
+-- This table stores simple rules: amount range -> how many levels up to approve
 CREATE TABLE IF NOT EXISTS approval_rules (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS approval_rules (
 );
 
 -- Create index for fast lookup by amount
-CREATE INDEX idx_approval_rules_amount ON approval_rules(min_amount, max_amount) WHERE is_active = true;
-CREATE INDEX idx_approval_rules_cost_center ON approval_rules(cost_center_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_approval_rules_amount ON approval_rules(min_amount, max_amount) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_approval_rules_cost_center ON approval_rules(cost_center_id) WHERE is_active = true;
 
 -- =============================================
 -- Update expenses table to store approval chain
@@ -50,26 +50,32 @@ ADD COLUMN IF NOT EXISTS approval_rule_id INTEGER REFERENCES approval_rules(id) 
 -- =============================================
 -- Create helper function to get manager chain
 -- =============================================
-CREATE OR REPLACE FUNCTION get_manager_chain(user_id INTEGER, levels INTEGER)
+CREATE OR REPLACE FUNCTION get_manager_chain(input_user_id INTEGER, required_levels INTEGER)
 RETURNS TABLE(level INTEGER, manager_id INTEGER, manager_name TEXT, manager_email TEXT) AS $$
 DECLARE
-  current_user_id INTEGER := user_id;
+  current_user_id INTEGER := input_user_id;
   current_level INTEGER := 0;
+  temp_manager_id INTEGER;
+  temp_manager_name TEXT;
+  temp_manager_email TEXT;
 BEGIN
-  WHILE current_level < levels LOOP
+  WHILE current_level < required_levels LOOP
     -- Get the manager of current user
     SELECT u.manager_id, u2.first_name || ' ' || u2.last_name, u2.email
-    INTO current_user_id, manager_name, manager_email
+    INTO temp_manager_id, temp_manager_name, temp_manager_email
     FROM users u
     LEFT JOIN users u2 ON u.manager_id = u2.id
     WHERE u.id = current_user_id;
 
     -- Exit if no manager found
-    EXIT WHEN current_user_id IS NULL;
+    EXIT WHEN temp_manager_id IS NULL;
 
     current_level := current_level + 1;
     level := current_level;
-    manager_id := current_user_id;
+    manager_id := temp_manager_id;
+    manager_name := temp_manager_name;
+    manager_email := temp_manager_email;
+    current_user_id := temp_manager_id;
 
     RETURN NEXT;
   END LOOP;
@@ -112,12 +118,24 @@ $$ LANGUAGE plpgsql;
 -- Insert default approval rules
 -- =============================================
 -- These are examples - you can modify or delete them
-INSERT INTO approval_rules (name, description, min_amount, max_amount, levels_required, is_active)
-VALUES
-  ('Small Expenses', 'Under $500 - Direct manager approval only', 0, 500, 1, true),
-  ('Medium Expenses', '$500 to $5,000 - Manager + one level up', 500, 5000, 2, true),
-  ('Large Expenses', 'Over $5,000 - Three levels of approval', 5000, NULL, 3, true)
-ON CONFLICT DO NOTHING;
+-- Check if rules already exist before inserting
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM approval_rules WHERE name = 'Small Expenses') THEN
+    INSERT INTO approval_rules (name, description, min_amount, max_amount, levels_required, is_active)
+    VALUES ('Small Expenses', 'Under $500 - Direct manager approval only', 0, 500, 1, true);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM approval_rules WHERE name = 'Medium Expenses') THEN
+    INSERT INTO approval_rules (name, description, min_amount, max_amount, levels_required, is_active)
+    VALUES ('Medium Expenses', '$500 to $5,000 - Manager + one level up', 500, 5000, 2, true);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM approval_rules WHERE name = 'Large Expenses') THEN
+    INSERT INTO approval_rules (name, description, min_amount, max_amount, levels_required, is_active)
+    VALUES ('Large Expenses', 'Over $5,000 - Three levels of approval', 5000, NULL, 3, true);
+  END IF;
+END $$;
 
 -- =============================================
 -- Create index for manager lookups
@@ -134,8 +152,9 @@ CREATE INDEX IF NOT EXISTS idx_users_manager_id ON users(manager_id);
 --   3. Approval rules (how many levels up to go)
 --
 -- Example:
---   Alice (employee) ’ Manager Bob ’ Director Carol ’ VP Dave
+--   Alice (employee) -> Manager Bob -> Director Carol -> VP Dave
 --   Alice submits $3,000 expense
 --   Rule: $500-$5,000 requires 2 levels
---   Approval chain: Bob (level 1) ’ Carol (level 2)
+--   Approval chain: Bob (level 1) -> Carol (level 2)
 -- =============================================
+
