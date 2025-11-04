@@ -1,0 +1,23 @@
+{
+  "name": "expensehub",
+  "version": "1.0.0",
+  "description": "ExpenseHub - Expense Management Application",
+  "scripts": {
+    "install-backend": "cd backend && npm install",
+    "install-frontend": "cd frontend && npm install",
+    "install-all": "npm run install-backend && npm run install-frontend",
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && NODE_ENV=production node server.js",
+    "dev": "concurrently \"cd backend && npm start\" \"cd frontend && npm start\""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "expense",
+    "management",
+    "finance"
+  ],
+  "author": "",
+  "license": "ISC"
+}
