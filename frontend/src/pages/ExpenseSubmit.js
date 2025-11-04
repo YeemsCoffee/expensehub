@@ -9,8 +9,6 @@ const ExpenseSubmit = () => {
   const toast = useToast();
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [managers, setManagers] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -19,7 +17,7 @@ const ExpenseSubmit = () => {
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
   const [suggestedCategory, setSuggestedCategory] = useState('');
-  
+
   const [newExpense, setNewExpense] = useState({
     date: new Date().toISOString().split('T')[0], // Default to today
     description: '',
@@ -30,8 +28,7 @@ const ExpenseSubmit = () => {
     vendorName: '',
     glAccount: '',
     notes: '',
-    isReimbursable: false,
-    assignedApproverId: ''
+    isReimbursable: false
   });
 
   // Load smart defaults from localStorage
@@ -101,31 +98,13 @@ const ExpenseSubmit = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [ccResponse, locResponse, usersResponse, profileResponse] = await Promise.all([
+      const [ccResponse, locResponse] = await Promise.all([
         api.get('/cost-centers'),
-        api.get('/locations'),
-        api.get('/users'),
-        api.get('/auth/me')
+        api.get('/locations')
       ]);
 
       setCostCenters(ccResponse.data);
       setLocations(locResponse.data);
-
-      // Filter managers
-      const managerUsers = usersResponse.data.filter(u => u.role === 'manager');
-      setManagers(managerUsers);
-
-      // Set current user and default approver to their manager
-      const userProfile = profileResponse.data;
-      setCurrentUser(userProfile);
-
-      // Default to user's manager if they have one
-      if (userProfile.manager_id) {
-        setNewExpense(prev => ({
-          ...prev,
-          assignedApproverId: userProfile.manager_id
-        }));
-      }
 
       setLoading(false);
     } catch (err) {
@@ -237,15 +216,14 @@ const ExpenseSubmit = () => {
         vendorName: newExpense.vendorName,
         glAccount: newExpense.glAccount,
         notes: newExpense.notes,
-        isReimbursable: newExpense.isReimbursable,
-        assignedApproverId: newExpense.assignedApproverId ? parseInt(newExpense.assignedApproverId) : null
+        isReimbursable: newExpense.isReimbursable
       });
 
       // Save to recent expenses
       addToRecentExpenses(newExpense);
 
       toast.success('Expense report submitted successfully! ✓');
-      
+
       // Reset form but keep smart defaults
       setNewExpense({
         date: new Date().toISOString().split('T')[0],
@@ -257,8 +235,7 @@ const ExpenseSubmit = () => {
         vendorName: '',
         glAccount: '',
         notes: '',
-        isReimbursable: newExpense.isReimbursable, // Keep last used
-        assignedApproverId: newExpense.assignedApproverId // Keep last used
+        isReimbursable: newExpense.isReimbursable // Keep last used
       });
 
       setReceiptPreview(null);
@@ -376,30 +353,6 @@ const ExpenseSubmit = () => {
                 <option key={loc.id} value={loc.id}>{loc.code} - {loc.name}</option>
               ))}
             </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Approver</label>
-            <select
-              value={newExpense.assignedApproverId}
-              onChange={(e) => handleInputChange('assignedApproverId', e.target.value)}
-              className="form-select"
-            >
-              <option value="">Select approver</option>
-              {managers.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {manager.first_name} {manager.last_name} ({manager.employee_id})
-                </option>
-              ))}
-            </select>
-            {currentUser && currentUser.manager_id && (
-              <p className="form-hint">
-                {parseInt(newExpense.assignedApproverId) === parseInt(currentUser.manager_id) ?
-                  'Assigned to your default manager' :
-                  'You can select an alternate manager if yours is unavailable'
-                }
-              </p>
-            )}
           </div>
 
           <div className="form-group">
