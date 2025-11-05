@@ -456,6 +456,14 @@
     font-size: 2.5rem;
   }
 
+  .hero-content {
+    text-align: center;
+  }
+
+  .hero-breakdown {
+    align-items: center;
+  }
+
   .hero-subtitle {
     justify-content: center;
   }
@@ -464,8 +472,26 @@
     grid-template-columns: 1fr;
   }
 
+  .stat-item {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stat-content {
+    text-align: center;
+  }
+
   .secondary-actions {
     grid-template-columns: 1fr;
+  }
+
+  .action-tile {
+    text-align: center;
+    align-items: center;
+  }
+
+  .action-tile-content {
+    text-align: center;
   }
 
   .btn-title {

@@ -195,20 +195,7 @@ const EmployeeHome = ({ onNavigate }) => {
 
       {/* Secondary Actions */}
       <div className="secondary-actions">
-        <button 
-          className="action-tile"
-          onClick={() => onNavigate('marketplace')}
-        >
-          <div className="action-tile-icon">
-            🛒
-          </div>
-          <div className="action-tile-content">
-            <h4>Marketplace</h4>
-            <p>Browse approved vendors</p>
-          </div>
-        </button>
-
-        <button 
+        <button
           className="action-tile"
           onClick={() => onNavigate('expenses-history')}
         >
