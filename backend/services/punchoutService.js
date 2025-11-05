@@ -31,22 +31,14 @@ class PunchoutService {
       });
     };
 
-    // For Amazon Business, the SharedSecret should also be in the From credential
-    const fromCredentialBlock = vendorConfig.sharedSecret ?
-      `<Credential domain="${fromDomain}">
-        <Identity>${escapeXml(vendorConfig.fromIdentity)}</Identity>
-        <SharedSecret>${escapeXml(vendorConfig.sharedSecret)}</SharedSecret>
-      </Credential>` :
-      `<Credential domain="${fromDomain}">
-        <Identity>${escapeXml(vendorConfig.fromIdentity)}</Identity>
-      </Credential>`;
-
     const cxmlRequest = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
   <Header>
     <From>
-      ${fromCredentialBlock}
+      <Credential domain="${fromDomain}">
+        <Identity>${escapeXml(vendorConfig.fromIdentity)}</Identity>
+      </Credential>
     </From>
     <To>
       <Credential domain="${toDomain}">
