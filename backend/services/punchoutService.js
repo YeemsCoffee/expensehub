@@ -82,9 +82,9 @@ class PunchoutService {
     console.log('Shared Secret:', vendorConfig.sharedSecret ? `***${vendorConfig.sharedSecret.substring(0, 4)}***` : 'MISSING');
     console.log('Deployment Mode:', deploymentMode);
     console.log('Return URL:', vendorConfig.returnUrl);
-    console.log('\nFull cXML (first 500 chars):');
-    console.log(cxmlRequest.substring(0, 500) + '...');
-    console.log('\n' + '='.repeat(50));
+    console.log('\n=== COMPLETE cXML REQUEST ===');
+    console.log(cxmlRequest);
+    console.log('=== END cXML REQUEST ===\n');
     console.log('IMPORTANT: Check that your credentials match what Amazon provided');
     console.log('- fromIdentity should be your company identifier from Amazon');
     console.log('- toIdentity should be "Amazon" (as per Amazon documentation)');
