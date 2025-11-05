@@ -12,7 +12,24 @@ class PunchoutService {
 
     // Amazon Business uses NetworkId domain, not DUNS
     const fromDomain = vendorConfig.fromDomain || 'NetworkId';
+    const toDomain = vendorConfig.toDomain || 'NetworkId';
     const deploymentMode = process.env.AMAZON_PUNCHOUT_MODE === 'test' ? 'test' : 'production';
+
+    // Escape XML special characters
+    const escapeXml = (str) => {
+      if (!str && str !== 0) return '';
+      const stringValue = String(str);
+      return stringValue.replace(/[<>&'"]/g, (c) => {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case "'": return '&apos;';
+          case '"': return '&quot;';
+          default: return c;
+        }
+      });
+    };
 
     const cxmlRequest = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
@@ -20,34 +37,34 @@ class PunchoutService {
   <Header>
     <From>
       <Credential domain="${fromDomain}">
-        <Identity>${vendorConfig.fromIdentity}</Identity>
+        <Identity>${escapeXml(vendorConfig.fromIdentity)}</Identity>
       </Credential>
     </From>
     <To>
-      <Credential domain="NetworkId">
-        <Identity>${vendorConfig.toIdentity}</Identity>
+      <Credential domain="${toDomain}">
+        <Identity>${escapeXml(vendorConfig.toIdentity)}</Identity>
       </Credential>
     </To>
     <Sender>
-      <Credential domain="NetworkId">
-        <Identity>${vendorConfig.senderIdentity}</Identity>
-        <SharedSecret>${vendorConfig.sharedSecret}</SharedSecret>
+      <Credential domain="${fromDomain}">
+        <Identity>${escapeXml(vendorConfig.senderIdentity)}</Identity>
+        <SharedSecret>${escapeXml(vendorConfig.sharedSecret)}</SharedSecret>
       </Credential>
       <UserAgent>ExpenseHub Procurement v1.0</UserAgent>
     </Sender>
   </Header>
   <Request deploymentMode="${deploymentMode}">
     <PunchOutSetupRequest operation="create">
-      <BuyerCookie>${userId}</BuyerCookie>
-      <Extrinsic name="UserEmail">${userEmail}</Extrinsic>
-      <Extrinsic name="UniqueName">${userId}</Extrinsic>
-      ${costCenter ? `<Extrinsic name="CostCenter">${costCenter}</Extrinsic>` : ''}
+      <BuyerCookie>${escapeXml(userId)}</BuyerCookie>
+      <Extrinsic name="UserEmail">${escapeXml(userEmail)}</Extrinsic>
+      <Extrinsic name="UniqueName">${escapeXml(userId)}</Extrinsic>
+      ${costCenter ? `<Extrinsic name="CostCenter">${escapeXml(costCenter)}</Extrinsic>` : ''}
       <BrowserFormPost>
-        <URL>${vendorConfig.returnUrl}</URL>
+        <URL>${escapeXml(vendorConfig.returnUrl)}</URL>
       </BrowserFormPost>
       <Contact role="endUser">
-        <Name xml:lang="en-US">${userEmail}</Name>
-        <Email>${userEmail}</Email>
+        <Name xml:lang="en-US">${escapeXml(userEmail)}</Name>
+        <Email>${escapeXml(userEmail)}</Email>
       </Contact>
     </PunchOutSetupRequest>
   </Request>
@@ -57,12 +74,23 @@ class PunchoutService {
     console.log('=== cXML PunchOut Request ===');
     console.log('Timestamp:', timestamp);
     console.log('PayloadID:', payloadId);
+    console.log('From Domain:', fromDomain);
     console.log('From Identity:', vendorConfig.fromIdentity);
+    console.log('To Domain:', toDomain);
+    console.log('To Identity:', vendorConfig.toIdentity);
     console.log('Sender Identity:', vendorConfig.senderIdentity);
+    console.log('Shared Secret:', vendorConfig.sharedSecret ? `***${vendorConfig.sharedSecret.substring(0, 4)}***` : 'MISSING');
     console.log('Deployment Mode:', deploymentMode);
     console.log('Return URL:', vendorConfig.returnUrl);
-    console.log('Full cXML:', cxmlRequest);
-    console.log('=============================');
+    console.log('\nFull cXML (first 500 chars):');
+    console.log(cxmlRequest.substring(0, 500) + '...');
+    console.log('\n' + '='.repeat(50));
+    console.log('IMPORTANT: Check that your credentials match what Amazon provided');
+    console.log('- fromIdentity should be your company identifier from Amazon');
+    console.log('- toIdentity should be "Amazon" (as per Amazon documentation)');
+    console.log('- sharedSecret should be the secret Amazon provided');
+    console.log('- returnUrl should be accessible from the internet');
+    console.log('='.repeat(50));
 
     return cxmlRequest;
   }
@@ -162,6 +190,11 @@ class PunchoutService {
    * Create HTML form for auto-posting cXML to vendor
    */
   createPunchoutForm(vendorUrl, cxmlRequest) {
+    console.log('=== Creating Punchout Form ===');
+    console.log('Vendor URL:', vendorUrl);
+    console.log('URL is undefined?', vendorUrl === undefined);
+    console.log('==============================');
+
     return `
 <!DOCTYPE html>
 <html>
@@ -174,6 +207,7 @@ class PunchoutService {
     <input type="hidden" name="cxml-urlencoded" value="${encodeURIComponent(cxmlRequest)}" />
   </form>
   <script>
+    console.log('Form action URL:', '${vendorUrl}');
     document.getElementById('punchoutForm').submit();
   </script>
 </body>

@@ -33,11 +33,16 @@ app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expe
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     message: 'ExpenseHub API is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Serve the punchout test page (development tool)
+app.get('/debug/punchout-test', (req, res) => {
+  res.sendFile(path.join(__dirname, 'test-punchout.html'));
 });
 
 // Serve static files from React build (only in production)

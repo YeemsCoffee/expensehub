@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const punchoutService = require('../services/punchoutService');
 const PUNCHOUT_VENDORS = require('../config/punchoutVendors');
 const db = require('../config/database');
@@ -232,6 +233,119 @@ router.get('/sessions', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error fetching sessions:', error);
     res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+});
+
+// Test punchout connection - directly call vendor API and return response
+router.post('/test/:vendorId', authMiddleware, async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+
+    const vendor = PUNCHOUT_VENDORS[vendorId];
+    if (!vendor || !vendor.enabled) {
+      return res.status(404).json({ error: 'Vendor not found or disabled' });
+    }
+
+    // Get user info
+    const userResult = await db.query(
+      'SELECT email FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const user = userResult.rows[0];
+
+    // Generate test cXML request
+    const cxmlRequest = punchoutService.generateCxmlPunchoutRequest(
+      vendor.config,
+      'test-session-' + Date.now(),
+      user.email,
+      'TEST-CC'
+    );
+
+    console.log('\n' + '='.repeat(70));
+    console.log('TESTING PUNCHOUT CONNECTION');
+    console.log('='.repeat(70));
+    console.log('Vendor:', vendor.name);
+    console.log('URL:', vendor.config.punchoutUrl);
+    console.log('Request Size:', cxmlRequest.length, 'bytes');
+    console.log('='.repeat(70));
+
+    // Make direct HTTP POST to vendor
+    try {
+      const response = await axios.post(
+        vendor.config.punchoutUrl,
+        new URLSearchParams({ 'cxml-urlencoded': cxmlRequest }).toString(),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'ExpenseHub/1.0',
+            'Accept': 'text/html,text/xml,application/xml,*/*'
+          },
+          timeout: 30000,
+          maxRedirects: 5,
+          validateStatus: () => true  // Don't throw on any status
+        }
+      );
+
+      console.log('\n' + '='.repeat(70));
+      console.log('RESPONSE RECEIVED');
+      console.log('='.repeat(70));
+      console.log('Status:', response.status, response.statusText);
+      console.log('Headers:', JSON.stringify(response.headers, null, 2));
+      console.log('Response Type:', typeof response.data);
+      console.log('Response Length:', response.data?.length || 0, 'bytes');
+      console.log('\nFirst 1000 chars of response:');
+      console.log(String(response.data).substring(0, 1000));
+      console.log('='.repeat(70));
+
+      // Return detailed response to frontend
+      res.json({
+        success: response.status === 200,
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        data: String(response.data).substring(0, 5000), // First 5000 chars
+        fullDataLength: response.data?.length || 0,
+        requestSent: {
+          url: vendor.config.punchoutUrl,
+          cxmlLength: cxmlRequest.length,
+          cxmlPreview: cxmlRequest.substring(0, 500)
+        }
+      });
+
+    } catch (axiosError) {
+      console.error('\n' + '='.repeat(70));
+      console.error('HTTP REQUEST FAILED');
+      console.error('='.repeat(70));
+      console.error('Error:', axiosError.message);
+      if (axiosError.response) {
+        console.error('Status:', axiosError.response.status);
+        console.error('Headers:', axiosError.response.headers);
+        console.error('Data:', String(axiosError.response.data).substring(0, 1000));
+      }
+      console.error('='.repeat(70));
+
+      res.json({
+        success: false,
+        error: axiosError.message,
+        status: axiosError.response?.status,
+        statusText: axiosError.response?.statusText,
+        headers: axiosError.response?.headers,
+        data: axiosError.response?.data ? String(axiosError.response.data).substring(0, 5000) : null,
+        requestSent: {
+          url: vendor.config.punchoutUrl,
+          cxmlLength: cxmlRequest.length,
+          cxmlPreview: cxmlRequest.substring(0, 500)
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('Test punchout error:', error);
+    res.status(500).json({
+      error: 'Failed to test punchout connection',
+      message: error.message,
+      stack: error.stack
+    });
   }
 });
 

@@ -9,11 +9,11 @@ const PUNCHOUT_VENDORS = {
     config: {
       // Use test URL if in test mode, otherwise production URL
       punchoutUrl: process.env.AMAZON_PUNCHOUT_MODE === 'test'
-        ? process.env.AMAZON_PUNCHOUT_TEST_URL
-        : process.env.AMAZON_PUNCHOUT_URL,
-      fromIdentity: process.env.AMAZON_IDENTITY || process.env.AMAZON_SENDER_ID,
+        ? (process.env.AMAZON_PUNCHOUT_TEST_URL || 'https://abintegrations.amazon.com/punchout/test')
+        : (process.env.AMAZON_PUNCHOUT_URL || 'https://abintegrations.amazon.com/punchout/test'),
+      fromIdentity: process.env.AMAZON_IDENTITY || process.env.AMAZON_SENDER_ID || 'Yeemsproduction',
       toIdentity: 'Amazon',
-      senderIdentity: process.env.AMAZON_SENDER_ID || 'yeemscoffeeexpensehub',
+      senderIdentity: process.env.AMAZON_SENDER_ID || 'Yeemsproduction',
       sharedSecret: process.env.AMAZON_SHARED_SECRET,
       returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/punchout/return`,
       // Purchase order configuration (OAG)
