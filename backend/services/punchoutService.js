@@ -17,8 +17,9 @@ class PunchoutService {
 
     // Escape XML special characters
     const escapeXml = (str) => {
-      if (!str) return '';
-      return str.replace(/[<>&'"]/g, (c) => {
+      if (!str && str !== 0) return '';
+      const stringValue = String(str);
+      return stringValue.replace(/[<>&'"]/g, (c) => {
         switch (c) {
           case '<': return '&lt;';
           case '>': return '&gt;';
