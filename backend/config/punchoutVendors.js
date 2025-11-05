@@ -11,7 +11,7 @@ const PUNCHOUT_VENDORS = {
       punchoutUrl: process.env.AMAZON_PUNCHOUT_MODE === 'test'
         ? process.env.AMAZON_PUNCHOUT_TEST_URL
         : process.env.AMAZON_PUNCHOUT_URL,
-      fromIdentity: process.env.AMAZON_IDENTITY || process.env.AMAZON_SENDER_ID,
+      fromIdentity: process.env.AMAZON_IDENTITY || process.env.AMAZON_SENDER_ID || 'yeemscoffeeexpensehub',
       toIdentity: 'Amazon',
       senderIdentity: process.env.AMAZON_SENDER_ID || 'yeemscoffeeexpensehub',
       sharedSecret: process.env.AMAZON_SHARED_SECRET,
