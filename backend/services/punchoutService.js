@@ -59,6 +59,7 @@ class PunchoutService {
     console.log('PayloadID:', payloadId);
     console.log('From Identity:', vendorConfig.fromIdentity);
     console.log('Sender Identity:', vendorConfig.senderIdentity);
+    console.log('Shared Secret:', vendorConfig.sharedSecret ? '***SET***' : 'MISSING');
     console.log('Deployment Mode:', deploymentMode);
     console.log('Return URL:', vendorConfig.returnUrl);
     console.log('Full cXML:', cxmlRequest);
@@ -162,6 +163,11 @@ class PunchoutService {
    * Create HTML form for auto-posting cXML to vendor
    */
   createPunchoutForm(vendorUrl, cxmlRequest) {
+    console.log('=== Creating Punchout Form ===');
+    console.log('Vendor URL:', vendorUrl);
+    console.log('URL is undefined?', vendorUrl === undefined);
+    console.log('==============================');
+
     return `
 <!DOCTYPE html>
 <html>
@@ -174,6 +180,7 @@ class PunchoutService {
     <input type="hidden" name="cxml-urlencoded" value="${encodeURIComponent(cxmlRequest)}" />
   </form>
   <script>
+    console.log('Form action URL:', '${vendorUrl}');
     document.getElementById('punchoutForm').submit();
   </script>
 </body>
