@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Camera, Upload, AlertCircle, CheckCircle, Sparkles, FileText } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
-import CameraCapture from '../components/CameraCapture';
 import { useToast } from '../components/Toast';
-import Tesseract from 'tesseract.js';
 
 const ExpenseSubmit = () => {
   const toast = useToast();
@@ -12,9 +10,7 @@ const ExpenseSubmit = () => {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState(null);
-  const [isProcessingReceipt, setIsProcessingReceipt] = useState(false);
 
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
@@ -152,162 +148,8 @@ const ExpenseSubmit = () => {
     return 'OPEX';
   };
 
-  // Real OCR function using Tesseract.js
-  const processReceiptWithOCR = async (file) => {
-    setIsProcessingReceipt(true);
-    toast.info('✨ Reading receipt with AI...', { duration: 3000 });
 
-    try {
-      // Use Tesseract.js to extract text from the image
-      const result = await Tesseract.recognize(
-        file,
-        'eng',
-        {
-          logger: (m) => {
-            // Show progress updates
-            if (m.status === 'recognizing text') {
-              const progress = Math.round(m.progress * 100);
-              console.log(`OCR Progress: ${progress}%`);
-            }
-          }
-        }
-      );
-
-      const text = result.data.text;
-      console.log('Extracted text:', text);
-
-      if (!text || text.trim().length === 0) {
-        toast.info('📄 Could not read text from receipt. Please fill in manually.');
-        return;
-      }
-
-      // Parse the extracted text
-      const extractedData = {
-        amount: null,
-        vendorName: null,
-        date: null
-      };
-
-      // Extract amount - look for currency patterns
-      // Matches: $45.99, 45.99, $45, 45, etc.
-      const amountPatterns = [
-        /\$?\s?(\d+[,.]?\d{0,2})\s*(?:total|amount|sum|balance|due|paid)/i,
-        /(?:total|amount|sum|balance|due|paid)[\s:$]*(\d+[,.]?\d{0,2})/i,
-        /\$\s?(\d+\.\d{2})/,
-        /(?:^|\s)(\d+\.\d{2})(?:\s|$)/
-      ];
-
-      for (const pattern of amountPatterns) {
-        const match = text.match(pattern);
-        if (match) {
-          extractedData.amount = match[1].replace(',', '');
-          break;
-        }
-      }
-
-      // Extract vendor name - look for common patterns
-      const vendorPatterns = [
-        // Common stores/vendors
-        { pattern: /walmart/i, name: 'Walmart' },
-        { pattern: /target/i, name: 'Target' },
-        { pattern: /costco/i, name: 'Costco' },
-        { pattern: /amazon/i, name: 'Amazon' },
-        { pattern: /staples/i, name: 'Staples' },
-        { pattern: /home\s?depot/i, name: 'Home Depot' },
-        { pattern: /best\s?buy/i, name: 'Best Buy' },
-        { pattern: /office\s?depot/i, name: 'Office Depot' },
-        { pattern: /whole\s?foods/i, name: 'Whole Foods' },
-        { pattern: /safeway/i, name: 'Safeway' },
-        { pattern: /cvs/i, name: 'CVS' },
-        { pattern: /walgreens/i, name: 'Walgreens' },
-        { pattern: /trader\s?joe/i, name: 'Trader Joes' },
-        { pattern: /uber/i, name: 'Uber' },
-        { pattern: /lyft/i, name: 'Lyft' },
-        { pattern: /starbucks/i, name: 'Starbucks' }
-      ];
-
-      for (const { pattern, name } of vendorPatterns) {
-        if (pattern.test(text)) {
-          extractedData.vendorName = name;
-          break;
-        }
-      }
-
-      // Extract date - look for various date formats
-      const datePatterns = [
-        /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,  // MM/DD/YYYY or MM-DD-YYYY
-        /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,  // YYYY/MM/DD or YYYY-MM-DD
-        /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})[,\s]+(\d{4})/i
-      ];
-
-      for (const pattern of datePatterns) {
-        const match = text.match(pattern);
-        if (match) {
-          try {
-            let dateStr;
-            if (match[0].match(/^\d{4}/)) {
-              // YYYY-MM-DD format
-              dateStr = match[0];
-            } else if (match[0].match(/^\d{1,2}[\/\-]/)) {
-              // MM/DD/YYYY format - convert to YYYY-MM-DD
-              const [_, month, day, year] = match;
-              const fullYear = year.length === 2 ? `20${year}` : year;
-              dateStr = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-            if (dateStr) {
-              extractedData.date = dateStr;
-              break;
-            }
-          } catch (e) {
-            console.log('Date parsing error:', e);
-          }
-        }
-      }
-
-      // Auto-populate fields with extracted data
-      let fieldsPopulated = 0;
-      if (extractedData.amount) {
-        setNewExpense(prev => ({ ...prev, amount: extractedData.amount }));
-        fieldsPopulated++;
-      }
-      if (extractedData.vendorName) {
-        setNewExpense(prev => ({ ...prev, vendorName: extractedData.vendorName }));
-        fieldsPopulated++;
-      }
-      if (extractedData.date) {
-        setNewExpense(prev => ({ ...prev, date: extractedData.date }));
-        fieldsPopulated++;
-      }
-
-      if (fieldsPopulated > 0) {
-        toast.success(`✅ Auto-filled ${fieldsPopulated} field(s) from receipt!`);
-      } else {
-        toast.info('📄 Receipt processed. Could not extract data automatically.');
-      }
-
-    } catch (error) {
-      console.error('OCR processing error:', error);
-      toast.error('Failed to process receipt. Please fill in details manually.');
-    } finally {
-      setIsProcessingReceipt(false);
-    }
-  };
-
-  const handleCameraCapture = async (file) => {
-    // Create preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-
-    toast.success('Receipt captured successfully!');
-
-    // Process receipt with OCR
-    await processReceiptWithOCR(file);
-  };
-
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
@@ -328,9 +170,6 @@ const ExpenseSubmit = () => {
       reader.readAsDataURL(file);
 
       toast.success('Receipt uploaded successfully!');
-
-      // Process with OCR
-      await processReceiptWithOCR(file);
     }
   };
 
@@ -583,127 +422,63 @@ const ExpenseSubmit = () => {
 
           <div className="form-group form-grid-full">
             <label className="form-label">
-              <FileText size={16} style={{ display: 'inline', marginRight: '6px' }} />
               Attach Receipt
-              {isProcessingReceipt && (
-                <span style={{ marginLeft: '8px', color: '#3b82f6', fontSize: '14px' }}>
-                  <Sparkles size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                  Processing with AI...
-                </span>
-              )}
             </label>
 
             {receiptPreview ? (
               <div className="receipt-preview-container">
-                <img src={receiptPreview} alt="Receipt preview" className="receipt-preview" />
-                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setReceiptPreview(null);
-                    }}
-                    disabled={isProcessingReceipt}
-                  >
-                    Remove
-                  </button>
-                  {isProcessingReceipt && (
-                    <div style={{
-                      padding: '8px 12px',
-                      background: '#eff6ff',
-                      borderRadius: '6px',
-                      color: '#3b82f6',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span className="btn-spinner" style={{ width: '14px', height: '14px' }}></span>
-                      Extracting data...
-                    </div>
-                  )}
-                </div>
+                <img src={receiptPreview} alt="Receipt preview" className="receipt-preview" style={{ maxHeight: '200px' }} />
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setReceiptPreview(null);
+                  }}
+                  style={{ marginTop: '12px' }}
+                >
+                  Remove
+                </button>
               </div>
             ) : (
-              <div className="receipt-upload-options" style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '16px',
-                marginTop: '12px'
-              }}>
-                <button
-                  type="button"
-                  className="receipt-option-btn camera-btn"
-                  onClick={() => setShowCamera(true)}
-                  disabled={isProcessingReceipt}
-                  style={{
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '12px',
-                    padding: '24px 16px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 6px rgba(102, 126, 234, 0.2)'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(102, 126, 234, 0.3)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(102, 126, 234, 0.2)';
-                  }}
-                >
-                  <Camera size={32} />
-                  <span style={{ fontSize: '16px', fontWeight: '600' }}>Take Photo</span>
-                  <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>Quick capture</p>
-                </button>
-
-                <label
-                  className="receipt-option-btn upload-btn"
-                  style={{
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '12px',
-                    padding: '24px 16px',
-                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    color: 'white',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 6px rgba(245, 87, 108, 0.2)'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(245, 87, 108, 0.3)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(245, 87, 108, 0.2)';
-                  }}
-                >
-                  <Upload size={32} />
-                  <span style={{ fontSize: '16px', fontWeight: '600' }}>Upload File</span>
-                  <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>Choose from device</p>
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    style={{ display: 'none' }}
-                    onChange={handleFileUpload}
-                    disabled={isProcessingReceipt}
-                  />
-                </label>
-              </div>
+              <label
+                className="receipt-option-btn upload-btn"
+                style={{
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  padding: '24px 16px',
+                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 6px rgba(245, 87, 108, 0.2)',
+                  marginTop: '12px'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(245, 87, 108, 0.3)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(245, 87, 108, 0.2)';
+                }}
+              >
+                <Upload size={32} />
+                <span style={{ fontSize: '16px', fontWeight: '600' }}>Upload Receipt</span>
+                <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>Choose from device or camera</p>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
+              </label>
             )}
-            <p className="form-hint" style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={14} />
-              AI-powered auto-fill from receipt • PDF, PNG, JPG up to 10MB
+            <p className="form-hint" style={{ marginTop: '12px' }}>
+              Upload PDF, PNG, or JPG • Maximum 10MB
             </p>
           </div>
         </div>
@@ -723,14 +498,6 @@ const ExpenseSubmit = () => {
           )}
         </button>
       </div>
-
-      {/* Camera Modal */}
-      {showCamera && (
-        <CameraCapture
-          onCapture={handleCameraCapture}
-          onClose={() => setShowCamera(false)}
-        />
-      )}
     </div>
   );
 };

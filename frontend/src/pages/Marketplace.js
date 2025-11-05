@@ -1,53 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Plus } from 'lucide-react';
 import { VENDORS } from '../utils/constants';
-import api from '../services/api';
-import { useToast } from '../components/Toast';
 
 const Marketplace = ({ onAddToCart }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
-  const [punchoutVendors, setPunchoutVendors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const toast = useToast();
-
-  useEffect(() => {
-    fetchPunchoutVendors();
-  }, []);
-
-  const fetchPunchoutVendors = async () => {
-    try {
-      const response = await api.get('/punchout/vendors');
-      setPunchoutVendors(response.data);
-    } catch (error) {
-      console.error('Error fetching punchout vendors:', error);
-      // Continue even if punchout vendors fail to load
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePunchout = async (vendorId) => {
-    try {
-      toast.info('Connecting to vendor catalog...');
-
-      const response = await api.post(`/punchout/initiate/${vendorId}`, {
-        costCenterId: null // Optional: can be set if you have a selected cost center
-      });
-
-      if (response.data.type === 'redirect') {
-        // OCI-style redirect
-        window.location.href = response.data.url;
-      } else {
-        // cXML-style form submission (response is HTML)
-        const newWindow = window.open('', '_blank');
-        newWindow.document.write(response.data);
-        newWindow.document.close();
-      }
-    } catch (error) {
-      console.error('Punchout error:', error);
-      toast.error('Failed to connect to vendor. Please try again.');
-    }
-  };
 
   return (
     <div>
@@ -64,60 +20,8 @@ const Marketplace = ({ onAddToCart }) => {
       </div>
 
       {!selectedVendor ? (
-        <>
-          {/* Punchout Vendors Section */}
-          {punchoutVendors.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold mb-4">🔗 Punchout Catalogs</h3>
-              <p className="text-gray-600 mb-4">
-                Browse millions of products from integrated vendors. Items are automatically added to your cart.
-              </p>
-              <div className="vendor-grid">
-                {punchoutVendors.map((vendor) => (
-                  <div
-                    key={vendor.id}
-                    className="vendor-card"
-                    style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      border: 'none'
-                    }}
-                  >
-                    <div className="vendor-card-header">
-                      <div>
-                        <h3 className="vendor-name" style={{ color: 'white' }}>{vendor.name}</h3>
-                        <p className="vendor-category" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                          {vendor.categories?.join(', ')}
-                        </p>
-                      </div>
-                      <ExternalLink size={24} />
-                    </div>
-                    <p className="vendor-product-count" style={{ color: 'rgba(255,255,255,0.8)' }}>
-                      External catalog with millions of items
-                    </p>
-                    <button
-                      onClick={() => handlePunchout(vendor.id)}
-                      className="btn btn-full"
-                      style={{
-                        background: 'white',
-                        color: '#667eea',
-                        border: 'none',
-                        fontWeight: '600'
-                      }}
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      <span>Browse {vendor.name}</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Regular Vendors Section */}
-          <div>
-            <h3 className="text-xl font-semibold mb-4">📦 Internal Catalog</h3>
-            <div className="vendor-grid">
+        <div>
+          <div className="vendor-grid">
               {VENDORS.map((vendor) => (
                 <div
                   key={vendor.id}
@@ -140,9 +44,8 @@ const Marketplace = ({ onAddToCart }) => {
                   </button>
                 </div>
               ))}
-            </div>
           </div>
-        </>
+        </div>
       ) : (
         <div>
           <button
