@@ -11,9 +11,9 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
       return [
         { id: 'home', label: 'Home', roles: ['developer'], description: 'Employee View' },
         { id: 'dashboard', label: 'Dashboard', roles: ['developer'], description: 'Admin View' },
-        { 
-          id: 'expenses', 
-          label: 'Expenses', 
+        {
+          id: 'expenses',
+          label: 'Expenses',
           roles: ['developer'],
           hasDropdown: true,
           subItems: [
@@ -22,11 +22,10 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'approvals', label: 'Approvals' }
           ]
         },
-        { id: 'marketplace', label: 'Marketplace', roles: ['developer'] },
         { id: 'projects', label: 'Projects', roles: ['developer'] },
-        { 
-          id: 'settings', 
-          label: 'Settings', 
+        {
+          id: 'settings',
+          label: 'Settings',
           roles: ['developer'],
           hasDropdown: true,
           subItems: [
@@ -40,24 +39,23 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
     } else if (userRole === 'employee') {
       return [
         { id: 'home', label: 'Home', roles: ['employee'] },
-        { 
-          id: 'expenses', 
-          label: 'Expenses', 
+        {
+          id: 'expenses',
+          label: 'Expenses',
           roles: ['employee'],
           hasDropdown: true,
           subItems: [
             { id: 'expenses-submit', label: 'Submit New' },
             { id: 'expenses-history', label: 'View History' }
           ]
-        },
-        { id: 'marketplace', label: 'Marketplace', roles: ['employee'] }
+        }
       ];
     } else if (userRole === 'manager') {
       return [
         { id: 'dashboard', label: 'Dashboard', roles: ['manager'] },
-        { 
-          id: 'expenses', 
-          label: 'Expenses', 
+        {
+          id: 'expenses',
+          label: 'Expenses',
           roles: ['manager'],
           hasDropdown: true,
           subItems: [
@@ -66,11 +64,10 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'approvals', label: 'Approvals' }
           ]
         },
-        { id: 'marketplace', label: 'Marketplace', roles: ['manager'] },
         { id: 'projects', label: 'Projects', roles: ['manager'] },
-        { 
-          id: 'settings', 
-          label: 'Settings', 
+        {
+          id: 'settings',
+          label: 'Settings',
           roles: ['manager'],
           hasDropdown: true,
           subItems: [
@@ -83,9 +80,9 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
       // Admin
       return [
         { id: 'dashboard', label: 'Dashboard', roles: ['admin'] },
-        { 
-          id: 'expenses', 
-          label: 'Expenses', 
+        {
+          id: 'expenses',
+          label: 'Expenses',
           roles: ['admin'],
           hasDropdown: true,
           subItems: [
@@ -94,11 +91,10 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'approvals', label: 'Approvals' }
           ]
         },
-        { id: 'marketplace', label: 'Marketplace', roles: ['admin'] },
         { id: 'projects', label: 'Projects', roles: ['admin'] },
-        { 
-          id: 'settings', 
-          label: 'Settings', 
+        {
+          id: 'settings',
+          label: 'Settings',
           roles: ['admin'],
           hasDropdown: true,
           subItems: [
