@@ -35,8 +35,6 @@ services:
         value: yeemscoffeeexpensehub
       - key: AMAZON_SENDER_ID
         value: yeemscoffeeexpensehub
-      - key: AMAZON_TO_IDENTITY
-        value: AN01000000001
       - key: AMAZON_SHARED_SECRET
         sync: false
       - key: AMAZON_PUNCHOUT_URL
