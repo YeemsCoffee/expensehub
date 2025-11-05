@@ -26,7 +26,6 @@ app.use('/api/cart', require('./routes/cart'));
 app.use('/api/cost-centers', require('./routes/costCenters'));
 app.use('/api/locations', require('./routes/locations')); // New locations routes
 app.use('/api/projects', require('./routes/projects')); // New projects routes
-app.use('/api/punchout', require('./routes/punchout'));
 app.use('/api/approval-flows', require('./routes/approvalFlows')); // Approval flows management
 app.use('/api/approval-rules', require('./routes/approvalRules')); // Org-chart-based approval rules
 app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
@@ -38,11 +37,6 @@ app.get('/api/health', (req, res) => {
     message: 'ExpenseHub API is running',
     timestamp: new Date().toISOString()
   });
-});
-
-// Serve the punchout test page (development tool)
-app.get('/debug/punchout-test', (req, res) => {
-  res.sendFile(path.join(__dirname, 'test-punchout.html'));
 });
 
 // Serve static files from React build (only in production)
@@ -67,7 +61,6 @@ if (process.env.NODE_ENV === 'production') {
         costCenters: '/api/cost-centers',
         locations: '/api/locations',
         projects: '/api/projects',
-        punchout: '/api/punchout',
         approvalFlows: '/api/approval-flows',
         expenseApprovals: '/api/expense-approvals'
       }
