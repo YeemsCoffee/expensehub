@@ -339,10 +339,13 @@
     flex-shrink: 0;
   }
 
-  /* Ensure dropdown overlays the page content, not contained within nav */
+  /* Ensure dropdown overlays the page content on mobile */
   .nav-dropdown {
     position: fixed;
-    max-height: 70vh;
+    top: 130px; /* Below header and nav bar */
+    left: 1rem;
+    right: 1rem;
+    max-height: 60vh;
     overflow-y: auto;
     z-index: 9999;
   }
@@ -356,6 +359,12 @@
   .nav-tab {
     padding: 0.625rem 0.5rem;
     font-size: 0.75rem;
+  }
+
+  .nav-dropdown {
+    top: 120px;
+    left: 0.5rem;
+    right: 0.5rem;
   }
 
   /* Mobile Header Buttons */
