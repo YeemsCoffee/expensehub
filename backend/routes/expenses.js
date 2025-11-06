@@ -221,28 +221,35 @@ router.post('/', authMiddleware, [
             status: 'pending'
           }));
         } else {
-          return res.status(400).json({
-            error: 'Cannot determine approval chain. You may not have enough managers in your reporting hierarchy.',
-            details: `This expense requires ${levelsRequired} level(s) of approval, but your org chart does not have enough managers assigned.`
-          });
+          // No manager chain found - allow submission without approval
+          // This allows employees without managers to still log expenses
+          console.log(`No manager chain found for user ${req.user.id}. Expense will be submitted without approval requirements.`);
+          approvalRuleId = null;
+          approvalChain = null;
         }
       }
     }
+
+    // Determine status: auto-approve if no approval chain required
+    const status = approvalChain ? 'pending' : 'approved';
+    const approvedAt = approvalChain ? null : new Date();
 
     const result = await db.query(
       `INSERT INTO expenses (
         user_id, cost_center_id, location_id, project_id,
         date, description, category, amount, cost_type,
         payment_method, vendor_name, gl_account, notes, is_reimbursable,
-        approval_rule_id, approval_chain, current_approval_level
+        approval_rule_id, approval_chain, current_approval_level,
+        status, approved_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
       [
         req.user.id, costCenterId, locationId, projectId,
         date, description, category, amount, finalCostType,
         paymentMethod, vendorName, glAccount, notes, isReimbursable || false,
-        approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel
+        approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel,
+        status, approvedAt
       ]
     );
 

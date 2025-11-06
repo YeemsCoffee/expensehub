@@ -7,8 +7,8 @@ const { authMiddleware } = require('../middleware/auth');
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, code, name, budget, department
-       FROM cost_centers 
+      `SELECT id, code, name, budget, department, is_active
+       FROM cost_centers
        WHERE is_active = true
        ORDER BY code`
     );
@@ -24,8 +24,8 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, code, name, budget, department, created_at
-       FROM cost_centers 
+      `SELECT id, code, name, budget, department, is_active, created_at
+       FROM cost_centers
        WHERE id = $1 AND is_active = true`,
       [req.params.id]
     );
@@ -113,7 +113,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete (deactivate) cost center
+// Delete cost center (hard delete from database)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
@@ -128,9 +128,22 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Cost center not found' });
     }
 
-    // Soft delete - set is_active to false
+    // Check if any expenses reference this cost center
+    const expensesResult = await db.query(
+      'SELECT COUNT(*) as count FROM expenses WHERE cost_center_id = $1',
+      [id]
+    );
+
+    if (expensesResult.rows[0].count > 0) {
+      return res.status(400).json({
+        error: 'Cannot delete cost center that has expenses associated with it',
+        details: `This cost center has ${expensesResult.rows[0].count} expense(s) associated with it. Please reassign those expenses before deleting.`
+      });
+    }
+
+    // Hard delete from database
     await db.query(
-      'UPDATE cost_centers SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      'DELETE FROM cost_centers WHERE id = $1',
       [id]
     );
 
