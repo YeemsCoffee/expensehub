@@ -21,7 +21,7 @@ app.use(helmet({
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"], // Prevent iframe embedding
       baseUri: ["'self'"],
-      formAction: ["'self'"]
+      formAction: ["'self'", "https://abintegrations.amazon.com"] // Allow Amazon Punchout
     }
   },
   strictTransportSecurity: {
