@@ -7,8 +7,8 @@ const { authMiddleware } = require('../middleware/auth');
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, code, name, budget, department
-       FROM cost_centers 
+      `SELECT id, code, name, budget, department, is_active
+       FROM cost_centers
        WHERE is_active = true
        ORDER BY code`
     );
@@ -24,8 +24,8 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, code, name, budget, department, created_at
-       FROM cost_centers 
+      `SELECT id, code, name, budget, department, is_active, created_at
+       FROM cost_centers
        WHERE id = $1 AND is_active = true`,
       [req.params.id]
     );
