@@ -31,18 +31,20 @@ const Marketplace = ({ onAddToCart }) => {
       // Request punchout session setup
       const response = await api.post('/amazon-punchout/setup', { costCenterId });
 
-      const { cxmlRequest, targetUrl, method } = response.data;
+      const { cxmlRequest, targetUrl } = response.data;
 
       // Create a form to POST the cXML to Amazon
       const form = document.createElement('form');
-      form.method = method;
+      form.method = 'POST';
       form.action = targetUrl;
-      form.target = '_self'; // Open in same window
+      form.target = '_self';
+      form.enctype = 'application/x-www-form-urlencoded';
 
+      // Add the cXML as form data
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'cXML-urlencoded';
-      input.value = cxmlRequest;
+      input.value = encodeURIComponent(cxmlRequest);
 
       form.appendChild(input);
       document.body.appendChild(form);

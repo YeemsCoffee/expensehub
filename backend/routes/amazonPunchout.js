@@ -83,6 +83,12 @@ router.post('/setup', authMiddleware, async (req, res) => {
   try {
     const { costCenterId } = req.body;
 
+    console.log('Amazon Punchout setup request:', {
+      userId: req.user.id,
+      userEmail: req.user.email,
+      costCenterId
+    });
+
     // Validate user has access to cost center
     if (costCenterId) {
       const ccCheck = await db.query(
@@ -118,6 +124,8 @@ router.post('/setup', authMiddleware, async (req, res) => {
     const session = sessionResult.rows[0];
     const buyerCookie = session.buyer_cookie;
 
+    console.log('Created punchout session:', session.id, 'with cookie:', buyerCookie);
+
     // Build cXML request
     const cxmlRequest = buildPunchOutSetupRequest(
       req.user.id,
@@ -125,6 +133,8 @@ router.post('/setup', authMiddleware, async (req, res) => {
       req.user.name || req.user.email,
       buyerCookie
     );
+
+    console.log('Generated cXML (first 500 chars):', cxmlRequest.substring(0, 500));
 
     // Store the request for debugging
     await db.query(
@@ -309,6 +319,24 @@ router.get('/history', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Fetch history error:', error);
     res.status(500).json({ error: 'Failed to fetch punchout history' });
+  }
+});
+
+// Debug endpoint to view generated cXML
+router.get('/debug/cxml', authMiddleware, async (req, res) => {
+  try {
+    const buyerCookie = 'debug-cookie-' + Date.now();
+    const cxmlRequest = buildPunchOutSetupRequest(
+      req.user.id,
+      req.user.email,
+      req.user.name || req.user.email,
+      buyerCookie
+    );
+
+    res.set('Content-Type', 'text/xml');
+    res.send(cxmlRequest);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
