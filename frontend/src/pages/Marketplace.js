@@ -52,7 +52,18 @@ const Marketplace = ({ onAddToCart }) => {
 
     } catch (error) {
       console.error('Failed to initiate Amazon punchout:', error);
-      alert('Failed to connect to Amazon Business. Please try again.');
+
+      let errorMessage = 'Failed to connect to Amazon Business.';
+
+      if (error.response?.status === 400) {
+        errorMessage += '\n\nThis may be due to:\n' +
+          '• Amazon credentials not yet activated\n' +
+          '• Return URL not whitelisted by Amazon\n' +
+          '• Test mode not enabled for your account\n\n' +
+          'Please contact Amazon Business support to verify your integration is set up.';
+      }
+
+      alert(errorMessage);
       setLoading(false);
     }
   };
