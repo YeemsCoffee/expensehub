@@ -56,6 +56,7 @@ app.use('/api/projects', require('./routes/projects')); // New projects routes
 app.use('/api/approval-flows', require('./routes/approvalFlows')); // Approval flows management
 app.use('/api/approval-rules', require('./routes/approvalRules')); // Org-chart-based approval rules
 app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
+app.use('/api/amazon-punchout', require('./routes/amazonPunchout')); // Amazon Business Punchout
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

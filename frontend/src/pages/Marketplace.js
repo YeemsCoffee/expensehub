@@ -1,9 +1,59 @@
-import React, { useState } from 'react';
-import { Search, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Plus, ExternalLink } from 'lucide-react';
 import { VENDORS } from '../utils/constants';
+import api from '../services/api';
 
 const Marketplace = ({ onAddToCart }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [punchoutSuccess, setPunchoutSuccess] = useState(false);
+
+  useEffect(() => {
+    // Check if we're returning from a punchout session
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('punchout_success') === 'true') {
+      setPunchoutSuccess(true);
+      // Clear the URL parameter
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // Show success message for 5 seconds
+      setTimeout(() => setPunchoutSuccess(false), 5000);
+    }
+  }, []);
+
+  const handleAmazonPunchout = async () => {
+    try {
+      setLoading(true);
+
+      // Get the user's default cost center or let them select one
+      const costCenterId = 1; // You might want to let the user select this
+
+      // Request punchout session setup
+      const response = await api.post('/amazon-punchout/setup', { costCenterId });
+
+      const { cxmlRequest, targetUrl, method } = response.data;
+
+      // Create a form to POST the cXML to Amazon
+      const form = document.createElement('form');
+      form.method = method;
+      form.action = targetUrl;
+      form.target = '_self'; // Open in same window
+
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'cXML-urlencoded';
+      input.value = cxmlRequest;
+
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+
+    } catch (error) {
+      console.error('Failed to initiate Amazon punchout:', error);
+      alert('Failed to connect to Amazon Business. Please try again.');
+      setLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -19,9 +69,51 @@ const Marketplace = ({ onAddToCart }) => {
         </div>
       </div>
 
+      {punchoutSuccess && (
+        <div className="alert alert-success mb-4">
+          <strong>Success!</strong> Items from Amazon Business have been added to your cart.
+        </div>
+      )}
+
       {!selectedVendor ? (
         <div>
           <div className="vendor-grid">
+              {/* Amazon Business Punchout Card */}
+              <div className="vendor-card vendor-card-featured">
+                <div className="vendor-card-header">
+                  <div>
+                    <h3 className="vendor-name">
+                      Amazon Business
+                      <span className="badge badge-primary ml-2">Integration</span>
+                    </h3>
+                    <p className="vendor-category">General Supplies & More</p>
+                  </div>
+                  <div className="vendor-rating">
+                    <span className="vendor-rating-star">★</span>
+                    <span className="vendor-rating-value">4.8</span>
+                  </div>
+                </div>
+                <p className="vendor-product-count">Millions of products available</p>
+                <button
+                  onClick={handleAmazonPunchout}
+                  disabled={loading}
+                  className="btn btn-primary btn-full"
+                >
+                  {loading ? (
+                    <span>Connecting...</span>
+                  ) : (
+                    <>
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Shop on Amazon Business</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-gray-500 mt-2">
+                  You'll be redirected to Amazon Business. Items added will return to your cart.
+                </p>
+              </div>
+
+              {/* Regular Vendors */}
               {VENDORS.map((vendor) => (
                 <div
                   key={vendor.id}
