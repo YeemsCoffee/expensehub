@@ -11,7 +11,7 @@ import CostCenters from './pages/CostCenters';
 import Locations from './pages/Locations';
 import Projects from './pages/Projects';
 import Users from './pages/Users';
-import ApprovalFlows from './pages/ApprovalFlows';
+import ApprovalRules from './pages/ApprovalRules';
 import Approvals from './pages/Approvals';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -197,8 +197,8 @@ const App = () => {
         return <Projects />;
       case 'users':
         return <Users />;
-      case 'approval-flows':
-        return <ApprovalFlows />;
+      case 'approval-rules':
+        return <ApprovalRules />;
       case 'approvals':
         return <Approvals />;
       case 'cart':

@@ -3,7 +3,21 @@
     "allow": [
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(node test-email.js:*)",
+      "Bash(node -e:*)",
+      "Bash(node -c:*)",
+      "Bash(node:*)",
+      "Bash(git pull:*)",
+      "Bash(psql:*)",
+      "Bash(npm start)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

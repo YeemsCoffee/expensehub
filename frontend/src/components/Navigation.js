@@ -32,7 +32,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           subItems: [
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
-            { id: 'approval-flows', label: 'Approval Flows' },
+            { id: 'approval-rules', label: 'Approval Rules' },
             { id: 'users', label: 'Users' }
           ]
         }
@@ -104,7 +104,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           subItems: [
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
-            { id: 'approval-flows', label: 'Approval Flows' },
+            { id: 'approval-rules', label: 'Approval Rules' },
             { id: 'users', label: 'Users' }
           ]
         }

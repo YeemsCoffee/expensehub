@@ -106,7 +106,6 @@ app.use('/api/cart', require('./routes/cart'));
 app.use('/api/cost-centers', require('./routes/costCenters'));
 app.use('/api/locations', require('./routes/locations')); // New locations routes
 app.use('/api/projects', require('./routes/projects')); // New projects routes
-app.use('/api/approval-flows', require('./routes/approvalFlows')); // Approval flows management
 app.use('/api/approval-rules', require('./routes/approvalRules')); // Org-chart-based approval rules
 app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
 app.use('/api/amazon-punchout', require('./routes/amazonPunchout')); // Amazon Business Punchout
@@ -142,7 +141,7 @@ if (process.env.NODE_ENV === 'production') {
         costCenters: '/api/cost-centers',
         locations: '/api/locations',
         projects: '/api/projects',
-        approvalFlows: '/api/approval-flows',
+        approvalRules: '/api/approval-rules',
         expenseApprovals: '/api/expense-approvals'
       }
     });
