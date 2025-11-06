@@ -17,7 +17,13 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cd:*)",
+      "WebSearch",
+      "Bash(dir:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(nul)",
+      "Bash(timeout /t 8)"
     ],
     "deny": [],
     "ask": []
