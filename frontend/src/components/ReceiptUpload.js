@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Camera, X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import api from '../services/api';
 
 const ReceiptUpload = ({ onReceiptProcessed, onClose }) => {
   const [file, setFile] = useState(null);
@@ -79,20 +80,14 @@ const ReceiptUpload = ({ onReceiptProcessed, onClose }) => {
       const formData = new FormData();
       formData.append('receipt', file);
 
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/receipts/upload', {
-        method: 'POST',
+      // Use axios api instance which handles baseURL and auth automatically
+      const response = await api.post('/receipts/upload', formData, {
         headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process receipt');
-      }
+      const data = response.data;
 
       setResult(data);
       setProcessing(false);
@@ -105,7 +100,7 @@ const ReceiptUpload = ({ onReceiptProcessed, onClose }) => {
 
     } catch (err) {
       console.error('Upload error:', err);
-      setError(err.message || 'Failed to process receipt');
+      setError(err.response?.data?.error || err.message || 'Failed to process receipt');
       setProcessing(false);
       setUploading(false);
     }
