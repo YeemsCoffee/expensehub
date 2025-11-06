@@ -11,6 +11,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
       return [
         { id: 'home', label: 'Home', roles: ['developer'], description: 'Employee View' },
         { id: 'dashboard', label: 'Dashboard', roles: ['developer'], description: 'Admin View' },
+        { id: 'marketplace', label: 'Marketplace', roles: ['developer'], description: 'Vendor Marketplace' },
         {
           id: 'expenses',
           label: 'Expenses',
@@ -39,6 +40,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
     } else if (userRole === 'employee') {
       return [
         { id: 'home', label: 'Home', roles: ['employee'] },
+        { id: 'marketplace', label: 'Marketplace', roles: ['employee'] },
         {
           id: 'expenses',
           label: 'Expenses',
@@ -53,6 +55,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
     } else if (userRole === 'manager') {
       return [
         { id: 'dashboard', label: 'Dashboard', roles: ['manager'] },
+        { id: 'marketplace', label: 'Marketplace', roles: ['manager'] },
         {
           id: 'expenses',
           label: 'Expenses',
@@ -80,6 +83,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
       // Admin
       return [
         { id: 'dashboard', label: 'Dashboard', roles: ['admin'] },
+        { id: 'marketplace', label: 'Marketplace', roles: ['admin'] },
         {
           id: 'expenses',
           label: 'Expenses',
