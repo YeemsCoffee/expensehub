@@ -7,18 +7,15 @@ const { authMiddleware } = require('../middleware/auth');
 const veryfiService = require('../services/veryfiService');
 const db = require('../config/database');
 
+// Ensure upload directory exists
+const uploadDir = process.env.UPLOAD_DIR || './uploads/receipts';
+fs.mkdir(uploadDir, { recursive: true }).catch(err => {
+  console.error('Error creating upload directory:', err);
+});
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = process.env.UPLOAD_DIR || './uploads/receipts';
-
-    // Create directory if it doesn't exist
-    try {
-      await fs.mkdir(uploadDir, { recursive: true });
-    } catch (error) {
-      console.error('Error creating upload directory:', error);
-    }
-
+  destination: (req, file, cb) => {
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
@@ -55,6 +52,8 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
 
     console.log('Processing receipt upload:', {
       filename: req.file.filename,
+      originalname: req.file.originalname,
+      path: req.file.path,
       size: req.file.size,
       user: req.user.id
     });
