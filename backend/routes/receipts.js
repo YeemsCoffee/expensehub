@@ -102,8 +102,8 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
     });
 
     if (!result.success) {
-      // Clean up uploaded file
-      await fs.unlink(req.file.path).catch(err => console.error('Error deleting file:', err));
+      // Clean up uploaded file using the constructed path
+      await fs.unlink(filePath).catch(err => console.error('Error deleting file:', err));
 
       return res.status(500).json({
         error: 'Failed to process receipt',
@@ -111,7 +111,7 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
       });
     }
 
-    // Save receipt record to database
+    // Save receipt record to database - use filePath, not req.file.path
     const receiptRecord = await db.query(
       `INSERT INTO expense_receipts (
         user_id, file_name, file_path, file_type, file_size,
@@ -122,7 +122,7 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
       [
         req.user.id,
         req.file.filename,
-        req.file.path,
+        filePath,  // Use constructed absolute path
         req.file.mimetype,
         req.file.size,
         result.data.veryfiId || null,
@@ -145,10 +145,14 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
 
   } catch (error) {
     console.error('Receipt upload error:', error);
+    console.error('Error stack:', error.stack);
 
-    // Clean up file if it exists
+    // Clean up file if it exists - use constructed filePath if available
     if (req.file) {
-      await fs.unlink(req.file.path).catch(err => console.error('Error deleting file:', err));
+      const cleanupPath = req.file.filename
+        ? path.resolve(uploadDir, req.file.filename)
+        : req.file.path;
+      await fs.unlink(cleanupPath).catch(err => console.error('Error deleting file:', err));
     }
 
     res.status(500).json({
