@@ -28,10 +28,18 @@ class VeryfiService {
       const base64Image = fileBuffer.toString('base64');
       console.log(`File read successfully, size: ${fileBuffer.length} bytes`);
 
+      // Sanitize filename - Veryfi SDK may try to access this as a file path
+      // Remove special characters and spaces that could cause issues
+      const sanitizedFileName = fileName
+        .replace(/[^\w.-]/g, '_')  // Replace special chars with underscore
+        .replace(/\s+/g, '_');      // Replace spaces with underscore
+
+      console.log(`Sanitized filename: ${sanitizedFileName}`);
+
       // Process with Veryfi
       console.log('Calling Veryfi API...');
       const result = await this.client.process_document(
-        fileName,
+        sanitizedFileName,
         base64Image,
         null, // Categories (optional)
         true  // Delete after processing
