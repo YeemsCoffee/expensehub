@@ -81,9 +81,13 @@ const ReceiptUpload = ({ onReceiptProcessed, onClose }) => {
       formData.append('receipt', file);
 
       // Use axios api instance which handles baseURL and auth automatically
-      // Note: Don't set Content-Type header - axios will set it automatically for FormData
-      // and include the boundary parameter. Setting it manually will override the auth headers.
-      const response = await api.post('/receipts/upload', formData);
+      // We need to explicitly delete the default Content-Type header so axios can set
+      // multipart/form-data with the proper boundary for FormData
+      const response = await api.post('/receipts/upload', formData, {
+        headers: {
+          'Content-Type': undefined  // Let axios set it automatically for FormData
+        }
+      });
 
       const data = response.data;
 

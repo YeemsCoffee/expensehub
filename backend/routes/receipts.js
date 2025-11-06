@@ -46,6 +46,13 @@ const upload = multer({
 // POST /api/receipts/upload - Upload and process receipt with Veryfi OCR
 router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res) => {
   try {
+    console.log('Receipt upload request received:', {
+      hasFile: !!req.file,
+      contentType: req.headers['content-type'],
+      bodyKeys: Object.keys(req.body),
+      filesKeys: req.files ? Object.keys(req.files) : 'no files object'
+    });
+
     if (!req.file) {
       return res.status(400).json({ error: 'No receipt file uploaded' });
     }
