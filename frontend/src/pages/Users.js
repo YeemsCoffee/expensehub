@@ -34,8 +34,8 @@ const Users = () => {
     try {
       const response = await api.get('/users');
       setUsers(response.data);
-      // Filter managers for dropdown
-      setManagers(response.data.filter(u => u.role === 'manager'));
+      // Filter managers for dropdown - include manager, admin, and developer roles
+      setManagers(response.data.filter(u => ['manager', 'admin', 'developer'].includes(u.role)));
       setLoading(false);
     } catch (err) {
       console.error('Error fetching users:', err);
