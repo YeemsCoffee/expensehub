@@ -149,7 +149,7 @@ router.put('/:id/manager', authMiddleware, isAdminOrDeveloper, [
 
     const { managerId } = req.body;
 
-    // Validate manager exists and has manager role
+    // Validate manager exists and has appropriate role (manager, admin, or developer)
     if (managerId) {
       const managerCheck = await db.query(
         'SELECT role FROM users WHERE id = $1',
@@ -160,8 +160,9 @@ router.put('/:id/manager', authMiddleware, isAdminOrDeveloper, [
         return res.status(400).json({ error: 'Manager not found' });
       }
 
-      if (managerCheck.rows[0].role !== 'manager') {
-        return res.status(400).json({ error: 'Selected user must have manager role' });
+      const validRoles = ['manager', 'admin', 'developer'];
+      if (!validRoles.includes(managerCheck.rows[0].role)) {
+        return res.status(400).json({ error: 'Selected user must have manager, admin, or developer role' });
       }
     }
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
+const { sendExpenseSubmissionNotification } = require('../services/emailService');
 
 // Helper function to determine cost type based on category and amount
 const determineCostType = (category, amount) => {
@@ -244,6 +245,31 @@ router.post('/', authMiddleware, [
         approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel
       ]
     );
+
+    // Send email notification to the first approver in the chain (non-blocking)
+    if (approvalChain && approvalChain.length > 0) {
+      const firstApprover = approvalChain[0];
+      const expenseData = {
+        id: result.rows[0].id,
+        date: date,
+        amount: amount,
+        category: category,
+        description: description,
+        vendor_name: vendorName,
+        notes: notes
+      };
+      const managerData = {
+        name: firstApprover.user_name,
+        email: firstApprover.user_email
+      };
+      const submitterData = {
+        name: `${req.user.firstName} ${req.user.lastName}`
+      };
+
+      // Send email asynchronously without blocking the response
+      sendExpenseSubmissionNotification(expenseData, managerData, submitterData)
+        .catch(err => console.error('Failed to send email notification:', err));
+    }
 
     res.status(201).json({
       message: 'Expense created successfully',

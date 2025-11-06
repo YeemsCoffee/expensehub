@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
+const { sendExpenseApprovalNotification, sendExpenseRejectionNotification } = require('../services/emailService');
 
 // Get all pending approvals for the current user (org-chart-based)
 router.get('/pending-for-me', authMiddleware, isManagerOrAdmin, async (req, res) => {
@@ -68,11 +69,15 @@ router.post('/:expenseId/approve', authMiddleware, isManagerOrAdmin, [
     const { comments } = req.body;
     const expenseId = req.params.expenseId;
 
-    // Get the expense with approval chain
+    // Get the expense with approval chain and submitter info
     const expenseResult = await db.query(
-      `SELECT id, status, approval_chain, current_approval_level
-       FROM expenses
-       WHERE id = $1 AND status = 'pending'`,
+      `SELECT e.id, e.status, e.approval_chain, e.current_approval_level,
+              e.date, e.amount, e.category, e.description,
+              u.email as submitter_email,
+              u.first_name || ' ' || u.last_name as submitter_name
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.id = $1 AND e.status = 'pending'`,
       [expenseId]
     );
 
@@ -126,6 +131,24 @@ router.post('/:expenseId/approve', authMiddleware, isManagerOrAdmin, [
         [req.user.id, JSON.stringify(updatedChain), expenseId]
       );
 
+      // Send approval email to expense submitter (non-blocking)
+      const submitterData = {
+        email: expense.submitter_email,
+        name: expense.submitter_name
+      };
+      const approverData = {
+        name: `${req.user.firstName} ${req.user.lastName}`
+      };
+      const expenseData = {
+        date: expense.date,
+        amount: expense.amount,
+        category: expense.category,
+        description: expense.description
+      };
+
+      sendExpenseApprovalNotification(expenseData, submitterData, approverData)
+        .catch(err => console.error('Failed to send approval email:', err));
+
       res.json({
         message: 'Expense fully approved',
         finalApproval: true
@@ -169,11 +192,15 @@ router.post('/:expenseId/reject', authMiddleware, isManagerOrAdmin, [
     const { comments } = req.body;
     const expenseId = req.params.expenseId;
 
-    // Get the expense with approval chain
+    // Get the expense with approval chain and submitter info
     const expenseResult = await db.query(
-      `SELECT id, status, approval_chain, current_approval_level
-       FROM expenses
-       WHERE id = $1 AND status = 'pending'`,
+      `SELECT e.id, e.status, e.approval_chain, e.current_approval_level,
+              e.date, e.amount, e.category, e.description,
+              u.email as submitter_email,
+              u.first_name || ' ' || u.last_name as submitter_name
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.id = $1 AND e.status = 'pending'`,
       [expenseId]
     );
 
@@ -223,6 +250,24 @@ router.post('/:expenseId/reject', authMiddleware, isManagerOrAdmin, [
        WHERE id = $4`,
       [req.user.id, comments, JSON.stringify(updatedChain), expenseId]
     );
+
+    // Send rejection email to expense submitter (non-blocking)
+    const submitterData = {
+      email: expense.submitter_email,
+      name: expense.submitter_name
+    };
+    const rejectorData = {
+      name: `${req.user.firstName} ${req.user.lastName}`
+    };
+    const expenseData = {
+      date: expense.date,
+      amount: expense.amount,
+      category: expense.category,
+      description: expense.description
+    };
+
+    sendExpenseRejectionNotification(expenseData, submitterData, rejectorData, comments)
+      .catch(err => console.error('Failed to send rejection email:', err));
 
     res.json({
       message: 'Expense rejected'
