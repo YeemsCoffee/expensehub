@@ -21,12 +21,15 @@ class VeryfiService {
   async processReceipt(filePath, fileName) {
     try {
       console.log(`Processing receipt: ${fileName}`);
+      console.log(`File path: ${filePath}`);
 
       // Read file as base64 for Veryfi API
       const fileBuffer = await fs.readFile(filePath);
       const base64Image = fileBuffer.toString('base64');
+      console.log(`File read successfully, size: ${fileBuffer.length} bytes`);
 
       // Process with Veryfi
+      console.log('Calling Veryfi API...');
       const result = await this.client.process_document(
         fileName,
         base64Image,
@@ -56,12 +59,20 @@ class VeryfiService {
       };
 
     } catch (error) {
-      console.error('Veryfi processing error:', error);
+      console.error('Veryfi processing error - Full details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        response: error.response?.data,
+        status: error.response?.status
+      });
 
+      // Return more detailed error for debugging
       return {
         success: false,
         error: error.message || 'Failed to process receipt',
-        details: error.response?.data || null
+        details: error.response?.data || error.stack || null,
+        statusCode: error.response?.status
       };
     }
   }

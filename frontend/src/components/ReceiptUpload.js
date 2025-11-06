@@ -100,7 +100,15 @@ const ReceiptUpload = ({ onReceiptProcessed, onClose }) => {
 
     } catch (err) {
       console.error('Upload error:', err);
-      setError(err.response?.data?.error || err.message || 'Failed to process receipt');
+      console.error('Error response:', err.response);
+
+      // Extract detailed error message
+      const errorMessage = err.response?.data?.error
+        || err.response?.data?.details
+        || err.message
+        || 'Failed to process receipt';
+
+      setError(errorMessage);
       setProcessing(false);
       setUploading(false);
     }

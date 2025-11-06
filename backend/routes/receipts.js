@@ -65,6 +65,13 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
       req.file.originalname
     );
 
+    console.log('Veryfi processing result:', {
+      success: result.success,
+      hasData: !!result.data,
+      veryfiId: result.data?.veryfiId,
+      veryfiUrl: result.data?.veryfiUrl
+    });
+
     if (!result.success) {
       // Clean up uploaded file
       await fs.unlink(req.file.path).catch(err => console.error('Error deleting file:', err));
@@ -89,8 +96,8 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
         req.file.path,
         req.file.mimetype,
         req.file.size,
-        result.data.veryfiId,
-        result.data.veryfiUrl,
+        result.data.veryfiId || null,
+        result.data.veryfiUrl || null,
         JSON.stringify(result.data)
       ]
     );
