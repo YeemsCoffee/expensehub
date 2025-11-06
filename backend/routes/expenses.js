@@ -250,6 +250,7 @@ router.post('/', authMiddleware, [
     if (approvalChain && approvalChain.length > 0) {
       const firstApprover = approvalChain[0];
       const expenseData = {
+        id: result.rows[0].id,
         date: date,
         amount: amount,
         category: category,
