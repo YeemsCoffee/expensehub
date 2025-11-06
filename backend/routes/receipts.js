@@ -68,12 +68,13 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
       user: req.user.id
     });
 
-    // Ensure we have the full absolute path
-    const filePath = path.isAbsolute(req.file.path)
-      ? req.file.path
-      : path.join(uploadDir, req.file.filename);
+    // ALWAYS construct the full absolute path from uploadDir and filename
+    // Don't trust req.file.path as it may be relative or malformed
+    const filePath = path.resolve(uploadDir, req.file.filename);
 
-    console.log('Full file path:', filePath);
+    console.log('Constructed file path:', filePath);
+    console.log('Upload directory:', uploadDir);
+    console.log('Filename:', req.file.filename);
 
     // Verify file exists before processing
     try {

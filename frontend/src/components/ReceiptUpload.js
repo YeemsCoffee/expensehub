@@ -80,12 +80,19 @@ const ReceiptUpload = ({ onReceiptProcessed, onClose }) => {
       const formData = new FormData();
       formData.append('receipt', file);
 
-      // Use axios api instance which handles baseURL and auth automatically
-      // We need to explicitly delete the default Content-Type header so axios can set
-      // multipart/form-data with the proper boundary for FormData
+      // Get auth token manually since we need to override headers
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+
+      // Use axios api instance which handles baseURL
+      // We need to explicitly set auth and remove Content-Type so axios sets multipart/form-data
       const response = await api.post('/receipts/upload', formData, {
         headers: {
-          'Content-Type': undefined  // Let axios set it automatically for FormData
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'  // Axios will add boundary automatically
         }
       });
 
