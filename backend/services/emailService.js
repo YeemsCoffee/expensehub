@@ -1,18 +1,9 @@
-const nodemailer = require('nodemailer');
+const { EmailClient } = require('@azure/communication-email');
 
-// Create reusable transporter
-const createTransporter = () => {
-  const config = {
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT),
-    secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  };
-
-  return nodemailer.createTransporter(config);
+// Create Azure Email client
+const createEmailClient = () => {
+  const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING;
+  return new EmailClient(connectionString);
 };
 
 // Send expense submission notification to manager
@@ -24,76 +15,89 @@ const sendExpenseSubmissionNotification = async (expenseData, managerData, submi
   }
 
   try {
-    const transporter = createTransporter();
+    const emailClient = createEmailClient();
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM,
-      to: managerData.email,
-      subject: `New Expense Submitted for Approval - ${submitterData.name}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">New Expense Requires Your Approval</h2>
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">New Expense Requires Your Approval</h2>
 
-          <p>Hello ${managerData.name},</p>
+        <p>Hello ${managerData.name},</p>
 
-          <p>A new expense has been submitted and requires your approval.</p>
+        <p>A new expense has been submitted and requires your approval.</p>
 
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #555;">Expense Details</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Submitted By:</strong></td>
-                <td style="padding: 8px 0;">${submitterData.name}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Date:</strong></td>
-                <td style="padding: 8px 0;">${new Date(expenseData.date).toLocaleDateString()}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
-                <td style="padding: 8px 0;">$${parseFloat(expenseData.amount).toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Category:</strong></td>
-                <td style="padding: 8px 0;">${expenseData.category}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Description:</strong></td>
-                <td style="padding: 8px 0;">${expenseData.description}</td>
-              </tr>
-              ${expenseData.vendor_name ? `
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Vendor:</strong></td>
-                <td style="padding: 8px 0;">${expenseData.vendor_name}</td>
-              </tr>
-              ` : ''}
-              ${expenseData.notes ? `
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Notes:</strong></td>
-                <td style="padding: 8px 0;">${expenseData.notes}</td>
-              </tr>
-              ` : ''}
-            </table>
-          </div>
-
-          <p style="margin: 20px 0;">
-            <a href="${process.env.FRONTEND_URL}/manager/approvals"
-               style="background-color: #007bff; color: white; padding: 12px 24px;
-                      text-decoration: none; border-radius: 5px; display: inline-block;">
-              Review & Approve Expense
-            </a>
-          </p>
-
-          <p style="color: #666; font-size: 14px; margin-top: 30px;">
-            This is an automated notification from ExpenseHub. Please do not reply to this email.
-          </p>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #555;">Expense Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Submitted By:</strong></td>
+              <td style="padding: 8px 0;">${submitterData.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Date:</strong></td>
+              <td style="padding: 8px 0;">${new Date(expenseData.date).toLocaleDateString()}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
+              <td style="padding: 8px 0;">$${parseFloat(expenseData.amount).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Category:</strong></td>
+              <td style="padding: 8px 0;">${expenseData.category}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Description:</strong></td>
+              <td style="padding: 8px 0;">${expenseData.description}</td>
+            </tr>
+            ${expenseData.vendor_name ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Vendor:</strong></td>
+              <td style="padding: 8px 0;">${expenseData.vendor_name}</td>
+            </tr>
+            ` : ''}
+            ${expenseData.notes ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Notes:</strong></td>
+              <td style="padding: 8px 0;">${expenseData.notes}</td>
+            </tr>
+            ` : ''}
+          </table>
         </div>
-      `,
+
+        <p style="margin: 20px 0;">
+          <a href="${process.env.FRONTEND_URL}/manager/approvals"
+             style="background-color: #007bff; color: white; padding: 12px 24px;
+                    text-decoration: none; border-radius: 5px; display: inline-block;">
+            Review & Approve Expense
+          </a>
+        </p>
+
+        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+          This is an automated notification from ExpenseHub. Please do not reply to this email.
+        </p>
+      </div>
+    `;
+
+    const message = {
+      senderAddress: process.env.AZURE_SENDER_EMAIL || 'DoNotReply@yeemscoffee.com',
+      content: {
+        subject: `New Expense Submitted for Approval - ${submitterData.name}`,
+        html: htmlContent,
+      },
+      recipients: {
+        to: [
+          {
+            address: managerData.email,
+            displayName: managerData.name,
+          },
+        ],
+      },
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const poller = await emailClient.beginSend(message);
+    const result = await poller.pollUntilDone();
+
+    console.log('Email sent successfully:', result.id);
+    return { success: true, messageId: result.id };
   } catch (error) {
     console.error('Error sending email:', error);
     return { success: false, error: error.message };
@@ -108,52 +112,65 @@ const sendExpenseApprovalNotification = async (expenseData, submitterData, appro
   }
 
   try {
-    const transporter = createTransporter();
+    const emailClient = createEmailClient();
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM,
-      to: submitterData.email,
-      subject: `Expense Approved - $${parseFloat(expenseData.amount).toFixed(2)}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #28a745;">Expense Approved</h2>
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #28a745;">Expense Approved</h2>
 
-          <p>Hello ${submitterData.name},</p>
+        <p>Hello ${submitterData.name},</p>
 
-          <p>Your expense has been approved by ${approverData.name}.</p>
+        <p>Your expense has been approved by ${approverData.name}.</p>
 
-          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #555;">Expense Details</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Date:</strong></td>
-                <td style="padding: 8px 0;">${new Date(expenseData.date).toLocaleDateString()}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
-                <td style="padding: 8px 0;">$${parseFloat(expenseData.amount).toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Category:</strong></td>
-                <td style="padding: 8px 0;">${expenseData.category}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #666;"><strong>Description:</strong></td>
-                <td style="padding: 8px 0;">${expenseData.description}</td>
-              </tr>
-            </table>
-          </div>
-
-          <p style="color: #666; font-size: 14px; margin-top: 30px;">
-            This is an automated notification from ExpenseHub. Please do not reply to this email.
-          </p>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #555;">Expense Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Date:</strong></td>
+              <td style="padding: 8px 0;">${new Date(expenseData.date).toLocaleDateString()}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
+              <td style="padding: 8px 0;">$${parseFloat(expenseData.amount).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Category:</strong></td>
+              <td style="padding: 8px 0;">${expenseData.category}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Description:</strong></td>
+              <td style="padding: 8px 0;">${expenseData.description}</td>
+            </tr>
+          </table>
         </div>
-      `,
+
+        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+          This is an automated notification from ExpenseHub. Please do not reply to this email.
+        </p>
+      </div>
+    `;
+
+    const message = {
+      senderAddress: process.env.AZURE_SENDER_EMAIL || 'DoNotReply@yeemscoffee.com',
+      content: {
+        subject: `Expense Approved - $${parseFloat(expenseData.amount).toFixed(2)}`,
+        html: htmlContent,
+      },
+      recipients: {
+        to: [
+          {
+            address: submitterData.email,
+            displayName: submitterData.name,
+          },
+        ],
+      },
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Approval email sent successfully:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const poller = await emailClient.beginSend(message);
+    const result = await poller.pollUntilDone();
+
+    console.log('Approval email sent successfully:', result.id);
+    return { success: true, messageId: result.id };
   } catch (error) {
     console.error('Error sending approval email:', error);
     return { success: false, error: error.message };
