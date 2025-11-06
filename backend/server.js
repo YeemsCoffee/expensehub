@@ -12,14 +12,16 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // React needs unsafe-inline for dev
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      scriptSrc: ["'self'"], // Removed unsafe-inline and unsafe-eval for better security
+      styleSrc: ["'self'", "'unsafe-inline'"], // Keep unsafe-inline for styles (less risky)
+      imgSrc: ["'self'", "data:", "https:"], // Allow images from https and data URIs
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
+      objectSrc: ["'none'"], // Prevent plugins like Flash
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
+      frameSrc: ["'none'"], // Prevent iframe embedding
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
     }
   },
   strictTransportSecurity: {
