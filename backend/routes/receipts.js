@@ -7,11 +7,13 @@ const { authMiddleware } = require('../middleware/auth');
 const veryfiService = require('../services/veryfiService');
 const db = require('../config/database');
 
-// Ensure upload directory exists
-const uploadDir = process.env.UPLOAD_DIR || './uploads/receipts';
-fs.mkdir(uploadDir, { recursive: true }).catch(err => {
-  console.error('Error creating upload directory:', err);
-});
+// Ensure upload directory exists - use absolute path
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads', 'receipts');
+console.log('Upload directory:', uploadDir);
+
+fs.mkdir(uploadDir, { recursive: true })
+  .then(() => console.log('Upload directory ready:', uploadDir))
+  .catch(err => console.error('Error creating upload directory:', err));
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -61,13 +63,33 @@ router.post('/upload', authMiddleware, upload.single('receipt'), async (req, res
       filename: req.file.filename,
       originalname: req.file.originalname,
       path: req.file.path,
+      destination: req.file.destination,
       size: req.file.size,
       user: req.user.id
     });
 
+    // Ensure we have the full absolute path
+    const filePath = path.isAbsolute(req.file.path)
+      ? req.file.path
+      : path.join(uploadDir, req.file.filename);
+
+    console.log('Full file path:', filePath);
+
+    // Verify file exists before processing
+    try {
+      await fs.access(filePath);
+      console.log('File exists and is accessible');
+    } catch (err) {
+      console.error('File not accessible:', err);
+      return res.status(500).json({
+        error: 'Uploaded file not found',
+        details: `File path: ${filePath}`
+      });
+    }
+
     // Process with Veryfi
     const result = await veryfiService.processReceipt(
-      req.file.path,
+      filePath,
       req.file.originalname
     );
 
