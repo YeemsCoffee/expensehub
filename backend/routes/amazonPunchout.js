@@ -144,7 +144,11 @@ router.post('/setup', authMiddleware, async (req, res) => {
 
   } catch (error) {
     console.error('Amazon Punchout setup error:', error);
-    res.status(500).json({ error: 'Failed to setup punchout session' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      error: 'Failed to setup punchout session',
+      details: error.message
+    });
   }
 });
 
