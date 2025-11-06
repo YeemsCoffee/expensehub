@@ -24,6 +24,9 @@ const ExpenseSubmit = () => {
     description: '',
     category: '',
     amount: '',
+    subtotal: '',
+    tax: '',
+    tip: '',
     costCenterId: '',
     locationId: '',
     vendorName: '',
@@ -183,6 +186,9 @@ const ExpenseSubmit = () => {
       vendorName: extractedData.vendor || prev.vendorName,
       date: extractedData.date || prev.date,
       amount: extractedData.amount?.toString() || prev.amount,
+      subtotal: extractedData.subtotal?.toString() || prev.subtotal,
+      tax: extractedData.tax?.toString() || prev.tax,
+      tip: extractedData.tip?.toString() || prev.tip,
       category: extractedData.category || prev.category,
       description: extractedData.description || prev.description,
       notes: extractedData.notes || prev.notes
@@ -298,7 +304,7 @@ const ExpenseSubmit = () => {
           </div>
           
           <div className="form-group">
-            <label className="form-label">Amount *</label>
+            <label className="form-label">Amount (Total) *</label>
             <input
               type="number"
               step="0.01"
@@ -314,6 +320,44 @@ const ExpenseSubmit = () => {
                 Amount over $2,500 may require additional approval
               </p>
             )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Subtotal</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newExpense.subtotal}
+              onChange={(e) => handleInputChange('subtotal', e.target.value)}
+              placeholder="0.00"
+              className="form-input"
+            />
+            <p className="form-hint">Amount before tax</p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Tax</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newExpense.tax}
+              onChange={(e) => handleInputChange('tax', e.target.value)}
+              placeholder="0.00"
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Tip</label>
+            <input
+              type="number"
+              step="0.01"
+              value={newExpense.tip}
+              onChange={(e) => handleInputChange('tip', e.target.value)}
+              placeholder="0.00"
+              className="form-input"
+            />
+            <p className="form-hint">For meals/services</p>
           </div>
 
           <div className="form-group">
