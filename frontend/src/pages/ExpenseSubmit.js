@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle, Camera } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
+import ReceiptUpload from '../components/ReceiptUpload';
 
 const ExpenseSubmit = () => {
   const toast = useToast();
@@ -11,6 +12,8 @@ const ExpenseSubmit = () => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState(null);
+  const [showReceiptUpload, setShowReceiptUpload] = useState(false);
+  const [receiptId, setReceiptId] = useState(null);
 
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
@@ -171,6 +174,23 @@ const ExpenseSubmit = () => {
 
       toast.success('Receipt uploaded successfully!');
     }
+  };
+
+  const handleReceiptProcessed = (extractedData, receiptId) => {
+    // Auto-fill form with extracted data
+    setNewExpense(prev => ({
+      ...prev,
+      vendorName: extractedData.vendor || prev.vendorName,
+      date: extractedData.date || prev.date,
+      amount: extractedData.amount?.toString() || prev.amount,
+      category: extractedData.category || prev.category,
+      description: extractedData.description || prev.description,
+      notes: extractedData.notes || prev.notes
+    }));
+
+    setReceiptId(receiptId);
+    setShowReceiptUpload(false);
+    toast.success('Receipt data extracted! Review and submit.');
   };
 
   const handleSubmit = async () => {
@@ -425,27 +445,33 @@ const ExpenseSubmit = () => {
               Attach Receipt
             </label>
 
-            {receiptPreview ? (
+            {receiptId ? (
               <div className="receipt-preview-container">
-                <img src={receiptPreview} alt="Receipt preview" className="receipt-preview" style={{ maxHeight: '200px' }} />
+                <div className="alert alert-success">
+                  <CheckCircle size={16} />
+                  <span>Receipt processed with AI - Data extracted!</span>
+                </div>
                 <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
+                    setReceiptId(null);
                     setReceiptPreview(null);
                   }}
                   style={{ marginTop: '12px' }}
                 >
-                  Remove
+                  Remove Receipt
                 </button>
               </div>
             ) : (
-              <label
+              <button
+                type="button"
                 className="receipt-option-btn upload-btn"
                 style={{
                   border: '2px solid #e5e7eb',
                   borderRadius: '12px',
                   padding: '24px 16px',
-                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white',
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
@@ -453,32 +479,27 @@ const ExpenseSubmit = () => {
                   flexDirection: 'column',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 6px rgba(245, 87, 108, 0.2)',
-                  marginTop: '12px'
+                  boxShadow: '0 4px 6px rgba(102, 126, 234, 0.3)',
+                  marginTop: '12px',
+                  width: '100%'
                 }}
+                onClick={() => setShowReceiptUpload(true)}
                 onMouseOver={(e) => {
                   e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(245, 87, 108, 0.3)';
+                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(102, 126, 234, 0.4)';
                 }}
                 onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(245, 87, 108, 0.2)';
+                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(102, 126, 234, 0.3)';
                 }}
               >
-                <Upload size={32} />
-                <span style={{ fontSize: '16px', fontWeight: '600' }}>Upload Receipt</span>
-                <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>Choose from device or camera</p>
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  capture="environment"
-                  style={{ display: 'none' }}
-                  onChange={handleFileUpload}
-                />
-              </label>
+                <Camera size={32} />
+                <span style={{ fontSize: '16px', fontWeight: '600' }}>Scan Receipt with AI</span>
+                <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>Auto-extract vendor, date, amount & more</p>
+              </button>
             )}
             <p className="form-hint" style={{ marginTop: '12px' }}>
-              Upload PDF, PNG, or JPG • Maximum 10MB
+              AI-powered OCR extracts data automatically • PDF, PNG, JPG • Max 10MB
             </p>
           </div>
         </div>
@@ -498,6 +519,18 @@ const ExpenseSubmit = () => {
           )}
         </button>
       </div>
+
+      {/* Receipt Upload Modal */}
+      {showReceiptUpload && (
+        <div className="modal-overlay" onClick={() => setShowReceiptUpload(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <ReceiptUpload
+              onReceiptProcessed={handleReceiptProcessed}
+              onClose={() => setShowReceiptUpload(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

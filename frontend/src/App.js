@@ -13,6 +13,7 @@ import Projects from './pages/Projects';
 import Users from './pages/Users';
 import ApprovalRules from './pages/ApprovalRules';
 import Approvals from './pages/Approvals';
+import XeroSettings from './pages/XeroSettings';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { calculateCartTotal } from './utils/helpers';
@@ -201,9 +202,11 @@ const App = () => {
         return <ApprovalRules />;
       case 'approvals':
         return <Approvals />;
+      case 'xero-settings':
+        return <XeroSettings />;
       case 'cart':
         return (
-          <Cart 
+          <Cart
             cart={cart}
             onUpdateQuantity={handleUpdateCartQuantity}
             onRemoveItem={handleRemoveFromCart}

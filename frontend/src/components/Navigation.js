@@ -33,7 +33,8 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
             { id: 'approval-rules', label: 'Approval Rules' },
-            { id: 'users', label: 'Users' }
+            { id: 'users', label: 'Users' },
+            { id: 'xero-settings', label: 'Xero Integration' }
           ]
         }
       ];
@@ -105,7 +106,8 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
             { id: 'approval-rules', label: 'Approval Rules' },
-            { id: 'users', label: 'Users' }
+            { id: 'users', label: 'Users' },
+            { id: 'xero-settings', label: 'Xero Integration' }
           ]
         }
       ];

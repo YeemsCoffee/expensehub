@@ -260,3 +260,346 @@
     justify-content: center;
   }
 }
+
+/* ===================================
+   Receipt Upload & OCR Styles
+   =================================== */
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 700px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease-out;
+}
+
+.receipt-upload-container {
+  padding: 24px;
+}
+
+.receipt-upload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.receipt-upload-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.receipt-drop-zone {
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  background-color: #f9fafb;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.receipt-drop-zone.active {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.receipt-drop-zone:hover {
+  border-color: #9ca3af;
+  background-color: #f3f4f6;
+}
+
+.upload-icon {
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.drop-zone-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin: 8px 0;
+}
+
+.drop-zone-subtext {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 8px 0;
+}
+
+.upload-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.upload-hint {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 16px;
+}
+
+.receipt-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.receipt-preview-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.receipt-preview-image {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+}
+
+.receipt-preview-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.receipt-file-info {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.receipt-file-info p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.processing-status {
+  text-align: center;
+  padding: 24px;
+  background-color: #eff6ff;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.processing-status p {
+  margin: 8px 0;
+  color: #1e40af;
+}
+
+.receipt-result-container {
+  margin-top: 24px;
+}
+
+.receipt-extracted-data {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 16px 0;
+}
+
+.receipt-extracted-data h4 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.extracted-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.extracted-field:last-child {
+  border-bottom: none;
+}
+
+.extracted-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.extracted-field span {
+  font-size: 14px;
+  color: #111827;
+}
+
+.confidence {
+  font-size: 12px;
+  color: #059669;
+  margin-left: 8px;
+}
+
+.line-items {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.line-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+}
+
+.line-item:last-child {
+  border-bottom: none;
+}
+
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* ===================================
+   Xero Settings Styles
+   =================================== */
+
+.xero-connection-status {
+  padding: 20px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-connected {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.status-disconnected {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.account-mappings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.mapping-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.steps-list {
+  list-style: decimal;
+  padding-left: 24px;
+  color: #374151;
+}
+
+.steps-list li {
+  margin: 12px 0;
+  line-height: 1.6;
+}
+
+.info-box {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.info-box h4 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.info-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.info-box li {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #1e3a8a;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .receipt-upload-container {
+    padding: 16px;
+  }
+
+  .upload-buttons {
+    flex-direction: column;
+  }
+
+  .upload-buttons .btn {
+    width: 100%;
+  }
+
+  .mapping-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .result-actions .btn {
+    width: 100%;
+  }
+}

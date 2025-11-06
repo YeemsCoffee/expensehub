@@ -109,6 +109,8 @@ app.use('/api/projects', require('./routes/projects')); // New projects routes
 app.use('/api/approval-rules', require('./routes/approvalRules')); // Org-chart-based approval rules
 app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expense approvals
 app.use('/api/amazon-punchout', require('./routes/amazonPunchout')); // Amazon Business Punchout
+app.use('/api/receipts', require('./routes/receipts')); // Receipt OCR with Veryfi
+app.use('/api/xero', require('./routes/xero')); // Xero accounting integration
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
