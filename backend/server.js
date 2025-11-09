@@ -8,6 +8,12 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust proxy - required for Render and other reverse proxies
+// This allows rate limiting and client IP detection to work correctly
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Trust first proxy (Render)
+}
+
 // Security Headers Middleware
 app.use(helmet({
   contentSecurityPolicy: {
