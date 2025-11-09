@@ -27,37 +27,26 @@ XERO_REDIRECT_URI=https://expensehub-l8ka.onrender.com/api/xero/callback
 
 ---
 
-## Step 2: Apply Database Migration on Render
+## Step 2: Database Migration (Automatic!)
 
-The Xero integration requires two new database tables. You need to run the migration on your Render PostgreSQL database.
+**Good news!** The Xero database migration now runs **automatically** when your app starts.
 
-### Option A: Run via Render Shell (Recommended)
+When Render deploys your app (after you add the environment variables in Step 1), the server will:
+1. Check if Xero tables exist
+2. If not, create them automatically
+3. Start the server
 
-1. Go to your Render dashboard → Your backend service
-2. Click **Shell** tab
-3. Run these commands:
+You don't need to do anything manually! Just check your Render logs after deployment to confirm you see:
 
-```bash
-cd backend/database
-node apply_xero_migration.js
+```
+✅ Xero migration applied successfully!
 ```
 
-### Option B: Run via PostgreSQL Client
+or
 
-If you have `psql` access to your Render database:
-
-1. Get your database connection string from Render (Environment → `DATABASE_URL`)
-2. Run locally:
-
-```bash
-psql "your_database_url_here" -f backend/database/receipt_xero_migration.sql
 ```
-
-### Option C: Connect to Render Database via GUI
-
-1. Use a tool like **pgAdmin**, **DBeaver**, or **TablePlus**
-2. Connect using your Render `DATABASE_URL`
-3. Run the SQL from `backend/database/receipt_xero_migration.sql`
+✅ Xero tables already exist - skipping migration
+```
 
 ---
 
@@ -80,10 +69,12 @@ You should now have **TWO** redirect URIs:
 
 ---
 
-## Step 4: Verify Deployment
+## Step 3: Verify Deployment
 
-1. Wait for Render to finish deploying (after saving env variables)
-2. Check the logs in Render dashboard to ensure no errors
+1. Wait for Render to finish deploying (after saving env variables in Step 1)
+2. Check the **Logs** in Render dashboard
+   - Look for: `✅ Xero migration applied successfully!`
+   - Or: `✅ Xero tables already exist - skipping migration`
 3. Visit: `https://expensehub-l8ka.onrender.com`
 4. Go to **Settings** → **Xero Settings**
 5. Click **"Connect to Xero"**
@@ -94,11 +85,7 @@ You should now have **TWO** redirect URIs:
 
 ### Issue: "Migration failed - relation does not exist"
 
-**Solution:** The `expenses` table might not exist. Run the main schema first:
-
-```bash
-psql "your_database_url" -f backend/database/schema.sql
-```
+**Solution:** The `expenses` table might not exist. This means your main database schema hasn't been applied. Contact your database administrator or check if the schema was properly initialized.
 
 ### Issue: "Invalid redirect URI"
 
