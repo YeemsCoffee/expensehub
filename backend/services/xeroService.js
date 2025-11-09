@@ -15,7 +15,7 @@ class XeroService {
         'accounting.contacts',
         'accounting.settings',
         'offline_access'
-      ].join(' ')
+      ]
     });
   }
 
