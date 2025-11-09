@@ -21,10 +21,10 @@ class XeroService {
 
   /**
    * Get authorization URL for OAuth flow
-   * @returns {string} Authorization URL
+   * @returns {Promise<string>} Authorization URL
    */
-  getAuthorizationUrl() {
-    return this.xero.buildConsentUrl();
+  async getAuthorizationUrl() {
+    return await this.xero.buildConsentUrl();
   }
 
   /**

@@ -7,7 +7,7 @@ const db = require('../config/database');
 // GET /api/xero/connect - Initiate Xero OAuth flow
 router.get('/connect', authMiddleware, async (req, res) => {
   try {
-    const authUrl = xeroService.getAuthorizationUrl();
+    const authUrl = await xeroService.getAuthorizationUrl();
 
     // Store user ID in session or state parameter for callback
     // For simplicity, we'll use a query parameter (in production, use secure session)
