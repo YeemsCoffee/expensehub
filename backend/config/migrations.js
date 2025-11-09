@@ -10,6 +10,14 @@ async function runMigrations() {
   console.log('\n🔧 Checking database migrations...');
 
   try {
+    // Test database connection first with timeout
+    const testConnection = await Promise.race([
+      db.query('SELECT 1'),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database connection timeout')), 5000)
+      )
+    ]);
+
     // Check if Xero tables exist
     const checkTables = await db.query(`
       SELECT table_name
@@ -35,8 +43,13 @@ async function runMigrations() {
 
     const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
 
-    // Execute migration
-    await db.query(migrationSQL);
+    // Execute migration with timeout
+    await Promise.race([
+      db.query(migrationSQL),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Migration timeout')), 10000)
+      )
+    ]);
 
     console.log('✅ Xero migration applied successfully!');
 
@@ -52,8 +65,9 @@ async function runMigrations() {
 
   } catch (error) {
     // Don't crash the app if migration fails
-    // (tables might already exist, or this might be a read-only replica)
+    // (tables might already exist, database unavailable, or timeout)
     console.error('⚠️  Migration error (non-fatal):', error.message);
+    console.log('⏩ Server will continue starting without migration');
   }
 }
 
