@@ -8,6 +8,12 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust proxy - required for Render and other reverse proxies
+// This allows rate limiting and client IP detection to work correctly
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Trust first proxy (Render)
+}
+
 // Security Headers Middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -179,19 +185,35 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`\n🚀 ExpenseHub API Server - Enhanced`);
-  console.log(`📍 Running on: http://localhost:${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`⏰ Started at: ${new Date().toLocaleString()}`);
-  console.log(`\n✨ New Features:`);
-  console.log(`   • Locations Management`);
-  console.log(`   • Projects/Initiatives Tracking`);
-  console.log(`   • Enhanced Expense Dimensions`);
-  console.log(`   • Cost Type Auto-Calculation (OPEX/CAPEX)`);
-  console.log(`   • Advanced Filtering & Analytics`);
-  console.log(`   • Enhanced Dashboard\n`);
-});
+// Start server with migrations
+const { runMigrations } = require('./config/migrations');
+
+async function startServer() {
+  try {
+    // Run database migrations first
+    await runMigrations();
+
+    // Then start the server
+    app.listen(PORT, () => {
+      console.log(`\n🚀 ExpenseHub API Server - Enhanced`);
+      console.log(`📍 Running on: http://localhost:${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`⏰ Started at: ${new Date().toLocaleString()}`);
+      console.log(`\n✨ New Features:`);
+      console.log(`   • Locations Management`);
+      console.log(`   • Projects/Initiatives Tracking`);
+      console.log(`   • Enhanced Expense Dimensions`);
+      console.log(`   • Cost Type Auto-Calculation (OPEX/CAPEX)`);
+      console.log(`   • Advanced Filtering & Analytics`);
+      console.log(`   • Enhanced Dashboard\n`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 module.exports = app;
