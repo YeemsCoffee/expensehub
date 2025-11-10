@@ -219,15 +219,16 @@
   top: 64px;
   z-index: var(--z-sticky);
   backdrop-filter: blur(8px);
+  overflow: visible;  /* Allow dropdowns to extend beyond nav */
 }
 
 .nav-tabs {
   display: flex;
   gap: var(--spacing-1);
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;  /* Allow dropdowns to extend beyond nav */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  flex-wrap: nowrap;  /* Prevent wrapping */
 }
 
 .nav-tabs::-webkit-scrollbar {
@@ -302,15 +303,18 @@
   position: absolute;
   top: 100%;
   left: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: #ffffff !important;
+  border: 2px solid #16a34a !important;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3) !important;
   min-width: 220px;
-  z-index: calc(var(--z-sticky) + 100);
+  z-index: 9999 !important;
   animation: dropdownSlide 200ms cubic-bezier(0, 0, 0.2, 1);
-  overflow: hidden;
-  margin-top: var(--spacing-1);
+  overflow: visible !important;
+  margin-top: 8px;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 @keyframes dropdownSlide {
@@ -325,21 +329,23 @@
 }
 
 .nav-dropdown-item {
-  display: flex;
+  display: flex !important;
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: 12px 16px !important;
   text-align: left;
   border: none;
-  background: transparent;
+  background: #ffffff !important;
   font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--color-text-primary);
+  font-size: 14px !important;
+  font-weight: 500;
+  color: #0f172a !important;
   cursor: pointer;
   transition: all var(--transition-fast);
-  line-height: var(--leading-normal);
+  line-height: 1.5;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .nav-dropdown-item:hover {
@@ -404,6 +410,11 @@
 
   .nav {
     top: 56px;
+  }
+
+  .nav-tabs {
+    overflow-x: auto;  /* Enable horizontal scrolling on mobile */
+    overflow-y: visible;
   }
 
   .nav-tab {
