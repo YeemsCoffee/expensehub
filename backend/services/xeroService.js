@@ -35,10 +35,16 @@ class XeroService {
   /**
    * Handle OAuth callback and exchange code for tokens
    * @param {string} callbackUrl - Full callback URL with query parameters
+   * @param {string} state - State parameter for validation
    * @returns {Promise<Object>} Token set
    */
-  async handleCallback(callbackUrl) {
+  async handleCallback(callbackUrl, state) {
     try {
+      // Set state in config for validation
+      if (state) {
+        this.xero.config.state = state;
+      }
+
       const tokenSet = await this.xero.apiCallback(callbackUrl);
 
       // Get connected tenants (organizations)
