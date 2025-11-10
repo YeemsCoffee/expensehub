@@ -21,19 +21,30 @@ class XeroService {
 
   /**
    * Get authorization URL for OAuth flow
+   * @param {string} state - State parameter for OAuth (optional)
    * @returns {Promise<string>} Authorization URL
    */
-  async getAuthorizationUrl() {
+  async getAuthorizationUrl(state) {
+    // Set state if provided (for user context)
+    if (state) {
+      this.xero.config.state = state;
+    }
     return await this.xero.buildConsentUrl();
   }
 
   /**
    * Handle OAuth callback and exchange code for tokens
    * @param {string} callbackUrl - Full callback URL with query parameters
+   * @param {string} state - State parameter for validation
    * @returns {Promise<Object>} Token set
    */
-  async handleCallback(callbackUrl) {
+  async handleCallback(callbackUrl, state) {
     try {
+      // Set state in config for validation
+      if (state) {
+        this.xero.config.state = state;
+      }
+
       const tokenSet = await this.xero.apiCallback(callbackUrl);
 
       // Get connected tenants (organizations)

@@ -7,15 +7,14 @@ const db = require('../config/database');
 // GET /api/xero/connect - Initiate Xero OAuth flow
 router.get('/connect', authMiddleware, async (req, res) => {
   try {
-    const authUrl = await xeroService.getAuthorizationUrl();
-
-    // Store user ID in session or state parameter for callback
-    // For simplicity, we'll use a query parameter (in production, use secure session)
+    // Store user ID in state parameter for callback
     const stateParam = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
-    const urlWithState = `${authUrl}&state=${stateParam}`;
+
+    // Get auth URL with state
+    const authUrl = await xeroService.getAuthorizationUrl(stateParam);
 
     res.json({
-      authUrl: urlWithState
+      authUrl: authUrl
     });
 
   } catch (error) {
@@ -40,8 +39,8 @@ router.get('/callback', async (req, res) => {
     // Build full callback URL for xero-node (it needs the full URL, not just the code)
     const callbackUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
 
-    // Exchange code for tokens
-    const result = await xeroService.handleCallback(callbackUrl);
+    // Exchange code for tokens (pass state so XeroClient can validate it)
+    const result = await xeroService.handleCallback(callbackUrl, state);
 
     if (!result.success) {
       return res.status(500).send(`Failed to connect to Xero: ${result.error}`);
