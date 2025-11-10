@@ -134,7 +134,9 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
   const handleTabClick = (tabId, hasDropdown) => {
     if (hasDropdown) {
       // If it has a dropdown, toggle the dropdown instead of navigating
-      setExpandedDropdown(expandedDropdown === tabId ? null : tabId);
+      const newState = expandedDropdown === tabId ? null : tabId;
+      console.log('🔽 Dropdown toggle:', tabId, 'New state:', newState);
+      setExpandedDropdown(newState);
     } else {
       onTabChange(tabId);
       setExpandedDropdown(null);
