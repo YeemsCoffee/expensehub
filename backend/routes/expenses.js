@@ -548,7 +548,11 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
         const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
 
         if (expiresAt <= fiveMinutesFromNow) {
-          xeroService.xero.setTokenSet({ refresh_token: connection.refresh_token });
+          // Must include expired access_token for XeroClient
+          xeroService.xero.setTokenSet({
+            access_token: connection.access_token,
+            refresh_token: connection.refresh_token
+          });
           const refreshResult = await xeroService.refreshAccessToken(connection.refresh_token);
 
           if (refreshResult.success) {

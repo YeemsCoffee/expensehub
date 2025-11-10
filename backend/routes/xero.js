@@ -462,8 +462,9 @@ async function getActiveConnection(tenantId) {
   const fiveMinutesFromNow = new Date(now.getTime() + (5 * 60 * 1000));
 
   if (expiresAt <= fiveMinutesFromNow) {
-    // Refresh token
+    // Refresh token - must include expired access_token
     xeroService.xero.setTokenSet({
+      access_token: connection.access_token,
       refresh_token: connection.refresh_token
     });
 
