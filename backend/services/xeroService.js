@@ -82,10 +82,18 @@ class XeroService {
 
   /**
    * Set access token for API calls
+   * Note: This should only be used when the full token set is not available
    * @param {string} accessToken - Access token
+   * @param {string} refreshToken - Refresh token (optional, will be preserved if not provided)
    */
-  setAccessToken(accessToken) {
-    this.xero.setTokenSet({ access_token: accessToken });
+  setAccessToken(accessToken, refreshToken = null) {
+    // Get current token set to preserve refresh_token if not explicitly provided
+    const currentTokenSet = this.xero.readTokenSet();
+
+    this.xero.setTokenSet({
+      access_token: accessToken,
+      refresh_token: refreshToken || currentTokenSet?.refresh_token
+    });
   }
 
   /**
