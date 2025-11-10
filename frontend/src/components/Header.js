@@ -1,7 +1,26 @@
-import React from 'react';
-import { ShoppingCart, LogOut, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShoppingCart, LogOut, User as UserIcon, Moon, Sun } from 'lucide-react';
 
 const Header = ({ cartItemCount, onCartClick, user, onLogout }) => {
+  const [theme, setTheme] = useState(() => {
+    // Check localStorage first, then system preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) return savedTheme;
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', theme);
+    // Save to localStorage
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
+
   return (
     <div className="header">
       <div className="container">
@@ -20,6 +39,14 @@ const Header = ({ cartItemCount, onCartClick, user, onLogout }) => {
                     <span className="user-role">{user.role}</span>
                   </div>
                 </div>
+                <button
+                  onClick={toggleTheme}
+                  className="theme-toggle"
+                  title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                  aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                >
+                  {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+                </button>
                 <button onClick={onCartClick} className="header-cart">
                   <ShoppingCart size={24} />
                   {cartItemCount > 0 && (
