@@ -48,35 +48,67 @@ router.get('/callback', async (req, res) => {
 
     // Store tokens in database (organization-wide)
     for (const tenant of result.tenants) {
-      await db.query(
-        `INSERT INTO xero_connections (
-          user_id, tenant_id, tenant_name, access_token, refresh_token,
-          id_token, expires_at, token_type, scope, is_organization_wide, connected_by_user_id
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        ON CONFLICT ON CONSTRAINT xero_connections_unique_constraint
-        DO UPDATE SET
-          access_token = EXCLUDED.access_token,
-          refresh_token = EXCLUDED.refresh_token,
-          id_token = EXCLUDED.id_token,
-          expires_at = EXCLUDED.expires_at,
-          is_active = true,
-          connected_by_user_id = EXCLUDED.connected_by_user_id,
-          updated_at = CURRENT_TIMESTAMP`,
-        [
-          null, // user_id is NULL for organization-wide
-          tenant.tenantId,
-          tenant.tenantName,
-          result.tokenSet.access_token,
-          result.tokenSet.refresh_token,
-          result.tokenSet.id_token,
-          new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
-          result.tokenSet.token_type || 'Bearer',
-          result.tokenSet.scope,
-          true, // is_organization_wide = true
-          adminUserId // connected_by_user_id
-        ]
+      // First, check if connection exists
+      const existingConnection = await db.query(
+        `SELECT id FROM xero_connections
+         WHERE tenant_id = $1 AND (
+           (is_organization_wide = true) OR
+           (user_id IS NULL)
+         )`,
+        [tenant.tenantId]
       );
+
+      if (existingConnection.rows.length > 0) {
+        // Update existing connection
+        await db.query(
+          `UPDATE xero_connections
+           SET access_token = $1,
+               refresh_token = $2,
+               id_token = $3,
+               expires_at = $4,
+               token_type = $5,
+               scope = $6,
+               is_active = true,
+               is_organization_wide = true,
+               connected_by_user_id = $7,
+               tenant_name = $8,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $9`,
+          [
+            result.tokenSet.access_token,
+            result.tokenSet.refresh_token,
+            result.tokenSet.id_token,
+            new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
+            result.tokenSet.token_type || 'Bearer',
+            result.tokenSet.scope,
+            adminUserId,
+            tenant.tenantName,
+            existingConnection.rows[0].id
+          ]
+        );
+      } else {
+        // Insert new connection
+        await db.query(
+          `INSERT INTO xero_connections (
+            user_id, tenant_id, tenant_name, access_token, refresh_token,
+            id_token, expires_at, token_type, scope, is_organization_wide, connected_by_user_id
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            null, // user_id is NULL for organization-wide
+            tenant.tenantId,
+            tenant.tenantName,
+            result.tokenSet.access_token,
+            result.tokenSet.refresh_token,
+            result.tokenSet.id_token,
+            new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
+            result.tokenSet.token_type || 'Bearer',
+            result.tokenSet.scope,
+            true, // is_organization_wide = true
+            adminUserId // connected_by_user_id
+          ]
+        );
+      }
     }
 
     // Redirect back to frontend Xero Settings page
@@ -196,18 +228,37 @@ router.post('/mappings', authMiddleware, isAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    await db.query(
-      `INSERT INTO xero_account_mappings (
-        user_id, tenant_id, category, xero_account_code, xero_account_name, is_organization_wide
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT ON CONSTRAINT xero_account_mappings_unique_constraint
-      DO UPDATE SET
-        xero_account_code = EXCLUDED.xero_account_code,
-        xero_account_name = EXCLUDED.xero_account_name,
-        updated_at = CURRENT_TIMESTAMP`,
-      [null, tenantId, category, accountCode, accountName, true]
+    // Check if mapping exists
+    const existingMapping = await db.query(
+      `SELECT id FROM xero_account_mappings
+       WHERE tenant_id = $1 AND category = $2 AND (
+         (is_organization_wide = true) OR
+         (user_id IS NULL)
+       )`,
+      [tenantId, category]
     );
+
+    if (existingMapping.rows.length > 0) {
+      // Update existing mapping
+      await db.query(
+        `UPDATE xero_account_mappings
+         SET xero_account_code = $1,
+             xero_account_name = $2,
+             is_organization_wide = true,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [accountCode, accountName, existingMapping.rows[0].id]
+      );
+    } else {
+      // Insert new mapping
+      await db.query(
+        `INSERT INTO xero_account_mappings (
+          user_id, tenant_id, category, xero_account_code, xero_account_name, is_organization_wide
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)`,
+        [null, tenantId, category, accountCode, accountName, true]
+      );
+    }
 
     res.json({ message: 'Account mapping saved successfully' });
 
