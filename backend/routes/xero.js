@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { authMiddleware, isAdmin } = require('../middleware/auth');
+const { authMiddleware, isAdmin, isAdminOrDeveloper } = require('../middleware/auth');
 const xeroService = require('../services/xeroService');
 const db = require('../config/database');
 
-// GET /api/xero/connect - Initiate Xero OAuth flow
-router.get('/connect', authMiddleware, async (req, res) => {
+// GET /api/xero/connect - Initiate Xero OAuth flow (Admin/Developer only - organization-wide)
+router.get('/connect', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
-    // Store user ID in state parameter for callback
+    // Store admin/developer user ID in state parameter for callback
     const stateParam = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
 
     // Get auth URL with state
@@ -32,9 +32,9 @@ router.get('/callback', async (req, res) => {
       return res.status(400).send('Authorization code missing');
     }
 
-    // Decode state to get user ID
+    // Decode state to get admin/developer user ID
     const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-    const userId = stateData.userId;
+    const connectedByUserId = stateData.userId;
 
     // Build full callback URL for xero-node (it needs the full URL, not just the code)
     const callbackUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
@@ -46,56 +46,92 @@ router.get('/callback', async (req, res) => {
       return res.status(500).send(`Failed to connect to Xero: ${result.error}`);
     }
 
-    // Store tokens in database
+    // Store tokens in database (organization-wide)
     for (const tenant of result.tenants) {
-      await db.query(
-        `INSERT INTO xero_connections (
-          user_id, tenant_id, tenant_name, access_token, refresh_token,
-          id_token, expires_at, token_type, scope
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (user_id, tenant_id)
-        DO UPDATE SET
-          access_token = EXCLUDED.access_token,
-          refresh_token = EXCLUDED.refresh_token,
-          id_token = EXCLUDED.id_token,
-          expires_at = EXCLUDED.expires_at,
-          is_active = true,
-          updated_at = CURRENT_TIMESTAMP`,
-        [
-          userId,
-          tenant.tenantId,
-          tenant.tenantName,
-          result.tokenSet.access_token,
-          result.tokenSet.refresh_token,
-          result.tokenSet.id_token,
-          new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
-          result.tokenSet.token_type || 'Bearer',
-          result.tokenSet.scope
-        ]
+      // First, check if connection exists
+      const existingConnection = await db.query(
+        `SELECT id FROM xero_connections
+         WHERE tenant_id = $1 AND (
+           (is_organization_wide = true) OR
+           (user_id IS NULL)
+         )`,
+        [tenant.tenantId]
       );
+
+      if (existingConnection.rows.length > 0) {
+        // Update existing connection
+        await db.query(
+          `UPDATE xero_connections
+           SET access_token = $1,
+               refresh_token = $2,
+               id_token = $3,
+               expires_at = $4,
+               token_type = $5,
+               scope = $6,
+               is_active = true,
+               is_organization_wide = true,
+               connected_by_user_id = $7,
+               tenant_name = $8,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $9`,
+          [
+            result.tokenSet.access_token,
+            result.tokenSet.refresh_token,
+            result.tokenSet.id_token,
+            new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
+            result.tokenSet.token_type || 'Bearer',
+            result.tokenSet.scope,
+            connectedByUserId,
+            tenant.tenantName,
+            existingConnection.rows[0].id
+          ]
+        );
+      } else {
+        // Insert new connection
+        await db.query(
+          `INSERT INTO xero_connections (
+            user_id, tenant_id, tenant_name, access_token, refresh_token,
+            id_token, expires_at, token_type, scope, is_organization_wide, connected_by_user_id
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            null, // user_id is NULL for organization-wide
+            tenant.tenantId,
+            tenant.tenantName,
+            result.tokenSet.access_token,
+            result.tokenSet.refresh_token,
+            result.tokenSet.id_token,
+            new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
+            result.tokenSet.token_type || 'Bearer',
+            result.tokenSet.scope,
+            true, // is_organization_wide = true
+            connectedByUserId // connected_by_user_id
+          ]
+        );
+      }
     }
 
-    // Redirect back to frontend with success
+    // Redirect back to frontend Xero Settings page
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/#/xero-connected?success=true`);
+    res.redirect(`${frontendUrl}/#/xero-settings?connected=true`);
 
   } catch (error) {
     console.error('Xero callback error:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/#/xero-connected?success=false&error=${encodeURIComponent(error.message)}`);
+    res.redirect(`${frontendUrl}/#/xero-settings?connected=false&error=${encodeURIComponent(error.message)}`);
   }
 });
 
-// GET /api/xero/status - Check Xero connection status
+// GET /api/xero/status - Check Xero connection status (organization-wide)
 router.get('/status', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT tenant_id, tenant_name, is_active, created_at, updated_at
+      `SELECT tenant_id, tenant_name, is_active, is_organization_wide,
+              connected_by_user_id, created_at, updated_at
        FROM xero_connections
-       WHERE user_id = $1 AND is_active = true
+       WHERE is_organization_wide = true AND is_active = true
        ORDER BY updated_at DESC`,
-      [req.user.id]
+      []
     );
 
     res.json({
@@ -109,16 +145,16 @@ router.get('/status', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/xero/disconnect - Disconnect Xero
-router.post('/disconnect', authMiddleware, async (req, res) => {
+// POST /api/xero/disconnect - Disconnect Xero (Admin/Developer only)
+router.post('/disconnect', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.body;
 
     await db.query(
       `UPDATE xero_connections
        SET is_active = false, updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1 AND tenant_id = $2`,
-      [req.user.id, tenantId]
+       WHERE tenant_id = $1 AND is_organization_wide = true`,
+      [tenantId]
     );
 
     res.json({ message: 'Disconnected from Xero successfully' });
@@ -138,8 +174,8 @@ router.get('/accounts', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Tenant ID required' });
     }
 
-    // Get active connection
-    const connection = await getActiveConnection(req.user.id, tenantId);
+    // Get active organization-wide connection
+    const connection = await getActiveConnection(tenantId);
     if (!connection) {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
@@ -162,7 +198,7 @@ router.get('/accounts', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/xero/mappings - Get account mappings
+// GET /api/xero/mappings - Get account mappings (organization-wide)
 router.get('/mappings', authMiddleware, async (req, res) => {
   try {
     const { tenantId } = req.query;
@@ -170,9 +206,9 @@ router.get('/mappings', authMiddleware, async (req, res) => {
     const result = await db.query(
       `SELECT category, xero_account_code, xero_account_name
        FROM xero_account_mappings
-       WHERE user_id = $1 AND tenant_id = $2
+       WHERE is_organization_wide = true AND tenant_id = $1
        ORDER BY category`,
-      [req.user.id, tenantId]
+      [tenantId]
     );
 
     res.json(result.rows);
@@ -183,8 +219,8 @@ router.get('/mappings', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/xero/mappings - Save account mapping
-router.post('/mappings', authMiddleware, async (req, res) => {
+// POST /api/xero/mappings - Save account mapping (Admin/Developer only)
+router.post('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId, category, accountCode, accountName } = req.body;
 
@@ -192,18 +228,37 @@ router.post('/mappings', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    await db.query(
-      `INSERT INTO xero_account_mappings (
-        user_id, tenant_id, category, xero_account_code, xero_account_name
-      )
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (user_id, tenant_id, category)
-      DO UPDATE SET
-        xero_account_code = EXCLUDED.xero_account_code,
-        xero_account_name = EXCLUDED.xero_account_name,
-        updated_at = CURRENT_TIMESTAMP`,
-      [req.user.id, tenantId, category, accountCode, accountName]
+    // Check if mapping exists
+    const existingMapping = await db.query(
+      `SELECT id FROM xero_account_mappings
+       WHERE tenant_id = $1 AND category = $2 AND (
+         (is_organization_wide = true) OR
+         (user_id IS NULL)
+       )`,
+      [tenantId, category]
     );
+
+    if (existingMapping.rows.length > 0) {
+      // Update existing mapping
+      await db.query(
+        `UPDATE xero_account_mappings
+         SET xero_account_code = $1,
+             xero_account_name = $2,
+             is_organization_wide = true,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [accountCode, accountName, existingMapping.rows[0].id]
+      );
+    } else {
+      // Insert new mapping
+      await db.query(
+        `INSERT INTO xero_account_mappings (
+          user_id, tenant_id, category, xero_account_code, xero_account_name, is_organization_wide
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)`,
+        [null, tenantId, category, accountCode, accountName, true]
+      );
+    }
 
     res.json({ message: 'Account mapping saved successfully' });
 
@@ -213,7 +268,7 @@ router.post('/mappings', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/xero/sync/:expenseId - Sync single expense to Xero
+// POST /api/xero/sync/:expenseId - Sync single expense to Xero (any user can sync)
 router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
   try {
     const { tenantId } = req.body;
@@ -222,13 +277,13 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Tenant ID required' });
     }
 
-    // Get expense
+    // Get expense - allow any user to sync their own approved expenses
     const expenseResult = await db.query(
       `SELECT e.*, u.first_name, u.last_name
        FROM expenses e
        JOIN users u ON e.user_id = u.id
-       WHERE e.id = $1 AND e.user_id = $2 AND e.status = 'approved'`,
-      [req.params.expenseId, req.user.id]
+       WHERE e.id = $1 AND e.status = 'approved'`,
+      [req.params.expenseId]
     );
 
     if (expenseResult.rows.length === 0) {
@@ -242,8 +297,8 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Expense already synced to Xero' });
     }
 
-    // Get active connection
-    const connection = await getActiveConnection(req.user.id, tenantId);
+    // Get active organization-wide connection
+    const connection = await getActiveConnection(tenantId);
     if (!connection) {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
@@ -251,12 +306,12 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
     // Set access token
     xeroService.setAccessToken(connection.access_token);
 
-    // Get account mappings
+    // Get account mappings (organization-wide)
     const mappingsResult = await db.query(
       `SELECT category, xero_account_code
        FROM xero_account_mappings
-       WHERE user_id = $1 AND tenant_id = $2`,
-      [req.user.id, tenantId]
+       WHERE is_organization_wide = true AND tenant_id = $1`,
+      [tenantId]
     );
 
     const mapping = {
@@ -288,7 +343,7 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/xero/sync-bulk - Sync multiple expenses to Xero
+// POST /api/xero/sync-bulk - Sync multiple expenses to Xero (any user)
 router.post('/sync-bulk', authMiddleware, async (req, res) => {
   try {
     const { tenantId, expenseIds } = req.body;
@@ -297,22 +352,22 @@ router.post('/sync-bulk', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Tenant ID and expense IDs required' });
     }
 
-    // Get expenses
+    // Get expenses - approved expenses from any user
     const expensesResult = await db.query(
       `SELECT e.*, u.first_name, u.last_name
        FROM expenses e
        JOIN users u ON e.user_id = u.id
-       WHERE e.id = ANY($1) AND e.user_id = $2 AND e.status = 'approved'
+       WHERE e.id = ANY($1) AND e.status = 'approved'
        AND e.xero_invoice_id IS NULL`,
-      [expenseIds, req.user.id]
+      [expenseIds]
     );
 
     if (expensesResult.rows.length === 0) {
       return res.status(404).json({ error: 'No eligible expenses found' });
     }
 
-    // Get active connection
-    const connection = await getActiveConnection(req.user.id, tenantId);
+    // Get active organization-wide connection
+    const connection = await getActiveConnection(tenantId);
     if (!connection) {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
@@ -324,8 +379,8 @@ router.post('/sync-bulk', authMiddleware, async (req, res) => {
     const mappingsResult = await db.query(
       `SELECT category, xero_account_code
        FROM xero_account_mappings
-       WHERE user_id = $1 AND tenant_id = $2`,
-      [req.user.id, tenantId]
+       WHERE is_organization_wide = true AND tenant_id = $1`,
+      [tenantId]
     );
 
     const mapping = {
@@ -363,8 +418,8 @@ router.get('/organization', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Tenant ID required' });
     }
 
-    // Get active connection
-    const connection = await getActiveConnection(req.user.id, tenantId);
+    // Get active organization-wide connection
+    const connection = await getActiveConnection(tenantId);
     if (!connection) {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
@@ -387,12 +442,12 @@ router.get('/organization', authMiddleware, async (req, res) => {
   }
 });
 
-// Helper function to get active connection and refresh if needed
-async function getActiveConnection(userId, tenantId) {
+// Helper function to get active organization-wide connection and refresh if needed
+async function getActiveConnection(tenantId) {
   const result = await db.query(
     `SELECT * FROM xero_connections
-     WHERE user_id = $1 AND tenant_id = $2 AND is_active = true`,
-    [userId, tenantId]
+     WHERE tenant_id = $1 AND is_organization_wide = true AND is_active = true`,
+    [tenantId]
   );
 
   if (result.rows.length === 0) {
