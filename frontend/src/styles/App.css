@@ -467,6 +467,25 @@ a:focus-visible {
 }
 
 /* ========================================
+   SELECT & OPTION DEFAULTS
+   ======================================== */
+
+select {
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+}
+
+select option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: var(--spacing-4);
+}
+
+select option:disabled {
+  color: var(--color-text-tertiary);
+}
+
+/* ========================================
    SCROLLBAR
    ======================================== */
 
