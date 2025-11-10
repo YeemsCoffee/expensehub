@@ -2,6 +2,7 @@
  * Design System Tokens
  * Following modern UI/UX principles with 8-point grid system
  * Supports light and dark mode
+ * Primary color: Forest Green (#244c28)
  */
 
 :root {
@@ -9,17 +10,29 @@
      COLOR SYSTEM
      ======================================== */
 
-  /* Primary Colors - Trustworthy Blue */
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* Primary Colors - Forest Green (Company Brand) */
+  --color-primary-50: #f0f7f1;
+  --color-primary-100: #d9eedb;
+  --color-primary-200: #b3ddb8;
+  --color-primary-300: #87c98e;
+  --color-primary-400: #5ab665;
+  --color-primary-500: #3a8041;
+  --color-primary-600: #244c28;
+  --color-primary-700: #1d3d21;
+  --color-primary-800: #162e19;
+  --color-primary-900: #0f1f12;
+
+  /* Secondary/Accent Colors - Warm Amber */
+  --color-secondary-50: #fef7ec;
+  --color-secondary-100: #fdecd0;
+  --color-secondary-200: #fbd89e;
+  --color-secondary-300: #f9c06b;
+  --color-secondary-400: #f7a944;
+  --color-secondary-500: #f58b19;
+  --color-secondary-600: #d97013;
+  --color-secondary-700: #b4570d;
+  --color-secondary-800: #904008;
+  --color-secondary-900: #772d05;
 
   /* Neutral Colors */
   --color-neutral-0: #ffffff;
@@ -38,31 +51,40 @@
   /* Feedback Colors */
   --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
   --color-success-500: #22c55e;
   --color-success-600: #16a34a;
   --color-success-700: #15803d;
 
   --color-warning-50: #fefce8;
   --color-warning-100: #fef9c3;
+  --color-warning-200: #fef08a;
   --color-warning-500: #eab308;
   --color-warning-600: #ca8a04;
   --color-warning-700: #a16207;
 
   --color-error-50: #fef2f2;
   --color-error-100: #fee2e2;
+  --color-error-200: #fecaca;
   --color-error-500: #ef4444;
   --color-error-600: #dc2626;
   --color-error-700: #b91c1c;
 
-  --color-info-50: #eff6ff;
-  --color-info-100: #dbeafe;
-  --color-info-500: #3b82f6;
-  --color-info-600: #2563eb;
+  --color-info-50: #f0f9ff;
+  --color-info-100: #e0f2fe;
+  --color-info-200: #bae6fd;
+  --color-info-500: #06b6d4;
+  --color-info-600: #0891b2;
+  --color-info-700: #0e7490;
 
   /* Semantic Color Tokens - Light Mode */
   --color-primary: var(--color-primary-600);
   --color-primary-hover: var(--color-primary-700);
   --color-primary-active: var(--color-primary-800);
+
+  --color-secondary: var(--color-secondary-600);
+  --color-secondary-hover: var(--color-secondary-700);
+  --color-secondary-active: var(--color-secondary-800);
 
   --color-background: var(--color-neutral-0);
   --color-background-secondary: var(--color-neutral-50);
@@ -161,7 +183,7 @@
   --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 
   /* Focus Ring */
-  --shadow-focus: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(58, 128, 65, 0.5);
 
   /* ========================================
      TRANSITIONS
@@ -206,6 +228,10 @@
     --color-primary-hover: var(--color-primary-400);
     --color-primary-active: var(--color-primary-300);
 
+    --color-secondary: var(--color-secondary-500);
+    --color-secondary-hover: var(--color-secondary-400);
+    --color-secondary-active: var(--color-secondary-300);
+
     --color-background: var(--color-neutral-950);
     --color-background-secondary: var(--color-neutral-900);
     --color-background-tertiary: var(--color-neutral-800);
@@ -226,6 +252,9 @@
     --shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+
+    /* Focus ring for dark mode */
+    --shadow-focus: 0 0 0 3px rgba(90, 182, 101, 0.5);
   }
 }
 
