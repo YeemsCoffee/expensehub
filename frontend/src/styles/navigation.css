@@ -316,16 +316,17 @@
 
 .nav-dropdown {
   position: absolute;
-  top: calc(100% + 3px);
+  top: calc(100% + var(--spacing-1));
   left: 0;
-  background: var(--color-surface);
+  background: var(--color-neutral-0);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
   box-shadow: var(--shadow-lg);
   min-width: 200px;
-  z-index: var(--z-index-dropdown);
+  z-index: calc(var(--z-index-sticky) + 10);
   animation: dropdownSlideDown var(--transition-base) ease-out;
   overflow: hidden;
+  padding: var(--spacing-2) 0;
 }
 
 @keyframes dropdownSlideDown {
@@ -342,34 +343,35 @@
 .nav-dropdown-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-6);
+  gap: var(--spacing-8);
   width: 100%;
-  padding: var(--spacing-8) var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-16);
   text-align: left;
   border: none;
   background: transparent;
   font-family: var(--font-sans);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
+  color: var(--color-neutral-700);
   cursor: pointer;
   transition: all var(--transition-fast);
+  line-height: var(--line-height-normal);
 }
 
 .nav-dropdown-item:hover {
-  background: var(--color-background-secondary);
-  color: var(--color-primary);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
 }
 
 .nav-dropdown-item:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: -2px;
-  background: var(--color-background-secondary);
+  background: var(--color-primary-50);
 }
 
 .nav-dropdown-item.active {
-  background: var(--color-primary-50);
-  color: var(--color-primary);
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -548,11 +550,23 @@
   }
 
   .nav-dropdown {
+    background: var(--color-neutral-900);
+    border-color: var(--color-neutral-800);
     box-shadow: var(--shadow-lg), 0 0 0 1px var(--color-neutral-800);
   }
 
-  .nav-dropdown-item.active {
+  .nav-dropdown-item {
+    color: var(--color-neutral-200);
+  }
+
+  .nav-dropdown-item:hover {
     background: var(--color-primary-900);
+    color: var(--color-primary-200);
+  }
+
+  .nav-dropdown-item.active {
+    background: var(--color-primary-800);
+    color: var(--color-primary-100);
   }
 }
 
