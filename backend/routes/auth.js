@@ -321,6 +321,7 @@ router.post('/forgot-password',
     }
 
     const { email } = req.body;
+    console.log('🔐 [PASSWORD RESET] Request received for:', email);
 
     // Find user by email
     const result = await db.query(
@@ -332,15 +333,18 @@ router.post('/forgot-password',
     // Always return success message to prevent email enumeration
     // Don't reveal if email exists or not
     if (result.rows.length === 0) {
+      console.log('⚠️  [PASSWORD RESET] User not found:', email);
       return res.json({
         message: 'If an account exists with this email, a password reset link will be sent.'
       });
     }
 
     const user = result.rows[0];
+    console.log('✅ [PASSWORD RESET] User found:', user.id, `(${user.first_name} ${user.last_name})`);
 
     // Don't send reset email for inactive accounts
     if (!user.is_active) {
+      console.log('⚠️  [PASSWORD RESET] User account is inactive:', user.id);
       return res.json({
         message: 'If an account exists with this email, a password reset link will be sent.'
       });
@@ -349,6 +353,7 @@ router.post('/forgot-password',
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = await bcrypt.hash(resetToken, 10);
+    console.log('🔑 [PASSWORD RESET] Token generated for user:', user.id);
 
     // Token expires in 1 hour
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
@@ -362,15 +367,20 @@ router.post('/forgot-password',
        WHERE id = $3`,
       [resetTokenHash, expiresAt, user.id]
     );
+    console.log('💾 [PASSWORD RESET] Token saved to database, expires at:', expiresAt.toISOString());
 
     // Send reset email
+    console.log('📧 [PASSWORD RESET] Attempting to send email to:', user.email);
     const emailResult = await sendPasswordResetEmail({
       email: user.email,
       name: `${user.first_name} ${user.last_name}`
     }, resetToken);
 
-    if (!emailResult.success) {
-      console.error('Failed to send password reset email:', emailResult.error);
+    if (emailResult.success) {
+      console.log('✅ [PASSWORD RESET] Email sent successfully! Message ID:', emailResult.messageId);
+    } else {
+      console.error('❌ [PASSWORD RESET] Email failed to send!');
+      console.error('   Error:', emailResult.error || emailResult.message);
       // Don't expose email failure to user
     }
 
@@ -379,7 +389,7 @@ router.post('/forgot-password',
     });
 
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('❌ [PASSWORD RESET] Unexpected error:', error);
     res.status(500).json({ error: 'Server error processing password reset request' });
   }
 });
