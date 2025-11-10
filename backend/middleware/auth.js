@@ -34,4 +34,12 @@ const isManagerOrAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authMiddleware, isAdmin, isManagerOrAdmin };
+// Middleware to check if user is admin or developer
+const isAdminOrDeveloper = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'developer') {
+    return res.status(403).json({ error: 'Access denied. Admin or developer rights required.' });
+  }
+  next();
+};
+
+module.exports = { authMiddleware, isAdmin, isManagerOrAdmin, isAdminOrDeveloper };

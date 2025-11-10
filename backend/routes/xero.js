@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { authMiddleware, isAdmin } = require('../middleware/auth');
+const { authMiddleware, isAdmin, isAdminOrDeveloper } = require('../middleware/auth');
 const xeroService = require('../services/xeroService');
 const db = require('../config/database');
 
-// GET /api/xero/connect - Initiate Xero OAuth flow (Admin only - organization-wide)
-router.get('/connect', authMiddleware, isAdmin, async (req, res) => {
+// GET /api/xero/connect - Initiate Xero OAuth flow (Admin/Developer only - organization-wide)
+router.get('/connect', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
-    // Store admin user ID in state parameter for callback
+    // Store admin/developer user ID in state parameter for callback
     const stateParam = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
 
     // Get auth URL with state
@@ -32,9 +32,9 @@ router.get('/callback', async (req, res) => {
       return res.status(400).send('Authorization code missing');
     }
 
-    // Decode state to get admin user ID
+    // Decode state to get admin/developer user ID
     const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-    const adminUserId = stateData.userId;
+    const connectedByUserId = stateData.userId;
 
     // Build full callback URL for xero-node (it needs the full URL, not just the code)
     const callbackUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
@@ -81,7 +81,7 @@ router.get('/callback', async (req, res) => {
             new Date(Date.now() + (result.tokenSet.expires_in * 1000)),
             result.tokenSet.token_type || 'Bearer',
             result.tokenSet.scope,
-            adminUserId,
+            connectedByUserId,
             tenant.tenantName,
             existingConnection.rows[0].id
           ]
@@ -105,7 +105,7 @@ router.get('/callback', async (req, res) => {
             result.tokenSet.token_type || 'Bearer',
             result.tokenSet.scope,
             true, // is_organization_wide = true
-            adminUserId // connected_by_user_id
+            connectedByUserId // connected_by_user_id
           ]
         );
       }
@@ -145,8 +145,8 @@ router.get('/status', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/xero/disconnect - Disconnect Xero (Admin only)
-router.post('/disconnect', authMiddleware, isAdmin, async (req, res) => {
+// POST /api/xero/disconnect - Disconnect Xero (Admin/Developer only)
+router.post('/disconnect', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.body;
 
@@ -219,8 +219,8 @@ router.get('/mappings', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/xero/mappings - Save account mapping (Admin only)
-router.post('/mappings', authMiddleware, isAdmin, async (req, res) => {
+// POST /api/xero/mappings - Save account mapping (Admin/Developer only)
+router.post('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId, category, accountCode, accountName } = req.body;
 
