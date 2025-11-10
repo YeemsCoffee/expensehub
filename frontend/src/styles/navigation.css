@@ -108,6 +108,44 @@
   line-height: var(--leading-tight);
 }
 
+/* Theme Toggle Button */
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-inverse);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.theme-toggle:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+  transition: transform var(--transition-base);
+}
+
+.theme-toggle:hover svg {
+  transform: rotate(15deg);
+}
+
 /* Cart Button with micro-interaction */
 .header-cart {
   position: relative;
@@ -434,27 +472,50 @@
    ======================================== */
 
 @media (prefers-color-scheme: dark) {
-  .header {
+  :root:not([data-theme="light"]) .header {
     background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-900) 100%);
   }
 
-  .nav {
+  :root:not([data-theme="light"]) .nav {
     background: var(--color-surface);
     border-bottom-color: var(--color-border);
   }
 
-  .nav-dropdown {
+  :root:not([data-theme="light"]) .nav-dropdown {
     background: var(--color-surface);
     border-color: var(--color-border);
   }
 
-  .nav-dropdown-item:hover {
+  :root:not([data-theme="light"]) .nav-dropdown-item:hover {
     background: var(--color-primary-900);
   }
 
-  .nav-dropdown-item.active {
+  :root:not([data-theme="light"]) .nav-dropdown-item.active {
     background: var(--color-primary-800);
   }
+}
+
+/* Manual dark mode toggle - takes precedence */
+:root[data-theme="dark"] .header {
+  background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-900) 100%);
+}
+
+:root[data-theme="dark"] .nav {
+  background: var(--color-surface);
+  border-bottom-color: var(--color-border);
+}
+
+:root[data-theme="dark"] .nav-dropdown {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="dark"] .nav-dropdown-item:hover {
+  background: var(--color-primary-900);
+}
+
+:root[data-theme="dark"] .nav-dropdown-item.active {
+  background: var(--color-primary-800);
 }
 
 /* ========================================
@@ -463,6 +524,7 @@
 
 .nav-tab:focus-visible,
 .nav-dropdown-item:focus-visible,
+.theme-toggle:focus-visible,
 .header-cart:focus-visible,
 .header-right .btn-secondary:focus-visible {
   outline: 2px solid var(--color-border-focus);

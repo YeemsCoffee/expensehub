@@ -216,7 +216,7 @@
    ======================================== */
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-primary: #6366f1;
     --color-primary-hover: #818cf8;
     --color-primary-active: #a5b4fc;
@@ -253,6 +253,45 @@
 
     --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.25);
   }
+}
+
+/* Manual dark mode toggle - takes precedence over system preference */
+:root[data-theme="dark"] {
+  --color-primary: #6366f1;
+  --color-primary-hover: #818cf8;
+  --color-primary-active: #a5b4fc;
+
+  --color-background: #0f172a;
+  --color-background-secondary: #1e293b;
+  --color-background-tertiary: #334155;
+
+  --color-surface: #1e293b;
+  --color-surface-raised: #334155;
+  --color-surface-overlay: rgba(30, 41, 59, 0.95);
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #64748b;
+  --color-text-inverse: #0f172a;
+
+  --color-border: #334155;
+  --color-border-hover: #475569;
+  --color-border-focus: #6366f1;
+
+  --color-shadow-sm: rgba(0, 0, 0, 0.2);
+  --color-shadow-md: rgba(0, 0, 0, 0.3);
+  --color-shadow-lg: rgba(0, 0, 0, 0.4);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.3);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 8px 16px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.3);
+
+  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.25);
 }
 
 /* ========================================

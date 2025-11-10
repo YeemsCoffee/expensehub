@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { sendExpenseSubmissionNotification } = require('../services/emailService');
+const xeroService = require('../services/xeroService');
 
 // Helper function to determine cost type based on category and amount
 const determineCostType = (category, amount) => {
@@ -492,26 +493,137 @@ router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) =>
   }
 });
 
-// Approve expense
+// Approve expense (with auto-sync to Xero)
 router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
+    // Get full expense details with user info
+    const expenseQuery = await db.query(
+      `SELECT e.*, u.first_name, u.last_name, u.email
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.id = $1 AND e.status = 'pending'`,
+      [req.params.id]
+    );
+
+    if (expenseQuery.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or already processed' });
+    }
+
+    const expense = expenseQuery.rows[0];
+
+    // Approve the expense
     const result = await db.query(
-      `UPDATE expenses 
+      `UPDATE expenses
        SET status = 'approved',
            approved_by = $1,
            approved_at = CURRENT_TIMESTAMP,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 AND status = 'pending'
+       WHERE id = $2
        RETURNING *`,
       [req.user.id, req.params.id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Expense not found or already processed' });
-    }
+    const approvedExpense = { ...expense, ...result.rows[0] };
 
+    // Auto-sync to Xero if connection exists (non-blocking)
+    setImmediate(async () => {
+      try {
+        // Check if Xero is connected
+        const xeroConnection = await db.query(
+          `SELECT * FROM xero_connections
+           WHERE is_organization_wide = true AND is_active = true
+           LIMIT 1`
+        );
+
+        if (xeroConnection.rows.length === 0) {
+          console.log(`Skipping Xero sync for expense ${approvedExpense.id} - No Xero connection`);
+          return;
+        }
+
+        const connection = xeroConnection.rows[0];
+        const tenantId = connection.tenant_id;
+
+        // Refresh token if needed
+        const expiresAt = new Date(connection.expires_at);
+        const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+
+        if (expiresAt <= fiveMinutesFromNow) {
+          xeroService.xero.setTokenSet({ refresh_token: connection.refresh_token });
+          const refreshResult = await xeroService.refreshAccessToken(connection.refresh_token);
+
+          if (refreshResult.success) {
+            await db.query(
+              `UPDATE xero_connections
+               SET access_token = $1, refresh_token = $2, expires_at = $3, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $4`,
+              [
+                refreshResult.tokenSet.access_token,
+                refreshResult.tokenSet.refresh_token,
+                new Date(Date.now() + refreshResult.tokenSet.expires_in * 1000),
+                connection.id
+              ]
+            );
+            connection.access_token = refreshResult.tokenSet.access_token;
+          }
+        }
+
+        // Set access token
+        xeroService.setAccessToken(connection.access_token);
+
+        // Get account mappings
+        const mappingsResult = await db.query(
+          `SELECT category, xero_account_code
+           FROM xero_account_mappings
+           WHERE is_organization_wide = true AND tenant_id = $1`,
+          [tenantId]
+        );
+
+        const mapping = {
+          categoryMapping: {},
+          defaultExpenseAccount: '400',
+          defaultTaxType: 'NONE'
+        };
+
+        mappingsResult.rows.forEach(row => {
+          mapping.categoryMapping[row.category] = row.xero_account_code;
+        });
+
+        // Sync to Xero (bills payable to employee for reimbursable, vendor for non-reimbursable)
+        const syncResult = await xeroService.syncExpense(
+          tenantId,
+          approvedExpense,
+          mapping
+        );
+
+        if (syncResult.success) {
+          console.log(`✓ Auto-synced expense ${approvedExpense.id} to Xero`);
+        } else {
+          console.error(`✗ Failed to auto-sync expense ${approvedExpense.id}:`, syncResult.error);
+
+          // Store sync error for manual retry (safety net)
+          await db.query(
+            `UPDATE expenses
+             SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [syncResult.error, approvedExpense.id]
+          );
+        }
+      } catch (syncError) {
+        console.error(`Error during auto-sync for expense ${approvedExpense.id}:`, syncError);
+
+        // Store sync error for manual retry (safety net)
+        await db.query(
+          `UPDATE expenses
+           SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2`,
+          [syncError.message, approvedExpense.id]
+        );
+      }
+    });
+
+    // Respond immediately (don't wait for Xero sync)
     res.json({
-      message: 'Expense approved successfully',
+      message: 'Expense approved successfully. Syncing to Xero in background.',
       expense: result.rows[0]
     });
   } catch (error) {
