@@ -588,15 +588,11 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
           mapping.categoryMapping[row.category] = row.xero_account_code;
         });
 
-        // TODO: Get Xero User ID from user mapping (for expense claims)
-        const xeroUserId = null; // This should be looked up from a user mapping table
-
-        // Sync to Xero
+        // Sync to Xero (bills payable to employee for reimbursable, vendor for non-reimbursable)
         const syncResult = await xeroService.syncExpense(
           tenantId,
           approvedExpense,
-          mapping,
-          xeroUserId
+          mapping
         );
 
         if (syncResult.success) {

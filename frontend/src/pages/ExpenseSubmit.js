@@ -634,7 +634,7 @@ const ExpenseSubmit = () => {
               }}>
                 You've marked this expense as <strong>reimbursable</strong>. This means you expect to be reimbursed for this expense.
                 <br /><br />
-                Once approved, this will create an <strong>Expense Claim</strong> in Xero for reimbursement processing.
+                Once approved, this will create a <strong>bill payable to you</strong> in Xero for reimbursement processing.
                 <br /><br />
                 Is this correct?
               </p>

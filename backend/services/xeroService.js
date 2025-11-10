@@ -176,29 +176,17 @@ class XeroService {
   }
 
   /**
-   * Sync expense to Xero (auto-detects whether to create expense claim or bill)
+   * Sync expense to Xero (auto-detects supplier based on reimbursable flag)
    * @param {string} tenantId - Xero organization ID
    * @param {Object} expense - Expense data
    * @param {Object} mapping - Account mapping configuration
-   * @param {string} xeroUserId - Xero user ID (for expense claims)
    * @returns {Promise<Object>} Sync result
    */
-  async syncExpense(tenantId, expense, mapping, xeroUserId = null) {
+  async syncExpense(tenantId, expense, mapping) {
     try {
-      // Check if this is a reimbursable expense
-      if (expense.is_reimbursable) {
-        // Create Xero Expense Claim
-        if (!xeroUserId) {
-          return {
-            success: false,
-            error: 'Xero User ID required for expense claims'
-          };
-        }
-        return await this.syncExpenseClaimToXero(tenantId, expense, mapping, xeroUserId);
-      } else {
-        // Create Xero Bill (ACCPAY)
-        return await this.syncExpenseToXero(tenantId, expense, mapping);
-      }
+      // For reimbursable expenses, create bill payable to employee
+      // For non-reimbursable, create bill payable to vendor
+      return await this.syncExpenseToXero(tenantId, expense, mapping);
     } catch (error) {
       console.error('Error syncing expense:', error);
       return {
@@ -211,6 +199,8 @@ class XeroService {
 
   /**
    * Sync expense to Xero as an expense claim (for reimbursable expenses)
+   * NOTE: Not currently used - reimbursable expenses are created as bills payable to employee instead
+   * Kept for future reference if Xero user mapping is implemented
    * @param {string} tenantId - Xero organization ID
    * @param {Object} expense - Expense data
    * @param {Object} mapping - Account mapping configuration
@@ -302,8 +292,22 @@ class XeroService {
    */
   async syncExpenseToXero(tenantId, expense, mapping) {
     try {
-      // Get or create contact for vendor
-      const contactId = await this.getOrCreateContact(tenantId, expense.vendor_name || 'Unknown Vendor');
+      // Determine contact based on reimbursable flag
+      let contactName;
+      let billDescription;
+
+      if (expense.is_reimbursable) {
+        // For reimbursable expenses, bill is payable to employee
+        contactName = `${expense.first_name} ${expense.last_name}`;
+        billDescription = `[REIMBURSABLE] ${expense.description}`;
+      } else {
+        // For non-reimbursable expenses, bill is payable to vendor
+        contactName = expense.vendor_name || 'Unknown Vendor';
+        billDescription = expense.description;
+      }
+
+      // Get or create contact
+      const contactId = await this.getOrCreateContact(tenantId, contactName);
 
       // Build line items
       const lineItems = [];
@@ -322,7 +326,7 @@ class XeroService {
       } else {
         // Create single line item for total
         lineItems.push({
-          description: expense.description || 'Expense',
+          description: billDescription || 'Expense',
           quantity: 1,
           unitAmount: expense.amount,
           accountCode: this.mapCategoryToAccount(expense.category, mapping),
