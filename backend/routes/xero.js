@@ -76,14 +76,14 @@ router.get('/callback', async (req, res) => {
       );
     }
 
-    // Redirect back to frontend with success
+    // Redirect back to frontend Xero Settings page
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/#/xero-connected?success=true`);
+    res.redirect(`${frontendUrl}/#/xero-settings?connected=true`);
 
   } catch (error) {
     console.error('Xero callback error:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/#/xero-connected?success=false&error=${encodeURIComponent(error.message)}`);
+    res.redirect(`${frontendUrl}/#/xero-settings?connected=false&error=${encodeURIComponent(error.message)}`);
   }
 });
 
