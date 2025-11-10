@@ -21,9 +21,14 @@ class XeroService {
 
   /**
    * Get authorization URL for OAuth flow
+   * @param {string} state - State parameter for OAuth (optional)
    * @returns {Promise<string>} Authorization URL
    */
-  async getAuthorizationUrl() {
+  async getAuthorizationUrl(state) {
+    // Set state if provided (for user context)
+    if (state) {
+      this.xero.config.state = state;
+    }
     return await this.xero.buildConsentUrl();
   }
 
