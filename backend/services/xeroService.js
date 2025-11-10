@@ -176,6 +176,124 @@ class XeroService {
   }
 
   /**
+   * Sync expense to Xero (auto-detects whether to create expense claim or bill)
+   * @param {string} tenantId - Xero organization ID
+   * @param {Object} expense - Expense data
+   * @param {Object} mapping - Account mapping configuration
+   * @param {string} xeroUserId - Xero user ID (for expense claims)
+   * @returns {Promise<Object>} Sync result
+   */
+  async syncExpense(tenantId, expense, mapping, xeroUserId = null) {
+    try {
+      // Check if this is a reimbursable expense
+      if (expense.is_reimbursable) {
+        // Create Xero Expense Claim
+        if (!xeroUserId) {
+          return {
+            success: false,
+            error: 'Xero User ID required for expense claims'
+          };
+        }
+        return await this.syncExpenseClaimToXero(tenantId, expense, mapping, xeroUserId);
+      } else {
+        // Create Xero Bill (ACCPAY)
+        return await this.syncExpenseToXero(tenantId, expense, mapping);
+      }
+    } catch (error) {
+      console.error('Error syncing expense:', error);
+      return {
+        success: false,
+        error: error.message,
+        details: error.response?.body
+      };
+    }
+  }
+
+  /**
+   * Sync expense to Xero as an expense claim (for reimbursable expenses)
+   * @param {string} tenantId - Xero organization ID
+   * @param {Object} expense - Expense data
+   * @param {Object} mapping - Account mapping configuration
+   * @param {string} userId - Xero user ID for expense claim
+   * @returns {Promise<Object>} Sync result
+   */
+  async syncExpenseClaimToXero(tenantId, expense, mapping, userId) {
+    try {
+      // Build line items for expense claim
+      const receiptLines = [];
+
+      if (expense.line_items && expense.line_items.length > 0) {
+        // Use actual line items from receipt
+        expense.line_items.forEach(item => {
+          receiptLines.push({
+            description: item.description,
+            quantity: item.quantity || 1,
+            unitAmount: item.unitPrice || item.total,
+            accountCode: mapping.defaultExpenseAccount || '400',
+            taxType: mapping.defaultTaxType || 'NONE'
+          });
+        });
+      } else {
+        // Create single line item for total
+        receiptLines.push({
+          description: expense.description || 'Expense',
+          quantity: 1,
+          unitAmount: expense.amount,
+          accountCode: this.mapCategoryToAccount(expense.category, mapping),
+          taxType: mapping.defaultTaxType || 'NONE'
+        });
+      }
+
+      // Create receipt for expense claim
+      const receipt = {
+        date: expense.date,
+        lineAmountTypes: 'NoTax',
+        user: { userID: userId },
+        receipts: [{
+          date: expense.date,
+          contact: {
+            name: `${expense.first_name} ${expense.last_name}`
+          },
+          lineItems: receiptLines,
+          reference: expense.id ? `Expense #${expense.id}` : undefined,
+          status: expense.status === 'approved' ? 'SUBMITTED' : 'DRAFT'
+        }]
+      };
+
+      const response = await this.xero.accountingApi.createExpenseClaims(
+        tenantId,
+        { expenseClaims: [receipt] }
+      );
+
+      const createdClaim = response.body.expenseClaims[0];
+
+      // Update expense with Xero info
+      await db.query(
+        `UPDATE expenses
+         SET xero_invoice_id = $1,
+             xero_synced_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [createdClaim.expenseClaimID, expense.id]
+      );
+
+      return {
+        success: true,
+        xeroExpenseClaimId: createdClaim.expenseClaimID,
+        total: createdClaim.total
+      };
+
+    } catch (error) {
+      console.error('Error syncing expense claim to Xero:', error);
+      return {
+        success: false,
+        error: error.message,
+        details: error.response?.body
+      };
+    }
+  }
+
+  /**
    * Sync expense to Xero as a bill (accounts payable)
    * @param {string} tenantId - Xero organization ID
    * @param {Object} expense - Expense data

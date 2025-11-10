@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Upload, AlertCircle, CheckCircle, Camera } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle, Camera, AlertTriangle } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
@@ -14,6 +14,8 @@ const ExpenseSubmit = () => {
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
   const [receiptId, setReceiptId] = useState(null);
+  const [showReimbursableConfirm, setShowReimbursableConfirm] = useState(false);
+  const [reimbursableConfirmed, setReimbursableConfirmed] = useState(false);
 
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
@@ -199,11 +201,30 @@ const ExpenseSubmit = () => {
     toast.success('Receipt data extracted! Review and submit.');
   };
 
+  const handleReimbursableConfirm = () => {
+    setShowReimbursableConfirm(false);
+    setReimbursableConfirmed(true);
+    // Trigger actual submission by calling handleSubmit again
+    // (it will bypass the modal check this time)
+    setTimeout(() => handleSubmit(), 50);
+  };
+
+  const handleReimbursableCancel = () => {
+    setShowReimbursableConfirm(false);
+    setReimbursableConfirmed(false);
+  };
+
   const handleSubmit = async () => {
     // Validation
-    if (!newExpense.date || !newExpense.description || !newExpense.category || 
+    if (!newExpense.date || !newExpense.description || !newExpense.category ||
         !newExpense.amount || !newExpense.costCenterId) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // If reimbursable and not confirmed, show confirmation modal
+    if (newExpense.isReimbursable && !reimbursableConfirmed) {
+      setShowReimbursableConfirm(true);
       return;
     }
 
@@ -254,10 +275,12 @@ const ExpenseSubmit = () => {
       });
 
       setReceiptPreview(null);
-      
+      setReimbursableConfirmed(false); // Reset confirmation flag
+
     } catch (err) {
       console.error('Submission error:', err);
       toast.error(err.response?.data?.error || 'Failed to submit expense. Please try again.');
+      setReimbursableConfirmed(false); // Reset on error too
     } finally {
       setIsSubmitting(false);
     }
@@ -572,6 +595,71 @@ const ExpenseSubmit = () => {
               onReceiptProcessed={handleReceiptProcessed}
               onClose={() => setShowReceiptUpload(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Reimbursable Expense Confirmation Modal */}
+      {showReimbursableConfirm && (
+        <div className="modal-overlay" onClick={handleReimbursableCancel}>
+          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', padding: '1.5rem' }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'var(--color-warning-50)',
+                marginBottom: '1rem'
+              }}>
+                <AlertTriangle size={32} color="var(--color-warning-500)" />
+              </div>
+
+              <h3 style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 'var(--font-semibold)',
+                color: 'var(--color-text-primary)',
+                marginBottom: '0.5rem'
+              }}>
+                Confirm Reimbursable Expense
+              </h3>
+
+              <p style={{
+                fontSize: 'var(--text-base)',
+                color: 'var(--color-text-secondary)',
+                marginBottom: '1.5rem',
+                lineHeight: '1.6'
+              }}>
+                You've marked this expense as <strong>reimbursable</strong>. This means you expect to be reimbursed for this expense.
+                <br /><br />
+                Once approved, this will create an <strong>Expense Claim</strong> in Xero for reimbursement processing.
+                <br /><br />
+                Is this correct?
+              </p>
+
+              <div style={{
+                display: 'flex',
+                gap: '0.75rem',
+                justifyContent: 'center'
+              }}>
+                <button
+                  onClick={handleReimbursableCancel}
+                  className="btn btn-secondary"
+                  style={{ minWidth: '120px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReimbursableConfirm}
+                  className="btn btn-primary"
+                  style={{ minWidth: '120px' }}
+                >
+                  Yes, Submit
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
