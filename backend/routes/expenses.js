@@ -548,6 +548,8 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
         const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
 
         if (expiresAt <= fiveMinutesFromNow) {
+          console.log(`🔄 [Auto-sync] Refreshing expired Xero token for expense ${approvedExpense.id}`);
+
           // Must include expired access_token for XeroClient
           xeroService.xero.setTokenSet({
             access_token: connection.access_token,
@@ -556,23 +558,36 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
           const refreshResult = await xeroService.refreshAccessToken(connection.refresh_token);
 
           if (refreshResult.success) {
+            console.log(`✓ [Auto-sync] Token refreshed successfully`);
+
             await db.query(
               `UPDATE xero_connections
                SET access_token = $1, refresh_token = $2, expires_at = $3, updated_at = CURRENT_TIMESTAMP
                WHERE id = $4`,
               [
                 refreshResult.tokenSet.access_token,
-                refreshResult.tokenSet.refresh_token,
+                refreshResult.tokenSet.refresh_token || connection.refresh_token,
                 new Date(Date.now() + refreshResult.tokenSet.expires_in * 1000),
                 connection.id
               ]
             );
             connection.access_token = refreshResult.tokenSet.access_token;
+            connection.refresh_token = refreshResult.tokenSet.refresh_token || connection.refresh_token;
+          } else {
+            console.error(`✗ [Auto-sync] Token refresh failed:`, refreshResult.error);
+            // Store error and skip sync
+            await db.query(
+              `UPDATE expenses
+               SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              ['Xero token refresh failed: ' + refreshResult.error, approvedExpense.id]
+            );
+            return;
           }
         }
 
-        // Set access token
-        xeroService.setAccessToken(connection.access_token);
+        // Set access token with refresh token to ensure token set is complete
+        xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
         // Get account mappings
         const mappingsResult = await db.query(
