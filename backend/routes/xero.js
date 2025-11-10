@@ -37,8 +37,11 @@ router.get('/callback', async (req, res) => {
     const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
     const userId = stateData.userId;
 
+    // Build full callback URL for xero-node (it needs the full URL, not just the code)
+    const callbackUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
     // Exchange code for tokens
-    const result = await xeroService.handleCallback(code);
+    const result = await xeroService.handleCallback(callbackUrl);
 
     if (!result.success) {
       return res.status(500).send(`Failed to connect to Xero: ${result.error}`);
