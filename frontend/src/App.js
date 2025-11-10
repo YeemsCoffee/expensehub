@@ -55,7 +55,7 @@ const App = () => {
         setActiveTab('dashboard');
       }
     } else {
-      const initialHash = window.location.hash.slice(1).split('?')[0];
+      const initialHash = window.location.hash.slice(1).split('?')[0].replace(/^\//, '');
       if (initialHash === 'register') {
         setCurrentView('register');
       } else if (initialHash === 'login') {
@@ -68,7 +68,7 @@ const App = () => {
     }
 
     const handleHashChange = () => {
-      const hash = window.location.hash.slice(1).split('?')[0];
+      const hash = window.location.hash.slice(1).split('?')[0].replace(/^\//, '');
       if (hash === 'register') {
         setCurrentView('register');
       } else if (hash === 'login') {
