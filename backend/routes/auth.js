@@ -2,9 +2,22 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware } = require('../middleware/auth');
+const { sendPasswordResetEmail } = require('../services/emailService');
+
+// Rate limiter for password reset requests
+// Limits: 5 requests per 15 minutes per IP
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per window
+  message: 'Too many password reset attempts. Please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
 
 // Register new user
 router.post('/register', [
@@ -291,6 +304,192 @@ router.post('/change-password', authMiddleware, [
   } catch (error) {
     console.error('Password change error:', error);
     res.status(500).json({ error: 'Server error changing password' });
+  }
+});
+
+// Forgot password - Request password reset
+router.post('/forgot-password',
+  passwordResetLimiter, // Apply rate limiting
+  [
+    body('email').isEmail().normalizeEmail()
+  ],
+  async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email } = req.body;
+
+    // Find user by email
+    const result = await db.query(
+      `SELECT id, email, first_name, last_name, is_active
+       FROM users WHERE email = $1`,
+      [email]
+    );
+
+    // Always return success message to prevent email enumeration
+    // Don't reveal if email exists or not
+    if (result.rows.length === 0) {
+      return res.json({
+        message: 'If an account exists with this email, a password reset link will be sent.'
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Don't send reset email for inactive accounts
+    if (!user.is_active) {
+      return res.json({
+        message: 'If an account exists with this email, a password reset link will be sent.'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = await bcrypt.hash(resetToken, 10);
+
+    // Token expires in 1 hour
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+
+    // Store hashed token in database
+    await db.query(
+      `UPDATE users
+       SET reset_token = $1,
+           reset_token_expires_at = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [resetTokenHash, expiresAt, user.id]
+    );
+
+    // Send reset email
+    const emailResult = await sendPasswordResetEmail({
+      email: user.email,
+      name: `${user.first_name} ${user.last_name}`
+    }, resetToken);
+
+    if (!emailResult.success) {
+      console.error('Failed to send password reset email:', emailResult.error);
+      // Don't expose email failure to user
+    }
+
+    res.json({
+      message: 'If an account exists with this email, a password reset link will be sent.'
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Server error processing password reset request' });
+  }
+});
+
+// Reset password with token
+router.post('/reset-password', [
+  body('token').notEmpty(),
+  body('newPassword').isLength({ min: 6 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { token, newPassword } = req.body;
+
+    // Find user with non-expired token
+    const result = await db.query(
+      `SELECT id, email, first_name, last_name, reset_token, reset_token_expires_at
+       FROM users
+       WHERE reset_token IS NOT NULL
+       AND reset_token_expires_at > CURRENT_TIMESTAMP`,
+      []
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        error: 'Invalid or expired reset token. Please request a new password reset.'
+      });
+    }
+
+    // Check each user's token to find match
+    let matchedUser = null;
+    for (const user of result.rows) {
+      const isValidToken = await bcrypt.compare(token, user.reset_token);
+      if (isValidToken) {
+        matchedUser = user;
+        break;
+      }
+    }
+
+    if (!matchedUser) {
+      return res.status(400).json({
+        error: 'Invalid or expired reset token. Please request a new password reset.'
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const newPasswordHash = await bcrypt.hash(newPassword, salt);
+
+    // Update password and clear reset token
+    await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           reset_token = NULL,
+           reset_token_expires_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [newPasswordHash, matchedUser.id]
+    );
+
+    res.json({
+      message: 'Password reset successfully. You can now log in with your new password.'
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Server error resetting password' });
+  }
+});
+
+// Validate reset token (optional endpoint for frontend to check token validity)
+router.get('/validate-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Find users with non-expired tokens
+    const result = await db.query(
+      `SELECT id, reset_token, reset_token_expires_at
+       FROM users
+       WHERE reset_token IS NOT NULL
+       AND reset_token_expires_at > CURRENT_TIMESTAMP`,
+      []
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ valid: false, error: 'Invalid or expired token' });
+    }
+
+    // Check each user's token to find match
+    let isValidToken = false;
+    for (const user of result.rows) {
+      const tokenMatches = await bcrypt.compare(token, user.reset_token);
+      if (tokenMatches) {
+        isValidToken = true;
+        break;
+      }
+    }
+
+    if (!isValidToken) {
+      return res.status(400).json({ valid: false, error: 'Invalid or expired token' });
+    }
+
+    res.json({ valid: true });
+
+  } catch (error) {
+    console.error('Validate token error:', error);
+    res.status(500).json({ valid: false, error: 'Server error validating token' });
   }
 });
 
