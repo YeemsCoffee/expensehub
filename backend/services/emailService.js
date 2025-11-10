@@ -267,16 +267,34 @@ const sendExpenseRejectionNotification = async (expenseData, submitterData, reje
 
 // Send password reset email
 const sendPasswordResetEmail = async (userData, resetToken) => {
+  console.log('📧 [EMAIL SERVICE] sendPasswordResetEmail called');
+  console.log('   Recipient:', userData.email);
+  console.log('   EMAIL_ENABLED:', process.env.EMAIL_ENABLED);
+
   if (process.env.EMAIL_ENABLED !== 'true') {
-    console.log('Email notifications are disabled.');
+    console.log('⚠️  [EMAIL SERVICE] Email notifications are DISABLED');
+    console.log('   Set EMAIL_ENABLED=true in .env to enable');
     return { success: false, message: 'Email disabled' };
   }
 
+  // Check if Azure is configured
+  const hasAzureConfig = process.env.AZURE_COMMUNICATION_CONNECTION_STRING &&
+    !process.env.AZURE_COMMUNICATION_CONNECTION_STRING.includes('your-service');
+
+  if (!hasAzureConfig) {
+    console.log('❌ [EMAIL SERVICE] Azure Communication Services NOT configured');
+    console.log('   AZURE_COMMUNICATION_CONNECTION_STRING contains placeholder value');
+    console.log('   Please configure Azure email service in .env');
+    return { success: false, error: 'Email service not configured' };
+  }
+
   try {
+    console.log('🔧 [EMAIL SERVICE] Creating email client...');
     const emailClient = createEmailClient();
 
     // Create reset link with token
     const resetLink = `${process.env.FRONTEND_URL}/#/reset-password?token=${resetToken}`;
+    console.log('🔗 [EMAIL SERVICE] Reset link:', resetLink);
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -317,8 +335,11 @@ const sendPasswordResetEmail = async (userData, resetToken) => {
       </div>
     `;
 
+    const senderEmail = process.env.AZURE_SENDER_EMAIL || 'DoNotReply@yeemscoffee.com';
+    console.log('📮 [EMAIL SERVICE] Sender:', senderEmail);
+
     const message = {
-      senderAddress: process.env.AZURE_SENDER_EMAIL || 'DoNotReply@yeemscoffee.com',
+      senderAddress: senderEmail,
       content: {
         subject: 'Password Reset Request - ExpenseHub',
         html: htmlContent,
@@ -333,13 +354,22 @@ const sendPasswordResetEmail = async (userData, resetToken) => {
       },
     };
 
+    console.log('📤 [EMAIL SERVICE] Sending email via Azure Communication Services...');
+    const startTime = Date.now();
     const poller = await emailClient.beginSend(message);
     const result = await poller.pollUntilDone();
+    const duration = Date.now() - startTime;
 
-    console.log('Password reset email sent successfully:', result.id);
+    console.log('✅ [EMAIL SERVICE] Email sent successfully!');
+    console.log('   Message ID:', result.id);
+    console.log('   Status:', result.status);
+    console.log('   Time taken:', duration, 'ms');
     return { success: true, messageId: result.id };
   } catch (error) {
-    console.error('Error sending password reset email:', error);
+    console.error('❌ [EMAIL SERVICE] Error sending password reset email');
+    console.error('   Error type:', error.name);
+    console.error('   Error message:', error.message);
+    console.error('   Full error:', error);
     return { success: false, error: error.message };
   }
 };
