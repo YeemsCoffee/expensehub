@@ -16,6 +16,8 @@ import Approvals from './pages/Approvals';
 import XeroSettings from './pages/XeroSettings';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { calculateCartTotal } from './utils/helpers';
 import './styles/App.css';
 import './styles/navigation.css';
@@ -53,20 +55,28 @@ const App = () => {
         setActiveTab('dashboard');
       }
     } else {
-      const initialHash = window.location.hash.slice(1);
+      const initialHash = window.location.hash.slice(1).split('?')[0];
       if (initialHash === 'register') {
         setCurrentView('register');
       } else if (initialHash === 'login') {
         setCurrentView('login');
+      } else if (initialHash === 'forgot-password') {
+        setCurrentView('forgot-password');
+      } else if (initialHash === 'reset-password') {
+        setCurrentView('reset-password');
       }
     }
 
     const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
+      const hash = window.location.hash.slice(1).split('?')[0];
       if (hash === 'register') {
         setCurrentView('register');
       } else if (hash === 'login') {
         setCurrentView('login');
+      } else if (hash === 'forgot-password') {
+        setCurrentView('forgot-password');
+      } else if (hash === 'reset-password') {
+        setCurrentView('reset-password');
       }
     };
 
@@ -176,6 +186,14 @@ const App = () => {
 
   if (currentView === 'register') {
     return <Register onRegisterSuccess={handleRegisterSuccess} onNavigateToLogin={handleNavigateToLogin} />;
+  }
+
+  if (currentView === 'forgot-password') {
+    return <ForgotPassword onNavigateToLogin={handleNavigateToLogin} />;
+  }
+
+  if (currentView === 'reset-password') {
+    return <ResetPassword onNavigateToLogin={handleNavigateToLogin} />;
   }
 
   const renderPage = () => {

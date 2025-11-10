@@ -40,6 +40,11 @@ const Login = ({ onLoginSuccess, onNavigateToRegister }) => {
     }
   };
 
+  const handleForgotPasswordClick = (e) => {
+    e.preventDefault();
+    window.location.hash = 'forgot-password';
+  };
+
   return (
     <div className="login-container">
       <div className="login-box">
@@ -83,8 +88,14 @@ const Login = ({ onLoginSuccess, onNavigateToRegister }) => {
             />
           </div>
 
-          <button 
-            type="submit" 
+          <div style={{ textAlign: 'right', marginBottom: '15px' }}>
+            <a href="#" onClick={handleForgotPasswordClick} style={{ fontSize: '14px', color: '#007bff', textDecoration: 'none' }}>
+              Forgot Password?
+            </a>
+          </div>
+
+          <button
+            type="submit"
             className="btn btn-primary btn-full btn-lg"
             disabled={loading}
           >
