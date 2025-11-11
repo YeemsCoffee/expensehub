@@ -260,21 +260,21 @@ const ExpenseHistory = () => {
                         {canModifyExpense(expense) && (
                           <button
                             onClick={() => window.location.href = `/expenses-submit?edit=${expense.id}`}
-                            className="btn btn-sm btn-secondary"
+                            className="btn-icon"
                             title="Edit expense"
+                            style={{ color: '#3b82f6' }}
                           >
-                            <Edit2 size={16} />
-                            Edit
+                            <Edit2 size={18} />
                           </button>
                         )}
                         {canModifyExpense(expense) && (
                           <button
                             onClick={() => handleDelete(expense.id)}
-                            className="btn btn-sm btn-danger"
+                            className="btn-icon"
                             title="Delete expense"
+                            style={{ color: '#ef4444' }}
                           >
-                            <Trash2 size={16} />
-                            Delete
+                            <Trash2 size={18} />
                           </button>
                         )}
                         {!canModifyExpense(expense) && expense.status === 'approved' && (

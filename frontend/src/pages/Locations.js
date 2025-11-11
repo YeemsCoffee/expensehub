@@ -267,19 +267,17 @@ const Locations = () => {
                   <div className="cost-center-actions">
                     <button
                       onClick={() => handleEdit(location)}
-                      className="btn btn-sm btn-secondary"
+                      className="btn-icon"
                       title="Edit"
                     >
-                      <Edit2 size={16} />
-                      Edit
+                      <Edit2 size={18} />
                     </button>
                     <button
                       onClick={() => handleDelete(location.id, location.code)}
-                      className="btn btn-sm btn-danger"
+                      className="btn-icon btn-icon-danger"
                       title="Delete"
                     >
-                      <Trash2 size={16} />
-                      Delete
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </div>
