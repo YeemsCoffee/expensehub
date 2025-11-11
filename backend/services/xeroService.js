@@ -72,10 +72,33 @@ class XeroService {
    */
   async refreshAccessToken(refreshToken) {
     try {
-      const tokenSet = await this.xero.refreshToken();
-      return { success: true, tokenSet };
+      console.log('🔄 Attempting to refresh Xero token...');
+
+      // Ensure we have a valid token set before refreshing
+      const currentTokenSet = this.xero.readTokenSet();
+      if (!currentTokenSet || !currentTokenSet.refresh_token) {
+        throw new Error('No refresh token available in token set');
+      }
+
+      console.log('Current token set has refresh_token:', !!currentTokenSet.refresh_token);
+
+      // Check if openIdClient is initialized (common issue with xero-node)
+      if (!this.xero.openIdClient) {
+        console.log('⚠️  OpenIdClient not initialized, reinitializing XeroClient...');
+        // Reinitialize by calling buildConsentUrl which initializes openIdClient
+        await this.xero.buildConsentUrl();
+        // Reset the token set after reinitialization
+        this.xero.setTokenSet(currentTokenSet);
+      }
+
+      // Call refresh on the xero client
+      const newTokenSet = await this.xero.refreshToken();
+
+      console.log('✓ Token refresh successful');
+      return { success: true, tokenSet: newTokenSet };
     } catch (error) {
-      console.error('Xero token refresh error:', error);
+      console.error('✗ Xero token refresh error:', error);
+      console.error('Error stack:', error.stack);
       return { success: false, error: error.message };
     }
   }
