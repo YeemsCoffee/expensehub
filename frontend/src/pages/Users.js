@@ -260,26 +260,28 @@ const Users = () => {
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           onClick={() => handleEditClick(user)}
-                          className="btn-icon"
+                          className="btn btn-sm btn-secondary"
                           title="Edit Role"
                         >
-                          <Edit2 size={16} />
+                          <Edit2 size={14} />
+                          Edit
                         </button>
                         <button
                           onClick={() => handleEditManagerClick(user)}
-                          className="btn-icon"
+                          className="btn btn-sm"
                           title="Assign Manager"
-                          style={{ color: '#8b5cf6' }}
+                          style={{ backgroundColor: '#8b5cf6', color: 'white', border: 'none' }}
                         >
-                          <Briefcase size={16} />
+                          <Briefcase size={14} />
+                          Manager
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
-                          className="btn-icon"
+                          className="btn btn-sm btn-danger"
                           title="Delete User"
-                          style={{ color: '#ef4444' }}
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
+                          Delete
                         </button>
                       </div>
                     </td>
