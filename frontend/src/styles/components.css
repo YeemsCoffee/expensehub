@@ -122,15 +122,45 @@
 
 /* Icon Buttons */
 .btn-icon {
-  padding: var(--spacing-4);
-  width: var(--button-height-base);
-  height: var(--button-height-base);
-  background: var(--color-background-secondary);
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  box-shadow:
+    0 1px 2px 0 rgba(15, 23, 42, 0.05),
+    0 1px 1px 0 rgba(15, 23, 42, 0.03);
 }
 
 .btn-icon:hover:not(:disabled) {
-  background: var(--color-background-tertiary);
+  background: var(--color-background-secondary);
+  border-color: var(--color-border-hover);
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 4px -1px rgba(15, 23, 42, 0.08),
+    0 1px 2px -1px rgba(15, 23, 42, 0.04);
+}
+
+.btn-icon:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow:
+    0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+.btn-icon-danger {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.btn-icon-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 /* ========================================
@@ -210,14 +240,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-1) var(--spacing-6);
+  padding: var(--spacing-2) var(--spacing-8);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   border-radius: var(--radius-full);
   text-transform: uppercase;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
 }
 
 .badge-primary {
@@ -767,22 +799,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-16);
+  margin-bottom: var(--spacing-24);
+  padding-bottom: var(--spacing-16);
+  border-bottom: 1px solid var(--color-border);
   gap: var(--spacing-12);
 }
 
 .page-title {
-  font-size: var(--font-size-3xl);
+  font-size: 2rem;
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   margin: 0;
   line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
 }
 
 .page-subtitle {
   font-size: var(--font-size-base);
   color: var(--color-text-secondary);
-  margin: var(--spacing-4) 0 0;
+  margin: var(--spacing-6) 0 0;
+  line-height: var(--line-height-relaxed);
 }
 
 .page-actions {

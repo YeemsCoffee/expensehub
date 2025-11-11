@@ -36,7 +36,7 @@ body {
   font-weight: var(--font-weight-normal);
   line-height: var(--line-height-normal);
   color: var(--color-text-primary);
-  background: var(--color-background);
+  background: linear-gradient(180deg, var(--color-background) 0%, var(--color-background-secondary) 100%);
   min-height: 100vh;
 }
 
@@ -59,7 +59,7 @@ body {
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0 var(--spacing-16);
+  padding: 0 var(--spacing-24);
 }
 
 .container-narrow {
@@ -72,6 +72,12 @@ body {
 
 .container-full {
   max-width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 var(--spacing-16);
+  }
 }
 
 @media (max-width: 640px) {
