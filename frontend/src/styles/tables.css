@@ -12,6 +12,9 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow:
+    0 1px 2px 0 rgba(15, 23, 42, 0.03),
+    0 1px 3px 0 rgba(15, 23, 42, 0.05);
 }
 
 .table-wrapper {
@@ -206,6 +209,7 @@
 /* Hover state */
 .table tbody tr:hover {
   background: var(--color-background-secondary);
+  box-shadow: inset 0 0 0 1px var(--color-border-hover);
 }
 
 /* Striped rows */
