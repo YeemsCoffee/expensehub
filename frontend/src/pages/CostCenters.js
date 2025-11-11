@@ -233,19 +233,21 @@ const CostCenters = () => {
                     <p className="cost-center-name">{cc.name}</p>
                   </div>
                   <div className="cost-center-actions">
-                    <button 
+                    <button
                       onClick={() => handleEdit(cc)}
-                      className="btn-icon"
+                      className="btn btn-sm btn-secondary"
                       title="Edit"
                     >
-                      <Edit2 size={18} />
+                      <Edit2 size={16} />
+                      Edit
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDelete(cc.id, cc.code)}
-                      className="btn-icon btn-icon-danger"
+                      className="btn btn-sm btn-danger"
                       title="Delete"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
+                      Delete
                     </button>
                   </div>
                 </div>
