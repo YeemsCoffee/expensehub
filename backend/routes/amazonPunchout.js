@@ -203,6 +203,12 @@ router.post('/setup', authMiddleware, async (req, res) => {
     const amazonBody = error?.response?.data;
     const amazonStatus = error?.response?.status;
 
+    // Log Amazon's actual error response for debugging
+    if (amazonBody) {
+      console.error('Amazon error response body:', amazonBody);
+      console.error('Amazon error response type:', typeof amazonBody);
+    }
+
     res.status(500).json({
       error: 'Failed to setup punchout session',
       details: error.message,
