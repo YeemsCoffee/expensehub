@@ -49,7 +49,7 @@ function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
       <Extrinsic name="User">${userEmail}</Extrinsic>
       <Extrinsic name="UserEmail">${userEmail}</Extrinsic>
       <BrowserFormPost>
-        <URL>${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/amazon-punchout/return</URL>
+        <URL>${process.env.BACKEND_URL || 'http://localhost:5000'}/api/amazon-punchout/return</URL>
       </BrowserFormPost>
       <Contact role="buyer">
         <Name xml:lang="en-US">${userName}</Name>
