@@ -3,6 +3,9 @@ import { ShoppingCart, LogOut, User as UserIcon, Moon, Sun } from 'lucide-react'
 
 const Header = ({ cartItemCount, onCartClick, user, onLogout }) => {
   const [theme, setTheme] = useState(() => {
+    // Only access localStorage/window in browser environment
+    if (typeof window === 'undefined') return 'light';
+
     // Check localStorage first, then system preference
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) return savedTheme;
@@ -11,6 +14,9 @@ const Header = ({ cartItemCount, onCartClick, user, onLogout }) => {
   });
 
   useEffect(() => {
+    // Only run in browser environment
+    if (typeof window === 'undefined') return;
+
     // Apply theme to document
     document.documentElement.setAttribute('data-theme', theme);
     // Save to localStorage
