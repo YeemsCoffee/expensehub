@@ -28,14 +28,10 @@ const Marketplace = ({ onAddToCart }) => {
       // Get the user's default cost center or let them select one
       const costCenterId = 1; // You might want to let the user select this
 
-      // Request punchout session setup
+      // Request punchout session setup (server-side POST to Amazon)
       const response = await api.post('/amazon-punchout/setup', { costCenterId });
 
-      const { cxmlRequest: cxmlRequestPayload, targetUrl: amazonTargetUrl } = response.data ?? {};
-
-      if (!cxmlRequestPayload || !amazonTargetUrl) {
-        throw new Error('Amazon punchout response missing cXML payload or target URL');
-      }
+      const { startUrl, success } = response.data;
 
       // Create a form to POST the cXML to Amazon
       const form = document.createElement('form');
@@ -48,7 +44,7 @@ const Marketplace = ({ onAddToCart }) => {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'cXML-urlencoded';
-      input.value = cxmlRequestPayload;
+      input.value = cxmlRequest;
 
       form.appendChild(input);
       document.body.appendChild(form);
@@ -65,6 +61,11 @@ const Marketplace = ({ onAddToCart }) => {
           '• Return URL not whitelisted by Amazon\n' +
           '• Test mode not enabled for your account\n\n' +
           'Please contact Amazon Business support to verify your integration is set up.';
+      } else if (error.response?.status === 502) {
+        errorMessage += '\n\nReceived response from Amazon but no StartPage URL found.\n' +
+          'Check your credentials and domain settings.';
+      } else if (error.response?.data?.details) {
+        errorMessage += '\n\nDetails: ' + error.response.data.details;
       }
 
       alert(errorMessage);
