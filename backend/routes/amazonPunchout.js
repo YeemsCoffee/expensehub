@@ -8,13 +8,19 @@ const { authMiddleware } = require('../middleware/auth');
 
 // Amazon Punchout Configuration
 const AMAZON_CONFIG = {
-  identity: process.env.AMAZON_PUNCHOUT_IDENTITY || 'PunchoutGroup1556947794',
-  sharedSecret: process.env.AMAZON_PUNCHOUT_SECRET || 'pVn9bQwGGnl1KZ26VyblJJoXFJCXV2',
+  identity: process.env.AMAZON_PUNCHOUT_IDENTITY,
+  sharedSecret: process.env.AMAZON_PUNCHOUT_SECRET,
   punchoutUrl: process.env.AMAZON_PUNCHOUT_URL || 'https://abintegrations.amazon.com/punchout',
   testUrl: process.env.AMAZON_PUNCHOUT_TEST_URL || 'https://abintegrations.amazon.com/punchout/test',
   poUrl: process.env.AMAZON_PO_URL || 'https://https-ats.amazonsedi.com/2e947cf5-c06d-4411-bffd-57839c057856',
   useProd: process.env.AMAZON_PUNCHOUT_USE_PROD === 'true'
 };
+
+function ensureAmazonConfig() {
+  if (!AMAZON_CONFIG.identity || !AMAZON_CONFIG.sharedSecret) {
+    throw new Error('Amazon Punchout credentials are not configured');
+  }
+}
 
 // Helper function to build cXML PunchOutSetupRequest
 function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
@@ -79,6 +85,7 @@ function parseCxmlResponse(xmlString) {
 // Initiate Amazon Punchout Session
 router.post('/setup', authMiddleware, async (req, res) => {
   try {
+    ensureAmazonConfig();
     const { costCenterId } = req.body;
 
     console.log('Amazon Punchout setup request:', {
@@ -408,6 +415,7 @@ router.get('/history', authMiddleware, async (req, res) => {
 // Debug endpoint to view generated cXML
 router.get('/debug/cxml', authMiddleware, async (req, res) => {
   try {
+    ensureAmazonConfig();
     const buyerCookie = 'debug-cookie-' + Date.now();
     const cxmlRequest = buildPunchOutSetupRequest(
       req.user.id,

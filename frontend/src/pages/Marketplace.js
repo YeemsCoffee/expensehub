@@ -33,12 +33,22 @@ const Marketplace = ({ onAddToCart }) => {
 
       const { startUrl, success } = response.data;
 
-      if (success && startUrl) {
-        // Backend already handled the Amazon POST, just redirect to the StartPage URL
-        window.location.href = startUrl;
-      } else {
-        throw new Error('No startUrl received from backend');
-      }
+      // Create a form to POST the cXML to Amazon
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = targetUrl;
+      form.target = '_self';
+      form.enctype = 'application/x-www-form-urlencoded';
+
+      // Add the cXML as form data
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'cXML-urlencoded';
+      input.value = cxmlRequest;
+
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
 
     } catch (error) {
       console.error('Failed to initiate Amazon punchout:', error);
