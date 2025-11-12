@@ -72,20 +72,51 @@ class XeroService {
    */
   async refreshAccessToken(refreshToken) {
     try {
-      const tokenSet = await this.xero.refreshToken();
-      return { success: true, tokenSet };
+      console.log('🔄 Attempting to refresh Xero token...');
+
+      // Ensure we have a valid token set before refreshing
+      const currentTokenSet = this.xero.readTokenSet();
+      if (!currentTokenSet || !currentTokenSet.refresh_token) {
+        throw new Error('No refresh token available in token set');
+      }
+
+      console.log('Current token set has refresh_token:', !!currentTokenSet.refresh_token);
+
+      // Check if openIdClient is initialized (common issue with xero-node)
+      if (!this.xero.openIdClient) {
+        console.log('⚠️  OpenIdClient not initialized, reinitializing XeroClient...');
+        // Reinitialize by calling buildConsentUrl which initializes openIdClient
+        await this.xero.buildConsentUrl();
+        // Reset the token set after reinitialization
+        this.xero.setTokenSet(currentTokenSet);
+      }
+
+      // Call refresh on the xero client
+      const newTokenSet = await this.xero.refreshToken();
+
+      console.log('✓ Token refresh successful');
+      return { success: true, tokenSet: newTokenSet };
     } catch (error) {
-      console.error('Xero token refresh error:', error);
+      console.error('✗ Xero token refresh error:', error);
+      console.error('Error stack:', error.stack);
       return { success: false, error: error.message };
     }
   }
 
   /**
    * Set access token for API calls
+   * Note: This should only be used when the full token set is not available
    * @param {string} accessToken - Access token
+   * @param {string} refreshToken - Refresh token (optional, will be preserved if not provided)
    */
-  setAccessToken(accessToken) {
-    this.xero.setTokenSet({ access_token: accessToken });
+  setAccessToken(accessToken, refreshToken = null) {
+    // Get current token set to preserve refresh_token if not explicitly provided
+    const currentTokenSet = this.xero.readTokenSet();
+
+    this.xero.setTokenSet({
+      access_token: accessToken,
+      refresh_token: refreshToken || currentTokenSet?.refresh_token
+    });
   }
 
   /**
@@ -176,6 +207,114 @@ class XeroService {
   }
 
   /**
+   * Sync expense to Xero (auto-detects supplier based on reimbursable flag)
+   * @param {string} tenantId - Xero organization ID
+   * @param {Object} expense - Expense data
+   * @param {Object} mapping - Account mapping configuration
+   * @returns {Promise<Object>} Sync result
+   */
+  async syncExpense(tenantId, expense, mapping) {
+    try {
+      // For reimbursable expenses, create bill payable to employee
+      // For non-reimbursable, create bill payable to vendor
+      return await this.syncExpenseToXero(tenantId, expense, mapping);
+    } catch (error) {
+      console.error('Error syncing expense:', error);
+      return {
+        success: false,
+        error: error.message,
+        details: error.response?.body
+      };
+    }
+  }
+
+  /**
+   * Sync expense to Xero as an expense claim (for reimbursable expenses)
+   * NOTE: Not currently used - reimbursable expenses are created as bills payable to employee instead
+   * Kept for future reference if Xero user mapping is implemented
+   * @param {string} tenantId - Xero organization ID
+   * @param {Object} expense - Expense data
+   * @param {Object} mapping - Account mapping configuration
+   * @param {string} userId - Xero user ID for expense claim
+   * @returns {Promise<Object>} Sync result
+   */
+  async syncExpenseClaimToXero(tenantId, expense, mapping, userId) {
+    try {
+      // Build line items for expense claim
+      const receiptLines = [];
+
+      if (expense.line_items && expense.line_items.length > 0) {
+        // Use actual line items from receipt
+        expense.line_items.forEach(item => {
+          receiptLines.push({
+            description: item.description,
+            quantity: item.quantity || 1,
+            unitAmount: item.unitPrice || item.total,
+            accountCode: mapping.defaultExpenseAccount || '400',
+            taxType: mapping.defaultTaxType || 'NONE'
+          });
+        });
+      } else {
+        // Create single line item for total
+        receiptLines.push({
+          description: expense.description || 'Expense',
+          quantity: 1,
+          unitAmount: expense.amount,
+          accountCode: this.mapCategoryToAccount(expense.category, mapping),
+          taxType: mapping.defaultTaxType || 'NONE'
+        });
+      }
+
+      // Create receipt for expense claim
+      const receipt = {
+        date: expense.date,
+        lineAmountTypes: 'NoTax',
+        user: { userID: userId },
+        receipts: [{
+          date: expense.date,
+          contact: {
+            name: `${expense.first_name} ${expense.last_name}`
+          },
+          lineItems: receiptLines,
+          reference: expense.id ? `Expense #${expense.id}` : undefined,
+          status: expense.status === 'approved' ? 'SUBMITTED' : 'DRAFT'
+        }]
+      };
+
+      const response = await this.xero.accountingApi.createExpenseClaims(
+        tenantId,
+        { expenseClaims: [receipt] }
+      );
+
+      const createdClaim = response.body.expenseClaims[0];
+
+      // Update expense with Xero info
+      await db.query(
+        `UPDATE expenses
+         SET xero_invoice_id = $1,
+             xero_synced_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [createdClaim.expenseClaimID, expense.id]
+      );
+
+      return {
+        success: true,
+        xeroExpenseClaimId: createdClaim.expenseClaimID,
+        total: createdClaim.total
+      };
+
+    } catch (error) {
+      console.error('Error syncing expense claim to Xero:', error);
+      return {
+        success: false,
+        error: error.message,
+        details: error.response?.body
+      };
+    }
+  }
+
+  /**
    * Sync expense to Xero as a bill (accounts payable)
    * @param {string} tenantId - Xero organization ID
    * @param {Object} expense - Expense data
@@ -184,8 +323,22 @@ class XeroService {
    */
   async syncExpenseToXero(tenantId, expense, mapping) {
     try {
-      // Get or create contact for vendor
-      const contactId = await this.getOrCreateContact(tenantId, expense.vendor_name || 'Unknown Vendor');
+      // Determine contact based on reimbursable flag
+      let contactName;
+      let billDescription;
+
+      if (expense.is_reimbursable) {
+        // For reimbursable expenses, bill is payable to employee
+        contactName = `${expense.first_name} ${expense.last_name}`;
+        billDescription = `[REIMBURSABLE] ${expense.description}`;
+      } else {
+        // For non-reimbursable expenses, bill is payable to vendor
+        contactName = expense.vendor_name || 'Unknown Vendor';
+        billDescription = expense.description;
+      }
+
+      // Get or create contact
+      const contactId = await this.getOrCreateContact(tenantId, contactName);
 
       // Build line items
       const lineItems = [];
@@ -204,7 +357,7 @@ class XeroService {
       } else {
         // Create single line item for total
         lineItems.push({
-          description: expense.description || 'Expense',
+          description: billDescription || 'Expense',
           quantity: 1,
           unitAmount: expense.amount,
           accountCode: this.mapCategoryToAccount(expense.category, mapping),

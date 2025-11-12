@@ -19,6 +19,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import { calculateCartTotal } from './utils/helpers';
+import './styles/design-tokens.css';
 import './styles/App.css';
 import './styles/navigation.css';
 import './styles/cards.css';

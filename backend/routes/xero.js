@@ -180,8 +180,8 @@ router.get('/accounts', authMiddleware, async (req, res) => {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
 
-    // Set access token
-    xeroService.setAccessToken(connection.access_token);
+    // Set access token with refresh token to ensure token set is complete
+    xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
     // Get chart of accounts
     const result = await xeroService.getChartOfAccounts(tenantId);
@@ -303,8 +303,8 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
 
-    // Set access token
-    xeroService.setAccessToken(connection.access_token);
+    // Set access token with refresh token to ensure token set is complete
+    xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
     // Get account mappings (organization-wide)
     const mappingsResult = await db.query(
@@ -372,8 +372,8 @@ router.post('/sync-bulk', authMiddleware, async (req, res) => {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
 
-    // Set access token
-    xeroService.setAccessToken(connection.access_token);
+    // Set access token with refresh token to ensure token set is complete
+    xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
     // Get account mappings
     const mappingsResult = await db.query(
@@ -424,8 +424,8 @@ router.get('/organization', authMiddleware, async (req, res) => {
       return res.status(401).json({ error: 'Not connected to Xero' });
     }
 
-    // Set access token
-    xeroService.setAccessToken(connection.access_token);
+    // Set access token with refresh token to ensure token set is complete
+    xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
     // Get organization info
     const result = await xeroService.getOrganization(tenantId);
@@ -462,14 +462,19 @@ async function getActiveConnection(tenantId) {
   const fiveMinutesFromNow = new Date(now.getTime() + (5 * 60 * 1000));
 
   if (expiresAt <= fiveMinutesFromNow) {
-    // Refresh token
+    console.log(`🔄 Refreshing expired Xero token for tenant ${connection.tenant_id}`);
+
+    // Refresh token - must include expired access_token
     xeroService.xero.setTokenSet({
+      access_token: connection.access_token,
       refresh_token: connection.refresh_token
     });
 
     const refreshResult = await xeroService.refreshAccessToken(connection.refresh_token);
 
     if (refreshResult.success) {
+      console.log(`✓ Token refreshed successfully for tenant ${connection.tenant_id}`);
+
       // Update database with new tokens
       await db.query(
         `UPDATE xero_connections
@@ -480,13 +485,18 @@ async function getActiveConnection(tenantId) {
          WHERE id = $4`,
         [
           refreshResult.tokenSet.access_token,
-          refreshResult.tokenSet.refresh_token,
+          refreshResult.tokenSet.refresh_token || connection.refresh_token,
           new Date(Date.now() + (refreshResult.tokenSet.expires_in * 1000)),
           connection.id
         ]
       );
 
       connection.access_token = refreshResult.tokenSet.access_token;
+      connection.refresh_token = refreshResult.tokenSet.refresh_token || connection.refresh_token;
+    } else {
+      console.error(`✗ Token refresh failed for tenant ${connection.tenant_id}:`, refreshResult.error);
+      // Return null to indicate connection is invalid
+      return null;
     }
   }
 

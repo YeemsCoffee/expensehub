@@ -265,14 +265,14 @@ const Locations = () => {
                     <p className="cost-center-name">{location.name}</p>
                   </div>
                   <div className="cost-center-actions">
-                    <button 
+                    <button
                       onClick={() => handleEdit(location)}
                       className="btn-icon"
                       title="Edit"
                     >
                       <Edit2 size={18} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDelete(location.id, location.code)}
                       className="btn-icon btn-icon-danger"
                       title="Delete"
