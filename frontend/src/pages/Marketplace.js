@@ -44,7 +44,7 @@ const Marketplace = ({ onAddToCart }) => {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'cXML-urlencoded';
-      input.value = encodeURIComponent(cxmlRequest);
+      input.value = cxmlRequest;
 
       form.appendChild(input);
       document.body.appendChild(form);
