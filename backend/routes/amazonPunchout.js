@@ -46,18 +46,17 @@ function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
   <Request deploymentMode="${AMAZON_CONFIG.useProd ? 'production' : 'test'}">
     <PunchOutSetupRequest operation="create">
       <BuyerCookie>${buyerCookie}</BuyerCookie>
-      <Extrinsic name="User">${userEmail}</Extrinsic>
-      <Extrinsic name="UserEmail">${userEmail}</Extrinsic>
       <BrowserFormPost>
         <URL>${process.env.BACKEND_URL || 'http://localhost:5000'}/api/amazon-punchout/return</URL>
       </BrowserFormPost>
+      <SupplierSetup>
+        <URL>${AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl}</URL>
+      </SupplierSetup>
+      <Extrinsic name="UserEmail">${userEmail}</Extrinsic>
       <Contact role="buyer">
         <Name xml:lang="en-US">${userName}</Name>
         <Email>${userEmail}</Email>
       </Contact>
-      <SupplierSetup>
-        <URL>${AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl}</URL>
-      </SupplierSetup>
     </PunchOutSetupRequest>
   </Request>
 </cXML>`;
