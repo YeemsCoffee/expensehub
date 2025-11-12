@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 const Navigation = ({ activeTab, onTabChange, userRole }) => {
   const [expandedDropdown, setExpandedDropdown] = useState(null);
+  const navRef = useRef(null);
 
   // Define tabs based on user role
   const getTabsForRole = () => {
@@ -116,10 +117,26 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
 
   const tabs = getTabsForRole();
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (navRef.current && !navRef.current.contains(event.target)) {
+        setExpandedDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const handleTabClick = (tabId, hasDropdown) => {
     if (hasDropdown) {
       // If it has a dropdown, toggle the dropdown instead of navigating
-      setExpandedDropdown(expandedDropdown === tabId ? null : tabId);
+      const newState = expandedDropdown === tabId ? null : tabId;
+      console.log('🔽 Dropdown toggle:', tabId, 'New state:', newState);
+      setExpandedDropdown(newState);
     } else {
       onTabChange(tabId);
       setExpandedDropdown(null);
@@ -140,15 +157,13 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
   };
 
   return (
-    <div className="nav">
+    <div className="nav" ref={navRef}>
       <div className="container">
         <div className="nav-tabs">
           {tabs.map((tab) => (
-            <div 
-              key={tab.id} 
+            <div
+              key={tab.id}
               className="nav-tab-wrapper"
-              onMouseEnter={() => tab.hasDropdown && setExpandedDropdown(tab.id)}
-              onMouseLeave={() => tab.hasDropdown && setExpandedDropdown(null)}
             >
               <button
                 onClick={() => handleTabClick(tab.id, tab.hasDropdown)}
@@ -157,17 +172,17 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
               >
                 {tab.label}
                 {tab.hasDropdown && (
-                  <ChevronDown 
-                    size={16} 
-                    style={{ 
-                      marginLeft: '4px', 
+                  <ChevronDown
+                    size={16}
+                    style={{
+                      marginLeft: '4px',
                       transition: 'transform 0.2s',
                       transform: expandedDropdown === tab.id ? 'rotate(180deg)' : 'rotate(0deg)'
-                    }} 
+                    }}
                   />
                 )}
               </button>
-              
+
               {tab.hasDropdown && expandedDropdown === tab.id && (
                 <div className="nav-dropdown">
                   {tab.subItems.map((subItem) => (

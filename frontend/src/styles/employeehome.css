@@ -5,7 +5,7 @@
 .employee-home {
   max-width: 900px;
   margin: 0 auto;
-  padding: 0 1rem 2rem;
+  padding: 0 0 2rem; /* Horizontal padding handled by .container wrapper */
 }
 
 /* Hero Section - Reimbursement Status */
@@ -505,7 +505,7 @@
 
 @media (max-width: 480px) {
   .employee-home {
-    padding: 0 0.5rem 1.5rem;
+    padding: 0 0 1.5rem; /* Horizontal padding handled by .container wrapper */
   }
 
   .reimbursement-hero {
