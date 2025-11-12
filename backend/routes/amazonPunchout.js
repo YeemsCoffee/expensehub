@@ -146,10 +146,17 @@ router.post('/setup', authMiddleware, async (req, res) => {
     const targetUrl = AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl;
 
     // Use URLSearchParams for proper form encoding
+    // Note: Standard cXML uses 'cXML-urlencoded' with capital X and ML
     const params = new URLSearchParams();
-    params.append('cxml-urlencoded', cxmlRequest);
+    params.append('cXML-urlencoded', cxmlRequest);
 
-    console.log('Posting to Amazon:', targetUrl);
+    console.log('=== AMAZON PUNCHOUT REQUEST DEBUG ===');
+    console.log('Environment Mode:', AMAZON_CONFIG.useProd ? 'PRODUCTION' : 'TEST');
+    console.log('Target URL:', targetUrl);
+    console.log('cXML Request (first 1000 chars):', cxmlRequest.substring(0, 1000));
+    console.log('Form params:', params.toString().substring(0, 500));
+    console.log('Content-Type:', 'application/x-www-form-urlencoded');
+    console.log('=== END REQUEST DEBUG ===');
 
     const { data: responseBody, status } = await axios.post(
       targetUrl,
