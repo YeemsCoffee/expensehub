@@ -16,8 +16,8 @@
 
 ### 2. Environment Configuration ✓
 All required environment variables are set:
-- `AMAZON_PUNCHOUT_IDENTITY`: PunchoutGroup1556947794
-- `AMAZON_PUNCHOUT_SECRET`: ********** (configured)
+- `AMAZON_PUNCHOUT_IDENTITY`: (configured)
+- `AMAZON_PUNCHOUT_SECRET`: (configured)
 - `AMAZON_PUNCHOUT_URL`: https://abintegrations.amazon.com/punchout
 - `AMAZON_PUNCHOUT_TEST_URL`: https://abintegrations.amazon.com/punchout/test
 - Mode: **TEST** (AMAZON_PUNCHOUT_USE_PROD=false)
@@ -47,7 +47,7 @@ All required environment variables are set:
 
 ### Current Settings
 ```
-Identity: PunchoutGroup1556947794
+Identity: (redacted)
 Test URL: https://abintegrations.amazon.com/punchout/test
 Return URL: http://localhost:3000/api/amazon-punchout/return
 Deployment Mode: test
@@ -149,7 +149,7 @@ Before moving to production:
 
 For issues specific to Amazon Business integration:
 - Contact Amazon Business Support
-- Reference your Integration ID: PunchoutGroup1556947794
+- Reference your Integration ID as provided by Amazon Business
 - Provide punchout session logs from the database
 
 For issues with the ExpenseHub implementation:

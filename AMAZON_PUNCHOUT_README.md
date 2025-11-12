@@ -22,8 +22,8 @@ Add the following to your `.env` file:
 
 ```env
 # Amazon Business Punchout Configuration
-AMAZON_PUNCHOUT_IDENTITY=PunchoutGroup1556947794
-AMAZON_PUNCHOUT_SECRET=pVn9bQwGGnl1KZ26VyblJJoXFJCXV2
+AMAZON_PUNCHOUT_IDENTITY=your_amazon_business_identity
+AMAZON_PUNCHOUT_SECRET=your_amazon_business_shared_secret
 AMAZON_PUNCHOUT_URL=https://abintegrations.amazon.com/punchout
 AMAZON_PUNCHOUT_TEST_URL=https://abintegrations.amazon.com/punchout/test
 AMAZON_PO_URL=https://https-ats.amazonsedi.com/2e947cf5-c06d-4411-bffd-57839c057856
@@ -32,7 +32,7 @@ AMAZON_PUNCHOUT_USE_PROD=false
 
 **Important**:
 - Set `AMAZON_PUNCHOUT_USE_PROD=true` for production environment
-- The credentials provided are your specific Amazon Business integration credentials
+- Never commit your Amazon Business credentials to source control. Configure them as environment variables in each deployment.
 
 ### Database Setup
 
@@ -164,14 +164,14 @@ When users return from Amazon with items, they see a success message and the ite
   <Header>
     <From>
       <Credential domain="NetworkId">
-        <Identity>PunchoutGroup1556947794</Identity>
+        <Identity>{YOUR_AMAZON_BUSINESS_IDENTITY}</Identity>
       </Credential>
     </From>
     <To>...</To>
     <Sender>
       <Credential domain="NetworkId">
-        <Identity>PunchoutGroup1556947794</Identity>
-        <SharedSecret>pVn9bQwGGnl1KZ26VyblJJoXFJCXV2</SharedSecret>
+        <Identity>{YOUR_AMAZON_BUSINESS_IDENTITY}</Identity>
+        <SharedSecret>{YOUR_AMAZON_BUSINESS_SHARED_SECRET}</SharedSecret>
       </Credential>
     </Sender>
   </Header>

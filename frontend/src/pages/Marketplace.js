@@ -31,12 +31,16 @@ const Marketplace = ({ onAddToCart }) => {
       // Request punchout session setup
       const response = await api.post('/amazon-punchout/setup', { costCenterId });
 
-      const { cxmlRequest, targetUrl } = response.data;
+      const { cxmlRequest: cxmlRequestPayload, targetUrl: amazonTargetUrl } = response.data ?? {};
+
+      if (!cxmlRequestPayload || !amazonTargetUrl) {
+        throw new Error('Amazon punchout response missing cXML payload or target URL');
+      }
 
       // Create a form to POST the cXML to Amazon
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = targetUrl;
+      form.action = amazonTargetUrl;
       form.target = '_self';
       form.enctype = 'application/x-www-form-urlencoded';
 
@@ -44,7 +48,7 @@ const Marketplace = ({ onAddToCart }) => {
       const input = document.createElement('input');
       input.type = 'hidden';
       input.name = 'cXML-urlencoded';
-      input.value = encodeURIComponent(cxmlRequest);
+      input.value = cxmlRequestPayload;
 
       form.appendChild(input);
       document.body.appendChild(form);
