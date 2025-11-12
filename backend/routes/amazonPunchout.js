@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
-const { XMLParser } = require('fast-xml-parser');
+const xml2js = require('xml2js');
 const crypto = require('crypto');
 const db = require('../config/database');
 const { authMiddleware } = require('../middleware/auth');
@@ -13,31 +12,30 @@ const AMAZON_CONFIG = {
   punchoutUrl: process.env.AMAZON_PUNCHOUT_URL || 'https://abintegrations.amazon.com/punchout',
   testUrl: process.env.AMAZON_PUNCHOUT_TEST_URL || 'https://abintegrations.amazon.com/punchout/test',
   poUrl: process.env.AMAZON_PO_URL || 'https://https-ats.amazonsedi.com/2e947cf5-c06d-4411-bffd-57839c057856',
-  useProd: process.env.AMAZON_PUNCHOUT_USE_PROD === 'true',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000'
+  useProd: process.env.AMAZON_PUNCHOUT_USE_PROD === 'true'
 };
 
 // Helper function to build cXML PunchOutSetupRequest
 function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
   const timestamp = new Date().toISOString();
-  const payloadId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}@expensehub`;
+  const payloadId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
-<cXML payloadID="${payloadId}" timestamp="${timestamp}" version="1.2.040">
+<cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
   <Header>
     <From>
-      <Credential domain="NetworkID">
+      <Credential domain="NetworkId">
         <Identity>${AMAZON_CONFIG.identity}</Identity>
       </Credential>
     </From>
     <To>
-      <Credential domain="NetworkID">
-        <Identity>AmazonBusiness</Identity>
+      <Credential domain="NetworkId">
+        <Identity>Amazon</Identity>
       </Credential>
     </To>
     <Sender>
-      <Credential domain="NetworkID">
+      <Credential domain="NetworkId">
         <Identity>${AMAZON_CONFIG.identity}</Identity>
         <SharedSecret>${AMAZON_CONFIG.sharedSecret}</SharedSecret>
       </Credential>
@@ -47,37 +45,40 @@ function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
   <Request deploymentMode="${AMAZON_CONFIG.useProd ? 'production' : 'test'}">
     <PunchOutSetupRequest operation="create">
       <BuyerCookie>${buyerCookie}</BuyerCookie>
-      <BrowserFormPost>
-        <URL>${process.env.BACKEND_URL || 'http://localhost:5000'}/api/amazon-punchout/return</URL>
-      </BrowserFormPost>
-      <SupplierSetup>
-        <URL>${AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl}</URL>
-      </SupplierSetup>
+      <Extrinsic name="User">${userEmail}</Extrinsic>
       <Extrinsic name="UserEmail">${userEmail}</Extrinsic>
+      <BrowserFormPost>
+        <URL>${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/amazon-punchout/return</URL>
+      </BrowserFormPost>
       <Contact role="buyer">
         <Name xml:lang="en-US">${userName}</Name>
         <Email>${userEmail}</Email>
       </Contact>
+      <SupplierSetup>
+        <URL>${AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl}</URL>
+      </SupplierSetup>
     </PunchOutSetupRequest>
   </Request>
 </cXML>`;
 }
 
-// Helper function to parse cXML response using fast-xml-parser
+// Helper function to parse cXML response
 async function parseCxmlResponse(xmlString) {
+  const parser = new xml2js.Parser({
+    explicitArray: false,
+    ignoreAttrs: false,
+    attrkey: 'attributes'
+  });
+
   try {
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: '@_'
-    });
-    const result = parser.parse(xmlString);
+    const result = await parser.parseStringPromise(xmlString);
     return result;
   } catch (error) {
     throw new Error(`Failed to parse cXML: ${error.message}`);
   }
 }
 
-// Initiate Amazon Punchout Session (SERVER-SIDE POST)
+// Initiate Amazon Punchout Session
 router.post('/setup', authMiddleware, async (req, res) => {
   try {
     const { costCenterId } = req.body;
@@ -143,93 +144,31 @@ router.post('/setup', authMiddleware, async (req, res) => {
       [cxmlRequest, session.id]
     );
 
-    // SERVER-SIDE POST to Amazon with proper form encoding
-    const targetUrl = AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl;
-
-    // Use URLSearchParams for proper form encoding
-    const params = new URLSearchParams();
-    params.append('cxml-urlencoded', cxmlRequest);
-
-    console.log('Posting to Amazon:', targetUrl);
-
-    const { data: responseBody, status } = await axios.post(
-      targetUrl,
-      params.toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'text/xml,application/xml'
-        },
-        maxRedirects: 0,
-        validateStatus: (status) => status >= 200 && status < 400
-      }
-    );
-
-    console.log('Amazon response status:', status);
-    console.log('Amazon response (first 500 chars):', responseBody.substring(0, 500));
-
-    // Parse cXML response to extract StartPage URL
-    const parsed = await parseCxmlResponse(responseBody);
-
-    // Try multiple paths to find the StartPage URL
-    const startUrl =
-      parsed?.cXML?.Response?.PunchOutSetupResponse?.StartPage?.URL ||
-      parsed?.cXML?.Message?.PunchOutSetupResponse?.StartPage?.URL;
-
-    if (!startUrl) {
-      console.error('No StartPage URL found in Amazon response');
-      console.error('Parsed response:', JSON.stringify(parsed, null, 2));
-
-      return res.status(502).json({
-        error: 'No StartPage URL found in Amazon response',
-        hint: 'Check credentials, domains, or body format',
-        amazonResponse: responseBody.substring(0, 1000),
-        status
-      });
-    }
-
-    console.log('Amazon StartPage URL:', startUrl);
-
-    // Return the StartPage URL to the frontend for redirect
+    // Return the cXML and target URL for the frontend to POST
     res.json({
       sessionId: session.id,
-      startUrl,
-      success: true
+      cxmlRequest,
+      targetUrl: AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl,
+      method: 'POST'
     });
 
   } catch (error) {
-    console.error('Amazon Punchout setup error:', error.message);
+    console.error('Amazon Punchout setup error:', error);
     console.error('Error stack:', error.stack);
-
-    const amazonBody = error?.response?.data;
-    const amazonStatus = error?.response?.status;
-
     res.status(500).json({
       error: 'Failed to setup punchout session',
-      details: error.message,
-      amazonStatus,
-      amazonBody: typeof amazonBody === 'string' ? amazonBody.substring(0, 1000) : undefined
+      details: error.message
     });
   }
 });
 
 // Handle Amazon Punchout Return (BrowserFormPost callback)
-router.post('/return', express.urlencoded({ extended: false }), async (req, res) => {
+router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
   try {
     console.log('Received punchout return data');
-    console.log('Request body keys:', Object.keys(req.body));
-
-    // Amazon sends the cXML in a field called 'cxml-urlencoded'
-    const cxmlResponse = req.body['cxml-urlencoded'] || req.body.cxml || req.body;
-
-    if (!cxmlResponse) {
-      console.error('No cXML found in return POST');
-      return res.status(400).send('No cXML data received');
-    }
-
-    console.log('cXML response (first 500 chars):', cxmlResponse.substring(0, 500));
 
     // Parse the cXML response
+    const cxmlResponse = typeof req.body === 'string' ? req.body : req.body.cxml || req.body;
     const parsedXml = await parseCxmlResponse(cxmlResponse);
 
     // Extract BuyerCookie and items
@@ -237,11 +176,8 @@ router.post('/return', express.urlencoded({ extended: false }), async (req, res)
 
     if (!buyerCookie) {
       console.error('No BuyerCookie found in response');
-      console.error('Parsed XML:', JSON.stringify(parsedXml, null, 2));
       return res.status(400).send('Invalid punchout response: missing BuyerCookie');
     }
-
-    console.log('BuyerCookie:', buyerCookie);
 
     // Find the session
     const sessionResult = await db.query(
@@ -257,13 +193,10 @@ router.post('/return', express.urlencoded({ extended: false }), async (req, res)
     }
 
     const session = sessionResult.rows[0];
-    console.log('Found session:', session.id, 'for user:', session.user_id);
 
     // Extract line items from the order
     const itemsIn = parsedXml.cXML?.Message?.PunchOutOrderMessage?.ItemIn;
-    const items = Array.isArray(itemsIn) ? itemsIn : (itemsIn ? [itemsIn] : []);
-
-    console.log('Processing', items.length, 'items');
+    const items = Array.isArray(itemsIn) ? itemsIn : [itemsIn];
 
     // Store response XML
     await db.query(
@@ -273,17 +206,15 @@ router.post('/return', express.urlencoded({ extended: false }), async (req, res)
       [cxmlResponse, session.id]
     );
 
-    // Process items and add to cart
+    // Process items and add to cart or create as pending expenses
     for (const item of items) {
       if (!item) continue;
 
-      const quantity = parseInt(item['@_quantity']) || 1;
-      const unitPrice = parseFloat(item.ItemDetail?.UnitPrice?.Money?.['#text'] || item.ItemDetail?.UnitPrice?.Money) || 0;
-      const description = item.ItemDetail?.Description?.['#text'] || item.ItemDetail?.Description || 'Amazon Business Item';
+      const quantity = parseInt(item.attributes?.quantity) || 1;
+      const unitPrice = parseFloat(item.ItemDetail?.UnitPrice?.Money?._) || 0;
+      const description = item.ItemDetail?.Description?._ || 'Amazon Business Item';
       const supplierPartId = item.ItemDetail?.SupplierPartID || '';
       const manufacturerPartId = item.ItemDetail?.ManufacturerPartID || '';
-
-      console.log('Processing item:', { description, quantity, unitPrice, supplierPartId });
 
       // Create a product entry for this Amazon item
       const productResult = await db.query(
@@ -324,14 +255,10 @@ router.post('/return', express.urlencoded({ extended: false }), async (req, res)
            updated_at = CURRENT_TIMESTAMP`,
         [session.user_id, productId, quantity, session.cost_center_id]
       );
-
-      console.log('Added product', productId, 'to cart for user', session.user_id);
     }
 
     // Redirect back to the application
-    const redirectUrl = `${AMAZON_CONFIG.frontendUrl}/cart?punchout_success=true`;
-
-    console.log('Redirecting to:', redirectUrl);
+    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart?punchout_success=true`;
 
     res.send(`
       <!DOCTYPE html>
@@ -342,7 +269,6 @@ router.post('/return', express.urlencoded({ extended: false }), async (req, res)
       </head>
       <body>
         <p>Processing your order... You will be redirected shortly.</p>
-        <p>Added ${items.length} item(s) to your cart.</p>
         <script>
           window.location.href = '${redirectUrl}';
         </script>
@@ -352,8 +278,7 @@ router.post('/return', express.urlencoded({ extended: false }), async (req, res)
 
   } catch (error) {
     console.error('Punchout return error:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).send('Error processing punchout return: ' + error.message);
+    res.status(500).send('Error processing punchout return');
   }
 });
 
