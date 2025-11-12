@@ -36,7 +36,7 @@ const Marketplace = ({ onAddToCart }) => {
       // Create a form to POST the cXML to Amazon
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = targetUrl;
+      form.action = amazonTargetUrl;
       form.target = '_self';
       form.enctype = 'application/x-www-form-urlencoded';
 
