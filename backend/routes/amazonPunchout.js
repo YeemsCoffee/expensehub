@@ -142,28 +142,24 @@ router.post('/setup', authMiddleware, async (req, res) => {
       [cxmlRequest, session.id]
     );
 
-    // SERVER-SIDE POST to Amazon with proper form encoding
+    // SERVER-SIDE POST to Amazon with text/xml Content-Type
+    // Note: PunchOutSetupRequest uses text/xml (not form-urlencoded)
+    // Only PunchOutOrderMessage (return cart) uses form-urlencoded
     const targetUrl = AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl;
-
-    // Use URLSearchParams for proper form encoding
-    // Note: Standard cXML uses 'cXML-urlencoded' with capital X and ML
-    const params = new URLSearchParams();
-    params.append('cXML-urlencoded', cxmlRequest);
 
     console.log('=== AMAZON PUNCHOUT REQUEST DEBUG ===');
     console.log('Environment Mode:', AMAZON_CONFIG.useProd ? 'PRODUCTION' : 'TEST');
     console.log('Target URL:', targetUrl);
     console.log('cXML Request (first 1000 chars):', cxmlRequest.substring(0, 1000));
-    console.log('Form params:', params.toString().substring(0, 500));
-    console.log('Content-Type:', 'application/x-www-form-urlencoded');
+    console.log('Content-Type:', 'text/xml; charset=UTF-8');
     console.log('=== END REQUEST DEBUG ===');
 
     const { data: responseBody, status } = await axios.post(
       targetUrl,
-      params.toString(),
+      cxmlRequest,
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'text/xml; charset=UTF-8',
           'Accept': 'text/xml,application/xml'
         },
         maxRedirects: 0,
