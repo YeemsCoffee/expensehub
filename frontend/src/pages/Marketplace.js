@@ -28,27 +28,17 @@ const Marketplace = ({ onAddToCart }) => {
       // Get the user's default cost center or let them select one
       const costCenterId = 1; // You might want to let the user select this
 
-      // Request punchout session setup
+      // Request punchout session setup (server-side POST to Amazon)
       const response = await api.post('/amazon-punchout/setup', { costCenterId });
 
-      const { cxmlRequest, targetUrl } = response.data;
+      const { startUrl, success } = response.data;
 
-      // Create a form to POST the cXML to Amazon
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = targetUrl;
-      form.target = '_self';
-      form.enctype = 'application/x-www-form-urlencoded';
-
-      // Add the cXML as form data
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'cXML-urlencoded';
-      input.value = encodeURIComponent(cxmlRequest);
-
-      form.appendChild(input);
-      document.body.appendChild(form);
-      form.submit();
+      if (success && startUrl) {
+        // Backend already handled the Amazon POST, just redirect to the StartPage URL
+        window.location.href = startUrl;
+      } else {
+        throw new Error('No startUrl received from backend');
+      }
 
     } catch (error) {
       console.error('Failed to initiate Amazon punchout:', error);
@@ -61,6 +51,11 @@ const Marketplace = ({ onAddToCart }) => {
           '• Return URL not whitelisted by Amazon\n' +
           '• Test mode not enabled for your account\n\n' +
           'Please contact Amazon Business support to verify your integration is set up.';
+      } else if (error.response?.status === 502) {
+        errorMessage += '\n\nReceived response from Amazon but no StartPage URL found.\n' +
+          'Check your credentials and domain settings.';
+      } else if (error.response?.data?.details) {
+        errorMessage += '\n\nDetails: ' + error.response.data.details;
       }
 
       alert(errorMessage);
