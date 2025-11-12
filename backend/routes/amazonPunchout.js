@@ -26,17 +26,17 @@ function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
   <Header>
     <From>
-      <Credential domain="NetworkId">
+      <Credential domain="NetworkID">
         <Identity>${AMAZON_CONFIG.identity}</Identity>
       </Credential>
     </From>
     <To>
-      <Credential domain="NetworkId">
-        <Identity>Amazon</Identity>
+      <Credential domain="NetworkID">
+        <Identity>AmazonBusiness</Identity>
       </Credential>
     </To>
     <Sender>
-      <Credential domain="NetworkId">
+      <Credential domain="NetworkID">
         <Identity>${AMAZON_CONFIG.identity}</Identity>
         <SharedSecret>${AMAZON_CONFIG.sharedSecret}</SharedSecret>
       </Credential>
