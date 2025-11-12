@@ -200,6 +200,26 @@ router.post('/setup', authMiddleware, async (req, res) => {
     console.error('Amazon Punchout setup error:', error.message);
     console.error('Error stack:', error.stack);
 
+    // Log complete error response details
+    console.error('=== FULL ERROR RESPONSE DEBUG ===');
+    console.error('Has error.response?', !!error.response);
+    console.error('Status:', error?.response?.status);
+    console.error('Status Text:', error?.response?.statusText);
+    console.error('Headers:', JSON.stringify(error?.response?.headers || {}));
+    console.error('Data Type:', typeof error?.response?.data);
+    console.error('Data:', error?.response?.data);
+
+    if (error?.response?.data) {
+      if (typeof error.response.data === 'string') {
+        console.error('Amazon Error Response (full):', error.response.data);
+      } else if (typeof error.response.data === 'object') {
+        console.error('Amazon Error Response (JSON):', JSON.stringify(error.response.data, null, 2));
+      }
+    } else {
+      console.error('No response data available in error object');
+    }
+    console.error('=== END ERROR DEBUG ===');
+
     const amazonBody = error?.response?.data;
     const amazonStatus = error?.response?.status;
 
