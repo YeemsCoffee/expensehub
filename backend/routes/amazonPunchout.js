@@ -149,28 +149,24 @@ router.post('/setup', authMiddleware, async (req, res) => {
       [cxmlRequest, session.id]
     );
 
-    // SERVER-SIDE POST to Amazon with proper form encoding
+    // SERVER-SIDE POST to Amazon with text/xml Content-Type
+    // Note: PunchOutSetupRequest uses text/xml (not form-urlencoded)
+    // Only PunchOutOrderMessage (return cart) uses form-urlencoded
     const targetUrl = AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl;
-
-    // Use URLSearchParams for proper form encoding
-    // Note: Standard cXML uses 'cXML-urlencoded' with capital X and ML
-    const params = new URLSearchParams();
-    params.append('cXML-urlencoded', cxmlRequest);
 
     console.log('=== AMAZON PUNCHOUT REQUEST DEBUG ===');
     console.log('Environment Mode:', AMAZON_CONFIG.useProd ? 'PRODUCTION' : 'TEST');
     console.log('Target URL:', targetUrl);
     console.log('cXML Request (first 1000 chars):', cxmlRequest.substring(0, 1000));
-    console.log('Form params:', params.toString().substring(0, 500));
-    console.log('Content-Type:', 'application/x-www-form-urlencoded');
+    console.log('Content-Type:', 'text/xml; charset=UTF-8');
     console.log('=== END REQUEST DEBUG ===');
 
     const { data: responseBody, status } = await axios.post(
       targetUrl,
-      params.toString(),
+      cxmlRequest,
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'text/xml; charset=UTF-8',
           'Accept': 'text/xml,application/xml'
         },
         maxRedirects: 0,
@@ -253,21 +249,36 @@ router.post('/setup', authMiddleware, async (req, res) => {
 });
 
 // Handle Amazon Punchout Return (BrowserFormPost callback)
-router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
+// Note: Amazon sends form-urlencoded with parameter 'cxml-urlencoded'
+router.post('/return', async (req, res) => {
   try {
     console.log('Received punchout return data');
+    console.log('Request body type:', typeof req.body);
+    console.log('Request body (first 1000 chars):', JSON.stringify(req.body).substring(0, 1000));
+    console.log('Request headers:', JSON.stringify(req.headers));
 
     // Parse the cXML response
-    const cxmlResponse = typeof req.body === 'string' ? req.body : req.body.cxml || req.body;
+    // Amazon sends it as form parameter 'cxml-urlencoded' (lowercase)
+    const cxmlResponse = typeof req.body === 'string'
+      ? req.body
+      : req.body['cxml-urlencoded'] || req.body.cxml || req.body;
+    console.log('cxmlResponse type:', typeof cxmlResponse);
+    console.log('cxmlResponse (first 500 chars):', String(cxmlResponse).substring(0, 500));
+
     const parsedXml = parseCxmlResponse(cxmlResponse);
+    console.log('Parsed XML structure:', JSON.stringify(parsedXml, null, 2).substring(0, 1000));
 
     // Extract BuyerCookie and items
     const buyerCookie = parsedXml.cXML?.Message?.PunchOutOrderMessage?.BuyerCookie;
+    console.log('Extracted BuyerCookie:', buyerCookie);
 
     if (!buyerCookie) {
       console.error('No BuyerCookie found in response');
+      console.error('Full parsed XML:', JSON.stringify(parsedXml, null, 2));
       return res.status(400).send('Invalid punchout response: missing BuyerCookie');
     }
+
+    console.log('Looking up session for BuyerCookie:', buyerCookie);
 
     // Find the session
     const sessionResult = await db.query(
@@ -277,26 +288,33 @@ router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
       [buyerCookie]
     );
 
+    console.log('Session query result:', sessionResult.rows.length, 'rows found');
+
     if (sessionResult.rows.length === 0) {
       console.error('Session not found for cookie:', buyerCookie);
       return res.status(404).send('Punchout session not found');
     }
 
     const session = sessionResult.rows[0];
+    console.log('Found session:', session.id, 'for user:', session.user_id);
 
     // Extract line items from the order
     const itemsIn = parsedXml.cXML?.Message?.PunchOutOrderMessage?.ItemIn;
     const items = Array.isArray(itemsIn) ? itemsIn : [itemsIn];
+    console.log('Extracted items count:', items.length);
 
     // Store response XML
+    console.log('Updating session with response XML...');
     await db.query(
       `UPDATE punchout_sessions
        SET response_xml = $1, status = 'completed', updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [cxmlResponse, session.id]
     );
+    console.log('Session updated successfully');
 
     // Process items and add to cart or create as pending expenses
+    console.log('Processing items and adding to cart...');
     for (const item of items) {
       if (!item) continue;
 
@@ -305,6 +323,8 @@ router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
       const description = item.ItemDetail?.Description?.['#text'] || item.ItemDetail?.Description || 'Amazon Business Item';
       const supplierPartId = item.ItemDetail?.SupplierPartID || '';
       const manufacturerPartId = item.ItemDetail?.ManufacturerPartID || '';
+
+      console.log('Processing item:', {description, quantity, unitPrice});
 
       // Create a product entry for this Amazon item
       const productResult = await db.query(
@@ -335,6 +355,7 @@ router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
       );
 
       const productId = productResult.rows[0].id;
+      console.log('Created/updated product with ID:', productId);
 
       // Add to cart
       await db.query(
@@ -345,10 +366,14 @@ router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
            updated_at = CURRENT_TIMESTAMP`,
         [session.user_id, productId, quantity, session.cost_center_id]
       );
+      console.log('Added item to cart for user:', session.user_id);
     }
+
+    console.log('All items processed successfully');
 
     // Redirect back to the application
     const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart?punchout_success=true`;
+    console.log('Redirecting to:', redirectUrl);
 
     res.send(`
       <!DOCTYPE html>
