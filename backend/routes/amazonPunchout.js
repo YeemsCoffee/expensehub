@@ -265,6 +265,8 @@ router.post('/return', async (req, res) => {
       return res.status(400).send('Invalid punchout response: missing BuyerCookie');
     }
 
+    console.log('Looking up session for BuyerCookie:', buyerCookie);
+
     // Find the session
     const sessionResult = await db.query(
       `SELECT id, user_id, cost_center_id
@@ -273,26 +275,33 @@ router.post('/return', async (req, res) => {
       [buyerCookie]
     );
 
+    console.log('Session query result:', sessionResult.rows.length, 'rows found');
+
     if (sessionResult.rows.length === 0) {
       console.error('Session not found for cookie:', buyerCookie);
       return res.status(404).send('Punchout session not found');
     }
 
     const session = sessionResult.rows[0];
+    console.log('Found session:', session.id, 'for user:', session.user_id);
 
     // Extract line items from the order
     const itemsIn = parsedXml.cXML?.Message?.PunchOutOrderMessage?.ItemIn;
     const items = Array.isArray(itemsIn) ? itemsIn : [itemsIn];
+    console.log('Extracted items count:', items.length);
 
     // Store response XML
+    console.log('Updating session with response XML...');
     await db.query(
       `UPDATE punchout_sessions
        SET response_xml = $1, status = 'completed', updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [cxmlResponse, session.id]
     );
+    console.log('Session updated successfully');
 
     // Process items and add to cart or create as pending expenses
+    console.log('Processing items and adding to cart...');
     for (const item of items) {
       if (!item) continue;
 
@@ -301,6 +310,8 @@ router.post('/return', async (req, res) => {
       const description = item.ItemDetail?.Description?.['#text'] || item.ItemDetail?.Description || 'Amazon Business Item';
       const supplierPartId = item.ItemDetail?.SupplierPartID || '';
       const manufacturerPartId = item.ItemDetail?.ManufacturerPartID || '';
+
+      console.log('Processing item:', {description, quantity, unitPrice});
 
       // Create a product entry for this Amazon item
       const productResult = await db.query(
@@ -331,6 +342,7 @@ router.post('/return', async (req, res) => {
       );
 
       const productId = productResult.rows[0].id;
+      console.log('Created/updated product with ID:', productId);
 
       // Add to cart
       await db.query(
@@ -341,10 +353,14 @@ router.post('/return', async (req, res) => {
            updated_at = CURRENT_TIMESTAMP`,
         [session.user_id, productId, quantity, session.cost_center_id]
       );
+      console.log('Added item to cart for user:', session.user_id);
     }
+
+    console.log('All items processed successfully');
 
     // Redirect back to the application
     const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart?punchout_success=true`;
+    console.log('Redirecting to:', redirectUrl);
 
     res.send(`
       <!DOCTYPE html>
