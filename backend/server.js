@@ -60,12 +60,14 @@ const corsOptions = {
     console.log('CORS Check - Origin:', origin);
     console.log('CORS Check - Allowed:', allowedOrigins.indexOf(origin) !== -1);
 
-    // Allow requests with no origin (mobile apps, curl, etc.)
+    // Allow requests with no origin (mobile apps, curl, server-to-server, etc.)
+    // Note: origin can be undefined, null, or the string "null"
     // In development, allow all localhost/127.0.0.1 origins
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const isLocalhost = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
+    const noOrigin = !origin || origin === 'null';
 
-    if (!origin || allowedOrigins.indexOf(origin) !== -1 || (isDevelopment && isLocalhost)) {
+    if (noOrigin || allowedOrigins.indexOf(origin) !== -1 || (isDevelopment && isLocalhost)) {
       callback(null, true);
     } else {
       console.log('CORS REJECTED - Origin:', origin);
