@@ -56,6 +56,10 @@ const corsOptions = {
       'https://business.amazon.com'             // Amazon Business portal
     ];
 
+    // Debug logging for CORS issues
+    console.log('CORS Check - Origin:', origin);
+    console.log('CORS Check - Allowed:', allowedOrigins.indexOf(origin) !== -1);
+
     // Allow requests with no origin (mobile apps, curl, etc.)
     // In development, allow all localhost/127.0.0.1 origins
     const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -64,6 +68,7 @@ const corsOptions = {
     if (!origin || allowedOrigins.indexOf(origin) !== -1 || (isDevelopment && isLocalhost)) {
       callback(null, true);
     } else {
+      console.log('CORS REJECTED - Origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
