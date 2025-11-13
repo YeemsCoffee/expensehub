@@ -47,11 +47,18 @@ const corsOptions = {
     const allowedOrigins = [
       process.env.FRONTEND_URL || 'http://localhost:3000',
       'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3001',
       'https://expensehub-l8ka.onrender.com'  // Add your production frontend URL
     ];
 
     // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    // In development, allow all localhost/127.0.0.1 origins
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const isLocalhost = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
+
+    if (!origin || allowedOrigins.indexOf(origin) !== -1 || (isDevelopment && isLocalhost)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
