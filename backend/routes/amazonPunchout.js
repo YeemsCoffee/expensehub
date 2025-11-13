@@ -236,7 +236,8 @@ router.post('/setup', authMiddleware, async (req, res) => {
 });
 
 // Handle Amazon Punchout Return (BrowserFormPost callback)
-router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
+// Note: Amazon sends form-urlencoded with parameter 'cxml-urlencoded'
+router.post('/return', async (req, res) => {
   try {
     console.log('Received punchout return data');
     console.log('Request body type:', typeof req.body);
@@ -244,7 +245,10 @@ router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
     console.log('Request headers:', JSON.stringify(req.headers));
 
     // Parse the cXML response
-    const cxmlResponse = typeof req.body === 'string' ? req.body : req.body.cxml || req.body;
+    // Amazon sends it as form parameter 'cxml-urlencoded' (lowercase)
+    const cxmlResponse = typeof req.body === 'string'
+      ? req.body
+      : req.body['cxml-urlencoded'] || req.body.cxml || req.body;
     console.log('cxmlResponse type:', typeof cxmlResponse);
     console.log('cxmlResponse (first 500 chars):', String(cxmlResponse).substring(0, 500));
 
