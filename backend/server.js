@@ -50,7 +50,10 @@ const corsOptions = {
       'http://127.0.0.1:3000',
       'http://localhost:3001',
       'http://127.0.0.1:3001',
-      'https://expensehub-l8ka.onrender.com'  // Add your production frontend URL
+      'https://expensehub-l8ka.onrender.com',  // Production frontend URL
+      'https://abintegrations.amazon.com',     // Amazon Punchout callbacks
+      'https://www.amazon.com',                 // Amazon Business
+      'https://business.amazon.com'             // Amazon Business portal
     ];
 
     // Allow requests with no origin (mobile apps, curl, etc.)
