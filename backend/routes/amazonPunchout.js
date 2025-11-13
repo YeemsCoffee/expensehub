@@ -239,16 +239,25 @@ router.post('/setup', authMiddleware, async (req, res) => {
 router.post('/return', express.text({ type: '*/*' }), async (req, res) => {
   try {
     console.log('Received punchout return data');
+    console.log('Request body type:', typeof req.body);
+    console.log('Request body (first 1000 chars):', JSON.stringify(req.body).substring(0, 1000));
+    console.log('Request headers:', JSON.stringify(req.headers));
 
     // Parse the cXML response
     const cxmlResponse = typeof req.body === 'string' ? req.body : req.body.cxml || req.body;
+    console.log('cxmlResponse type:', typeof cxmlResponse);
+    console.log('cxmlResponse (first 500 chars):', String(cxmlResponse).substring(0, 500));
+
     const parsedXml = parseCxmlResponse(cxmlResponse);
+    console.log('Parsed XML structure:', JSON.stringify(parsedXml, null, 2).substring(0, 1000));
 
     // Extract BuyerCookie and items
     const buyerCookie = parsedXml.cXML?.Message?.PunchOutOrderMessage?.BuyerCookie;
+    console.log('Extracted BuyerCookie:', buyerCookie);
 
     if (!buyerCookie) {
       console.error('No BuyerCookie found in response');
+      console.error('Full parsed XML:', JSON.stringify(parsedXml, null, 2));
       return res.status(400).send('Invalid punchout response: missing BuyerCookie');
     }
 
