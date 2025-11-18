@@ -40,7 +40,7 @@ services:
       - key: AMAZON_PUNCHOUT_TEST_URL
         value: https://abintegrations.amazon.com/punchout/test
       - key: AMAZON_PO_URL
-        value: https://https-ats.amazonsedi.com/7137afbf-3670-4d4a-bfbe-2387d8c50c92
+        value: https://https-ats.amazonsedi.com/8527371a-bf41-41c6-b7e1-2f6c72f09d00
       - key: AMAZON_PUNCHOUT_USE_PROD
         value: "false"
     healthCheckPath: /api/health
