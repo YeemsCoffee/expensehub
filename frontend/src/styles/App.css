@@ -59,7 +59,7 @@ body {
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0 var(--spacing-24);
+  padding: 0 3rem;
 }
 
 .container-narrow {
@@ -94,6 +94,9 @@ body {
   flex: 1;
   padding: var(--spacing-20) 0;
   min-height: calc(100vh - 200px);
+  position: relative;
+  z-index: 1;
+  background: var(--color-background);
 }
 
 .main-content-compact {

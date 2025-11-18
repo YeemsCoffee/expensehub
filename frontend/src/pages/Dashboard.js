@@ -133,10 +133,10 @@ const Dashboard = () => {
   };
 
   return (
-    <div>
+    <div className="container">
       <div className="dashboard-header">
         <h2 className="page-title">Dashboard</h2>
-        <select 
+        <select
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value)}
           className="form-select"
@@ -152,14 +152,13 @@ const Dashboard = () => {
       
       <div className="stats-grid">
         {stats.map((stat, index) => (
-          <div key={index} className="stat-card">
+          <div key={index} className={`stat-card stat-card-${stat.iconClass}`}>
             <div className="stat-card-content">
               <div>
                 <p className="stat-label">{stat.label}</p>
                 <p className="stat-value">{stat.value}</p>
                 {stat.subtext && <p className="stat-subtext">{stat.subtext}</p>}
               </div>
-              <stat.icon className={`stat-icon ${stat.iconClass}`} />
             </div>
           </div>
         ))}

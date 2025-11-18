@@ -8,20 +8,18 @@
    ======================================== */
 
 .header {
-  background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-900) 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 100%);
   color: var(--color-text-inverse);
-  box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 100;
 }
 
 .header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-4) 0;
+  padding: var(--spacing-5) 0;
   gap: var(--spacing-4);
 }
 
@@ -32,7 +30,8 @@
 .header-left {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-0-5);
+  gap: var(--spacing-1);
+  padding-bottom: var(--spacing-1);
 }
 
 .header-title {
@@ -250,13 +249,11 @@
    ======================================== */
 
 .nav {
-  background: var(--color-surface);
+  background: #ffffff;
   border-bottom: 1px solid var(--color-border);
-  box-shadow: var(--shadow-xs);
-  position: sticky;
-  top: 64px;
-  z-index: var(--z-sticky);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 50;
   overflow: visible;  /* Allow dropdowns to extend beyond nav */
 }
 
@@ -442,7 +439,7 @@
   }
 
   .nav {
-    top: 56px;
+    top: 64px;
   }
 
   .nav-tabs {

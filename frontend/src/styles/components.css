@@ -20,7 +20,7 @@
   line-height: var(--line-height-tight);
   text-decoration: none;
   border: none;
-  border-radius: var(--radius-base);
+  border-radius: 12px;
   cursor: pointer;
   transition: all var(--transition-fast);
   outline: none;
@@ -37,19 +37,22 @@
 .btn-primary {
   background: var(--color-primary);
   color: var(--color-text-on-primary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  opacity: 0.9;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
-  box-shadow: var(--shadow-base);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   transform: translateY(-1px);
+  opacity: 1;
 }
 
 .btn-primary:active:not(:disabled) {
   background: var(--color-primary-active);
-  box-shadow: var(--shadow-xs);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   transform: translateY(0);
+  opacity: 1;
 }
 
 .btn-secondary {
@@ -468,9 +471,10 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   margin: 0 0 var(--spacing-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  max-width: 500px;
 }
 
 .expense-item-meta {
