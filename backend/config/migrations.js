@@ -20,58 +20,82 @@ async function runMigrations() {
     ]);
     console.log('[MIGRATION] Database connection successful');
 
-    // Check if Xero tables exist
+    // 1. Check and apply Xero migration
     console.log('[MIGRATION] Checking if Xero tables exist...');
-    const checkTables = await db.query(`
+    const checkXeroTables = await db.query(`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_name IN ('xero_connections', 'xero_account_mappings')
       AND table_schema = 'public'
     `);
 
-    console.log(`[MIGRATION] Found ${checkTables.rows.length} Xero tables`);
+    console.log(`[MIGRATION] Found ${checkXeroTables.rows.length} Xero tables`);
 
-    if (checkTables.rows.length === 2) {
-      console.log('✅ [MIGRATION] Xero tables already exist - skipping migration');
-      return;
+    if (checkXeroTables.rows.length < 2) {
+      console.log('📝 [MIGRATION] Applying Xero migration...');
+
+      const xeroMigrationPath = path.join(__dirname, '../database/receipt_xero_migration.sql');
+      console.log(`[MIGRATION] Xero migration path: ${xeroMigrationPath}`);
+
+      if (fs.existsSync(xeroMigrationPath)) {
+        console.log('[MIGRATION] Reading Xero migration file...');
+        const xeroMigrationSQL = fs.readFileSync(xeroMigrationPath, 'utf8');
+        console.log(`[MIGRATION] Xero migration file size: ${xeroMigrationSQL.length} bytes`);
+
+        console.log('[MIGRATION] Executing Xero migration SQL...');
+        await Promise.race([
+          db.query(xeroMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Xero migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Xero migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] Xero tables already exist - skipping Xero migration');
     }
 
-    console.log('📝 [MIGRATION] Applying Xero migration...');
-
-    // Read and execute migration file
-    const migrationPath = path.join(__dirname, '../database/receipt_xero_migration.sql');
-    console.log(`[MIGRATION] Migration path: ${migrationPath}`);
-
-    if (!fs.existsSync(migrationPath)) {
-      console.warn('⚠️  [MIGRATION] Migration file not found, skipping...');
-      console.warn(`[MIGRATION] Looked in: ${migrationPath}`);
-      return;
-    }
-
-    console.log('[MIGRATION] Reading migration file...');
-    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
-    console.log(`[MIGRATION] Migration file size: ${migrationSQL.length} bytes`);
-
-    // Execute migration with timeout
-    console.log('[MIGRATION] Executing migration SQL...');
-    await Promise.race([
-      db.query(migrationSQL),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Migration timeout')), 10000)
-      )
-    ]);
-
-    console.log('✅ [MIGRATION] Xero migration applied successfully!');
-
-    // Verify tables were created
-    const verifyTables = await db.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_name IN ('xero_connections', 'xero_account_mappings')
+    // 2. Check and apply Amazon Order Tracking migration
+    console.log('[MIGRATION] Checking if Amazon order tracking columns exist...');
+    const checkAmazonColumns = await db.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'cart_items'
+      AND column_name = 'amazon_spaid'
       AND table_schema = 'public'
     `);
 
-    console.log(`✅ [MIGRATION] Created ${verifyTables.rows.length} Xero tables`);
+    console.log(`[MIGRATION] Amazon SPAID column exists: ${checkAmazonColumns.rows.length > 0}`);
+
+    if (checkAmazonColumns.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying Amazon order tracking migration...');
+
+      const amazonMigrationPath = path.join(__dirname, '../database/amazon_order_tracking_migration.sql');
+      console.log(`[MIGRATION] Amazon migration path: ${amazonMigrationPath}`);
+
+      if (fs.existsSync(amazonMigrationPath)) {
+        console.log('[MIGRATION] Reading Amazon migration file...');
+        const amazonMigrationSQL = fs.readFileSync(amazonMigrationPath, 'utf8');
+        console.log(`[MIGRATION] Amazon migration file size: ${amazonMigrationSQL.length} bytes`);
+
+        console.log('[MIGRATION] Executing Amazon migration SQL...');
+        await Promise.race([
+          db.query(amazonMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Amazon order tracking migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Amazon migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] Amazon order tracking columns already exist - skipping Amazon migration');
+    }
 
   } catch (error) {
     // Don't crash the app if migration fails
