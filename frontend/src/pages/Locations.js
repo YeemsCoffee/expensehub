@@ -13,6 +13,7 @@ const Locations = () => {
     address: '',
     city: '',
     state: '',
+    zipCode: '',
     country: 'USA'
   });
   const [error, setError] = useState('');
@@ -53,6 +54,7 @@ const Locations = () => {
       address: '',
       city: '',
       state: '',
+      zipCode: '',
       country: 'USA'
     });
     setEditingId(null);
@@ -92,6 +94,7 @@ const Locations = () => {
       address: location.address || '',
       city: location.city || '',
       state: location.state || '',
+      zipCode: location.zip_code || '',
       country: location.country || 'USA'
     });
     setEditingId(location.id);
@@ -122,10 +125,10 @@ const Locations = () => {
   }
 
   return (
-    <div>
+    <div className="container">
       <div className="page-header">
         <h2 className="page-title">Locations</h2>
-        <button 
+        <button
           onClick={() => setShowForm(!showForm)}
           className="btn btn-primary"
         >
@@ -202,9 +205,24 @@ const Locations = () => {
                   type="text"
                   value={formData.state}
                   onChange={(e) => handleInputChange('state', e.target.value)}
-                  placeholder="NY"
+                  placeholder="CA"
                   className="form-input"
+                  maxLength="2"
                 />
+                <p className="form-hint">2-letter state code (e.g., CA, NY)</p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">ZIP Code</label>
+                <input
+                  type="text"
+                  value={formData.zipCode}
+                  onChange={(e) => handleInputChange('zipCode', e.target.value)}
+                  placeholder="90014"
+                  className="form-input"
+                  maxLength="10"
+                />
+                <p className="form-hint">Required for Amazon orders</p>
               </div>
 
               <div className="form-group">

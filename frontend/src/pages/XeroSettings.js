@@ -160,7 +160,7 @@ const XeroSettings = () => {
   }
 
   return (
-    <div className="page-container">
+    <div className="container">
       <div className="page-header">
         <h2 className="page-title">Xero Accounting Integration</h2>
       </div>

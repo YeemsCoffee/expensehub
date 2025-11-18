@@ -8,8 +8,8 @@ const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, code, name, address, city, state, country, created_at
-       FROM locations 
+      `SELECT id, code, name, address, city, state, zip_code, country, created_at
+       FROM locations
        WHERE is_active = true
        ORDER BY code`
     );
@@ -49,6 +49,7 @@ router.post('/', authMiddleware, isManagerOrAdmin, [
   body('address').optional().trim(),
   body('city').optional().trim(),
   body('state').optional().trim(),
+  body('zipCode').optional().trim(),
   body('country').optional().trim()
 ], async (req, res) => {
   try {
@@ -57,7 +58,7 @@ router.post('/', authMiddleware, isManagerOrAdmin, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { code, name, address, city, state, country } = req.body;
+    const { code, name, address, city, state, zipCode, country } = req.body;
 
     // Check if code already exists
     const existingResult = await db.query(
@@ -71,10 +72,10 @@ router.post('/', authMiddleware, isManagerOrAdmin, [
 
     // Create location
     const result = await db.query(
-      `INSERT INTO locations (code, name, address, city, state, country, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, code, name, address, city, state, country, is_active, created_at`,
-      [code, name, address, city, state, country || 'USA']
+      `INSERT INTO locations (code, name, address, city, state, zip_code, country, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+       RETURNING id, code, name, address, city, state, zip_code, country, is_active, created_at`,
+      [code, name, address, city, state, zipCode, country || 'USA']
     );
 
     res.status(201).json({
@@ -93,6 +94,7 @@ router.put('/:id', authMiddleware, isManagerOrAdmin, [
   body('address').optional().trim(),
   body('city').optional().trim(),
   body('state').optional().trim(),
+  body('zipCode').optional().trim(),
   body('country').optional().trim()
 ], async (req, res) => {
   try {
@@ -101,7 +103,7 @@ router.put('/:id', authMiddleware, isManagerOrAdmin, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, address, city, state, country } = req.body;
+    const { name, address, city, state, zipCode, country } = req.body;
     const { id } = req.params;
 
     // Check if location exists
@@ -116,16 +118,17 @@ router.put('/:id', authMiddleware, isManagerOrAdmin, [
 
     // Update location (code cannot be changed)
     const result = await db.query(
-      `UPDATE locations 
+      `UPDATE locations
        SET name = COALESCE($1, name),
            address = COALESCE($2, address),
            city = COALESCE($3, city),
            state = COALESCE($4, state),
-           country = COALESCE($5, country),
+           zip_code = COALESCE($5, zip_code),
+           country = COALESCE($6, country),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6
-       RETURNING id, code, name, address, city, state, country, is_active, updated_at`,
-      [name, address, city, state, country, id]
+       WHERE id = $7
+       RETURNING id, code, name, address, city, state, zip_code, country, is_active, updated_at`,
+      [name, address, city, state, zipCode, country, id]
     );
 
     res.json({

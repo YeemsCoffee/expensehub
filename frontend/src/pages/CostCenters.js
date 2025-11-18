@@ -109,10 +109,10 @@ const CostCenters = () => {
   }
 
   return (
-    <div>
+    <div className="container">
       <div className="page-header">
         <h2 className="page-title">Cost Centers</h2>
-        <button 
+        <button
           onClick={() => setShowForm(!showForm)}
           className="btn btn-primary"
         >

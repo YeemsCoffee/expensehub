@@ -165,7 +165,8 @@ router.delete('/', authMiddleware, async (req, res) => {
 
 // Checkout (submit cart as order/expense)
 router.post('/checkout', authMiddleware, [
-  body('costCenterId').isInt()
+  body('costCenterId').isInt(),
+  body('locationId').isInt()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -173,11 +174,11 @@ router.post('/checkout', authMiddleware, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { costCenterId } = req.body;
+    const { costCenterId, locationId } = req.body;
 
-    // Get cart items
+    // Get cart items including Amazon SPAID for order placement
     const cartResult = await db.query(
-      `SELECT ci.quantity, p.id as product_id, p.name, p.price, v.name as vendor_name
+      `SELECT ci.quantity, ci.amazon_spaid, p.id as product_id, p.name, p.price, v.name as vendor_name, v.id as vendor_id
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
        JOIN vendors v ON p.vendor_id = v.id
@@ -189,28 +190,121 @@ router.post('/checkout', authMiddleware, [
       return res.status(400).json({ error: 'Cart is empty' });
     }
 
+    // Check if user has a manager by checking approval chain
+    // If no manager exists, auto-approve expenses
+    const managerCheckResult = await db.query(
+      'SELECT manager_id FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const hasManager = managerCheckResult.rows[0]?.manager_id !== null;
+    const status = hasManager ? 'pending' : 'approved';
+    const approvedAt = hasManager ? null : new Date();
+
+    console.log(`User ${req.user.id} has manager: ${hasManager}. Status: ${status}`);
+
     // Create expenses for each cart item
     const expenses = [];
     for (const item of cartResult.rows) {
       const amount = item.price * item.quantity;
-      const description = `${item.vendor_name} - ${item.name} (Qty: ${item.quantity})`;
-      
+      const description = `${item.name} (Qty: ${item.quantity})`;
+
+      // Determine category based on vendor
+      let category = 'Office Supplies';
+      if (item.vendor_name.toLowerCase().includes('amazon')) {
+        category = 'Office Supplies';
+      }
+
+      // Store Amazon SPAID if present (needed for order placement)
+      const amazonSpaid = item.amazon_spaid || null;
+      const amazonOrderStatus = amazonSpaid ? 'pending' : null;
+
       const expenseResult = await db.query(
-        `INSERT INTO expenses (user_id, cost_center_id, date, description, category, amount)
-         VALUES ($1, $2, CURRENT_DATE, $3, 'Office Supplies', $4)
+        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11)
          RETURNING *`,
-        [req.user.id, costCenterId, description, amount]
+        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus]
       );
-      
+
       expenses.push(expenseResult.rows[0]);
     }
 
     // Clear cart
     await db.query('DELETE FROM cart_items WHERE user_id = $1', [req.user.id]);
 
+    console.log(`Cart checkout: Created ${expenses.length} expense(s) for user ${req.user.id}, status: ${status}`);
+
+    // If auto-approved and has Amazon items, send orders to Amazon
+    if (!hasManager) {
+      const { sendOrderToAmazon } = require('./amazonPunchout');
+
+      for (const expense of expenses) {
+        if (expense.amazon_spaid && expense.amazon_order_status === 'pending') {
+          // Send order asynchronously (non-blocking)
+          setImmediate(async () => {
+            try {
+              console.log(`🛒 [Amazon Order] Auto-approved - placing order for expense ${expense.id} with SPAID:`, expense.amazon_spaid);
+
+              // Get user and location info for order
+              const [userResult, locationResult] = await Promise.all([
+                db.query('SELECT email, first_name, last_name FROM users WHERE id = $1', [req.user.id]),
+                db.query('SELECT * FROM locations WHERE id = $1', [expense.location_id])
+              ]);
+              const user = userResult.rows[0];
+              const location = locationResult.rows[0];
+
+              const orderResult = await sendOrderToAmazon(expense, {
+                email: user.email,
+                name: `${user.first_name} ${user.last_name}`,
+                location: location
+              });
+
+              if (orderResult.success) {
+                console.log(`✓ [Amazon Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+
+                await db.query(
+                  `UPDATE expenses
+                   SET amazon_po_number = $1,
+                       amazon_order_status = 'confirmed',
+                       amazon_order_sent_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = $2`,
+                  [orderResult.poNumber, expense.id]
+                );
+              } else {
+                console.error(`✗ [Amazon Order] Failed to place order for expense ${expense.id}:`, orderResult.error);
+
+                await db.query(
+                  `UPDATE expenses
+                   SET amazon_order_status = 'failed',
+                       amazon_order_sent_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = $1`,
+                  [expense.id]
+                );
+              }
+            } catch (orderError) {
+              console.error(`Error placing Amazon order for expense ${expense.id}:`, orderError);
+
+              await db.query(
+                `UPDATE expenses
+                 SET amazon_order_status = 'failed',
+                     amazon_order_sent_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1`,
+                [expense.id]
+              );
+            }
+          });
+        }
+      }
+    }
+
     res.json({
-      message: 'Order submitted for approval',
-      expenses
+      message: hasManager ? 'Expense reports submitted for approval' : 'Expense reports automatically approved',
+      expenses,
+      count: expenses.length,
+      autoApproved: !hasManager
     });
   } catch (error) {
     console.error('Checkout error:', error);

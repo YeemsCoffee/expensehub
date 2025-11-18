@@ -13,6 +13,7 @@ const ExpenseHistory = () => {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [successBanner, setSuccessBanner] = useState(null);
 
   const [filters, setFilters] = useState({
     status: '',
@@ -24,6 +25,26 @@ const ExpenseHistory = () => {
     minAmount: '',
     maxAmount: ''
   });
+
+  // Check for success info from cart checkout
+  useEffect(() => {
+    const successInfo = sessionStorage.getItem('expenseSubmitSuccess');
+    if (successInfo) {
+      try {
+        const data = JSON.parse(successInfo);
+        // Only show if submitted within last 5 seconds
+        if (Date.now() - data.timestamp < 5000) {
+          setSuccessBanner(data);
+          // Auto-hide after 10 seconds
+          setTimeout(() => setSuccessBanner(null), 10000);
+        }
+        // Clear from sessionStorage
+        sessionStorage.removeItem('expenseSubmitSuccess');
+      } catch (err) {
+        console.error('Error parsing success info:', err);
+      }
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -112,8 +133,42 @@ const ExpenseHistory = () => {
   const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
 
   return (
-    <div>
+    <div className="container">
       <h2 className="page-title">Expense History</h2>
+
+      {/* Success Banner */}
+      {successBanner && (
+        <div className="alert alert-success mb-4" style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between' }}>
+            <div>
+              <strong style={{ fontSize: '16px' }}>
+                {successBanner.autoApproved ? '✓ Expenses Automatically Approved!' : '✓ Expenses Submitted Successfully!'}
+              </strong>
+              <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                {successBanner.count} expense{successBanner.count > 1 ? 's' : ''} created • Total: ${successBanner.total}
+                {successBanner.autoApproved
+                  ? ' • Ready for processing'
+                  : ' • Awaiting manager approval'}
+              </p>
+            </div>
+            <button
+              onClick={() => setSuccessBanner(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                color: 'inherit',
+                opacity: 0.7
+              }}
+              onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+              onMouseOut={(e) => e.currentTarget.style.opacity = '0.7'}
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card mb-4">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>

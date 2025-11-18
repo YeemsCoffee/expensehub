@@ -5,6 +5,7 @@ const db = require('../config/database');
 const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { sendExpenseSubmissionNotification } = require('../services/emailService');
 const xeroService = require('../services/xeroService');
+const { sendOrderToAmazon } = require('./amazonPunchout');
 
 // Helper function to determine cost type based on category and amount
 const determineCostType = (category, amount) => {
@@ -640,9 +641,69 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
       }
     });
 
-    // Respond immediately (don't wait for Xero sync)
+    // Auto-send order to Amazon if expense has Amazon SPAID (non-blocking)
+    if (approvedExpense.amazon_spaid && approvedExpense.amazon_order_status === 'pending') {
+      setImmediate(async () => {
+        try {
+          console.log(`🛒 [Amazon Order] Placing order for expense ${approvedExpense.id} with SPAID:`, approvedExpense.amazon_spaid);
+
+          // Get location if expense has one
+          let location = null;
+          if (approvedExpense.location_id) {
+            const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [approvedExpense.location_id]);
+            location = locResult.rows[0];
+          }
+
+          const orderResult = await sendOrderToAmazon(approvedExpense, {
+            email: expense.email,
+            name: `${expense.first_name} ${expense.last_name}`,
+            location: location
+          });
+
+          if (orderResult.success) {
+            console.log(`✓ [Amazon Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+
+            // Update expense with Amazon PO confirmation
+            await db.query(
+              `UPDATE expenses
+               SET amazon_po_number = $1,
+                   amazon_order_status = 'confirmed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [orderResult.poNumber, approvedExpense.id]
+            );
+          } else {
+            console.error(`✗ [Amazon Order] Failed to place order for expense ${approvedExpense.id}:`, orderResult.error);
+
+            // Mark order as failed
+            await db.query(
+              `UPDATE expenses
+               SET amazon_order_status = 'failed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [approvedExpense.id]
+            );
+          }
+        } catch (orderError) {
+          console.error(`Error placing Amazon order for expense ${approvedExpense.id}:`, orderError);
+
+          await db.query(
+            `UPDATE expenses
+             SET amazon_order_status = 'failed',
+                 amazon_order_sent_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [approvedExpense.id]
+          );
+        }
+      });
+    }
+
+    // Respond immediately (don't wait for Xero sync or Amazon order)
     res.json({
-      message: 'Expense approved successfully. Syncing to Xero in background.',
+      message: 'Expense approved successfully. Processing order placement and syncing to Xero in background.',
       expense: result.rows[0]
     });
   } catch (error) {

@@ -19,6 +19,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import { calculateCartTotal } from './utils/helpers';
+import api from './services/api';
 import './styles/design-tokens.css';
 import './styles/App.css';
 import './styles/navigation.css';
@@ -38,15 +39,38 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
 
+  // Fetch cart from backend
+  const fetchCart = async () => {
+    try {
+      const response = await api.get('/cart');
+      const cartItems = response.data.map(item => ({
+        id: item.id,
+        productId: item.product_id,
+        vendorId: item.vendor_id,
+        vendorName: item.vendor_name,
+        productName: item.product_name,
+        price: parseFloat(item.price),
+        quantity: parseInt(item.quantity),
+        costCenterId: item.cost_center_id
+      }));
+      setCart(cartItems);
+    } catch (error) {
+      console.error('Failed to fetch cart:', error);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    
+
     if (token && savedUser) {
       const userData = JSON.parse(savedUser);
       setUser(userData);
       setCurrentView('app');
-      
+
+      // Fetch cart items from backend
+      fetchCart();
+
       // Set default tab based on role
       if (userData.role === 'employee') {
         setActiveTab('home');
@@ -89,7 +113,10 @@ const App = () => {
     setUser(userData);
     setCurrentView('app');
     window.location.hash = '';
-    
+
+    // Fetch cart items from backend
+    fetchCart();
+
     // Set initial tab based on role
     if (userData.role === 'employee') {
       setActiveTab('home');
@@ -104,7 +131,10 @@ const App = () => {
     setUser(userData);
     setCurrentView('app');
     window.location.hash = '';
-    
+
+    // Fetch cart items from backend
+    fetchCart();
+
     // Set initial tab based on role
     if (userData.role === 'employee') {
       setActiveTab('home');
@@ -137,48 +167,120 @@ const App = () => {
     }
   };
 
-  const handleAddToCart = (vendor, product) => {
-    const existingItem = cart.find(item => item.productId === product.id);
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.productId === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart, {
+  const handleAddToCart = async (vendor, product) => {
+    try {
+      await api.post('/cart', {
         productId: product.id,
-        vendorId: vendor.id,
-        vendorName: vendor.name,
-        productName: product.name,
-        price: product.price,
-        quantity: 1
-      }]);
+        quantity: 1,
+        costCenterId: 1 // Default cost center
+      });
+      // Refresh cart from backend
+      await fetchCart();
+    } catch (error) {
+      console.error('Failed to add to cart:', error);
+      alert('Failed to add item to cart');
     }
   };
 
-  const handleUpdateCartQuantity = (productId, delta) => {
-    setCart(cart.map(item =>
-      item.productId === productId
-        ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-        : item
-    ).filter(item => item.quantity > 0));
+  const handleUpdateCartQuantity = async (productId, delta) => {
+    try {
+      const item = cart.find(i => i.productId === productId);
+      if (!item) return;
+
+      const newQuantity = item.quantity + delta;
+
+      if (newQuantity <= 0) {
+        // Remove item
+        await api.delete(`/cart/${item.id}`);
+      } else {
+        // Update quantity
+        await api.put(`/cart/${item.id}`, { quantity: newQuantity });
+      }
+
+      // Refresh cart from backend
+      await fetchCart();
+    } catch (error) {
+      console.error('Failed to update cart:', error);
+      alert('Failed to update cart');
+    }
   };
 
-  const handleRemoveFromCart = (productId) => {
-    setCart(cart.filter(item => item.productId !== productId));
+  const handleRemoveFromCart = async (productId) => {
+    try {
+      const item = cart.find(i => i.productId === productId);
+      if (!item) return;
+
+      await api.delete(`/cart/${item.id}`);
+      // Refresh cart from backend
+      await fetchCart();
+    } catch (error) {
+      console.error('Failed to remove from cart:', error);
+      alert('Failed to remove item from cart');
+    }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async (costCenterId, locationId) => {
     if (cart.length === 0) return;
-    
-    const totalAmount = calculateCartTotal(cart);
-    alert(`Order submitted for approval!\nTotal: $${totalAmount.toFixed(2)}\nItems will be ordered upon approval.`);
-    setCart([]);
+
+    if (!costCenterId) {
+      alert('Please select a cost center');
+      return;
+    }
+
+    if (!locationId) {
+      alert('Please select a shipping location');
+      return;
+    }
+
+    try {
+      const response = await api.post('/cart/checkout', {
+        costCenterId: parseInt(costCenterId),
+        locationId: parseInt(locationId)
+      });
+
+      const totalAmount = calculateCartTotal(cart);
+      const expenseCount = response.data.count || response.data.expenses?.length;
+      const autoApproved = response.data.autoApproved;
+
+      if (autoApproved) {
+        alert(
+          `Expenses automatically approved!\n\n` +
+          `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created and approved\n` +
+          `Total: $${totalAmount.toFixed(2)}\n\n` +
+          `Your expenses are ready for processing.`
+        );
+      } else {
+        alert(
+          `Expense report submitted successfully!\n\n` +
+          `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created\n` +
+          `Total: $${totalAmount.toFixed(2)}\n\n` +
+          `Your expenses have been submitted for manager approval.`
+        );
+      }
+
+      // Refresh cart from backend (should be empty now)
+      await fetchCart();
+
+      // Store success info in sessionStorage for expense history page
+      sessionStorage.setItem('expenseSubmitSuccess', JSON.stringify({
+        count: expenseCount,
+        total: totalAmount.toFixed(2),
+        autoApproved: autoApproved,
+        timestamp: Date.now()
+      }));
+
+      // Navigate to expense history to see submitted expenses
+      setActiveTab('expenses-history');
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      alert(error.response?.data?.error || 'Failed to submit expenses for approval');
+    }
   };
 
   const handleCartClick = () => {
     setActiveTab('cart');
+    // Refresh cart when navigating to cart page
+    fetchCart();
   };
 
   if (currentView === 'login') {
@@ -204,7 +306,7 @@ const App = () => {
       case 'dashboard':
         return <Dashboard />;
       case 'marketplace':
-        return <Marketplace onAddToCart={handleAddToCart} />;
+        return <Marketplace onAddToCart={handleAddToCart} onRefreshCart={fetchCart} />;
       case 'expenses-submit':
         return <ExpenseSubmit />;
       case 'expenses-history':

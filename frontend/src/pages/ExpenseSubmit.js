@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Upload, AlertCircle, CheckCircle, Camera, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Camera, AlertTriangle, DollarSign, FileText, MapPin } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
 import ReceiptUpload from '../components/ReceiptUpload';
+import '../styles/expense-submit.css';
 
 const ExpenseSubmit = () => {
   const toast = useToast();
@@ -11,7 +12,6 @@ const ExpenseSubmit = () => {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [receiptPreview, setReceiptPreview] = useState(null);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
   const [receiptId, setReceiptId] = useState(null);
   const [showReimbursableConfirm, setShowReimbursableConfirm] = useState(false);
@@ -156,31 +156,6 @@ const ExpenseSubmit = () => {
     return 'OPEX';
   };
 
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('File size must be less than 10MB');
-        return;
-      }
-
-      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-        toast.error('Please upload an image or PDF file');
-        return;
-      }
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setReceiptPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-
-      toast.success('Receipt uploaded successfully!');
-    }
-  };
-
   const handleReceiptProcessed = (extractedData, receiptId) => {
     // Auto-fill form with extracted data
     setNewExpense(prev => ({
@@ -241,7 +216,7 @@ const ExpenseSubmit = () => {
       // Simulate network delay for demo
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      await api.post('/expenses', {
+      const response = await api.post('/expenses', {
         date: newExpense.date,
         description: newExpense.description,
         category: newExpense.category,
@@ -258,7 +233,13 @@ const ExpenseSubmit = () => {
       // Save to recent expenses
       addToRecentExpenses(newExpense);
 
-      toast.success('Expense report submitted successfully! ✓');
+      // Check if expense was auto-approved (no manager)
+      const expense = response.data.expense;
+      if (expense.status === 'approved') {
+        toast.success('Expense automatically approved! ✓');
+      } else {
+        toast.success('Expense report submitted successfully! ✓');
+      }
 
       // Reset form but keep smart defaults
       setNewExpense({
@@ -266,6 +247,9 @@ const ExpenseSubmit = () => {
         description: '',
         category: '',
         amount: '',
+        subtotal: '',
+        tax: '',
+        tip: '',
         costCenterId: newExpense.costCenterId, // Keep last used
         locationId: newExpense.locationId, // Keep last used
         vendorName: '',
@@ -274,7 +258,7 @@ const ExpenseSubmit = () => {
         isReimbursable: newExpense.isReimbursable // Keep last used
       });
 
-      setReceiptPreview(null);
+      setReceiptId(null);
       setReimbursableConfirmed(false); // Reset confirmation flag
 
     } catch (err) {
@@ -296,99 +280,118 @@ const ExpenseSubmit = () => {
   }
 
   return (
-    <div>
-      <h2 className="page-title">Submit New Expense</h2>
-      <p className="text-gray-600 mb-6">Submit an expense report for approval</p>
-      
-      <div className="card">
-        <h3 className="card-title">Expense Details</h3>
-        
-        {/* Smart suggestions banner */}
-        {newExpense.costCenterId && (
-          <div className="smart-suggestion-banner">
-            <CheckCircle size={16} color="#10b981" />
-            <span>Using your last settings</span>
-          </div>
-        )}
+    <div className="expense-submit-container">
+      <div className="expense-submit-header">
+        <h2 className="expense-submit-title">Submit New Expense</h2>
+        <p className="expense-submit-subtitle">Create an expense report for approval</p>
+      </div>
 
-        <div className="form-grid">
-          {/* Row 1 */}
-          <div className="form-group">
-            <label className="form-label">Date *</label>
-            <input
-              type="date"
-              value={newExpense.date}
-              onChange={(e) => handleInputChange('date', e.target.value)}
-              className="form-input"
-              max={new Date().toISOString().split('T')[0]}
-              required
-            />
-            <p className="form-hint">Defaults to today</p>
-          </div>
-          
-          <div className="form-group">
-            <label className="form-label">Amount (Total) *</label>
+      {/* Smart suggestions banner */}
+      {newExpense.costCenterId && (
+        <div className="smart-suggestion-banner">
+          <CheckCircle size={18} />
+          <span>Using your last settings</span>
+        </div>
+      )}
+
+      <div className="expense-form-card">
+        {/* Amount Section */}
+        <div className="form-section-header">
+          <DollarSign size={20} className="form-section-icon" />
+          Amount Details
+        </div>
+
+        <div className="amount-fields-grid expense-form-grid-full" style={{ marginBottom: '1.5rem' }}>
+          <div className="expense-form-group">
+            <label className="expense-form-label">
+              Amount (Total) <span className="required-indicator">*</span>
+            </label>
             <input
               type="number"
               step="0.01"
               value={newExpense.amount}
               onChange={(e) => handleInputChange('amount', e.target.value)}
               placeholder="0.00"
-              className="form-input"
+              className="expense-form-input"
               required
             />
             {parseFloat(newExpense.amount) >= 2500 && (
-              <p className="form-hint text-orange">
-                <AlertCircle size={14} style={{ display: 'inline', marginRight: '4px' }} />
+              <p className="expense-form-hint form-hint-warning">
+                <AlertCircle size={14} />
                 Amount over $2,500 may require additional approval
               </p>
             )}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Subtotal</label>
+          <div className="expense-form-group">
+            <label className="expense-form-label">Subtotal</label>
             <input
               type="number"
               step="0.01"
               value={newExpense.subtotal}
               onChange={(e) => handleInputChange('subtotal', e.target.value)}
               placeholder="0.00"
-              className="form-input"
+              className="expense-form-input"
             />
-            <p className="form-hint">Amount before tax</p>
+            <p className="expense-form-hint">Before tax</p>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Tax</label>
+          <div className="expense-form-group">
+            <label className="expense-form-label">Tax</label>
             <input
               type="number"
               step="0.01"
               value={newExpense.tax}
               onChange={(e) => handleInputChange('tax', e.target.value)}
               placeholder="0.00"
-              className="form-input"
+              className="expense-form-input"
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Tip</label>
+          <div className="expense-form-group">
+            <label className="expense-form-label">Tip</label>
             <input
               type="number"
               step="0.01"
               value={newExpense.tip}
               onChange={(e) => handleInputChange('tip', e.target.value)}
               placeholder="0.00"
-              className="form-input"
+              className="expense-form-input"
             />
-            <p className="form-hint">For meals/services</p>
+            <p className="expense-form-hint">Meals only</p>
+          </div>
+        </div>
+
+        {/* Basic Details Section */}
+        <div className="form-section-header">
+          <FileText size={20} className="form-section-icon" />
+          Basic Information
+        </div>
+
+        <div className="expense-form-grid">
+          <div className="expense-form-group">
+            <label className="expense-form-label">
+              Date <span className="required-indicator">*</span>
+            </label>
+            <input
+              type="date"
+              value={newExpense.date}
+              onChange={(e) => handleInputChange('date', e.target.value)}
+              className="expense-form-input"
+              max={new Date().toISOString().split('T')[0]}
+              required
+            />
+            <p className="expense-form-hint">Defaults to today</p>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Category *</label>
+          <div className="expense-form-group">
+            <label className="expense-form-label">
+              Category <span className="required-indicator">*</span>
+            </label>
             <select
               value={newExpense.category}
               onChange={(e) => handleInputChange('category', e.target.value)}
-              className="form-select"
+              className="expense-form-select"
               required
             >
               <option value="">Select a category</option>
@@ -397,48 +400,36 @@ const ExpenseSubmit = () => {
               ))}
             </select>
             {suggestedCategory && (
-              <p className="form-hint">{suggestedCategory}</p>
+              <p className="expense-form-hint">{suggestedCategory}</p>
             )}
           </div>
 
-          {/* Row 2 */}
-          <div className="form-group">
-            <label className="form-label">Cost Center *</label>
-            <select
-              value={newExpense.costCenterId}
-              onChange={(e) => handleInputChange('costCenterId', e.target.value)}
-              className="form-select"
+          <div className="expense-form-group expense-form-grid-full">
+            <label className="expense-form-label">
+              Description <span className="required-indicator">*</span>
+            </label>
+            <input
+              type="text"
+              value={newExpense.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="e.g., Client dinner with ABC Corp"
+              className="expense-form-input"
+              maxLength={200}
               required
-            >
-              <option value="">Select cost center</option>
-              {costCenters.map((cc) => (
-                <option key={cc.id} value={cc.id}>{cc.code} - {cc.name}</option>
-              ))}
-            </select>
+            />
+            <p className="expense-form-hint">
+              {newExpense.description.length}/200 characters
+            </p>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Location</label>
-            <select
-              value={newExpense.locationId}
-              onChange={(e) => handleInputChange('locationId', e.target.value)}
-              className="form-select"
-            >
-              <option value="">Select location</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.code} - {loc.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Vendor Name</label>
+          <div className="expense-form-group">
+            <label className="expense-form-label">Vendor Name</label>
             <input
               type="text"
               value={newExpense.vendorName}
               onChange={(e) => handleInputChange('vendorName', e.target.value)}
               placeholder="e.g., Staples, Amazon Business"
-              className="form-input"
+              className="expense-form-input"
               list="recent-vendors"
             />
             {recentVendors.length > 0 && (
@@ -449,131 +440,126 @@ const ExpenseSubmit = () => {
               </datalist>
             )}
             {recentVendors.length > 0 && (
-              <p className="form-hint">Recently used vendors available</p>
+              <p className="expense-form-hint">Recently used vendors available</p>
             )}
           </div>
 
-          {/* Row 3 */}
-          <div className="form-group form-grid-full">
-            <label className="form-label">Description *</label>
-            <input
-              type="text"
-              value={newExpense.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="e.g., Client dinner with ABC Corp"
-              className="form-input"
-              maxLength={200}
-              required
-            />
-            <p className="form-hint">
-              {newExpense.description.length}/200 characters
-            </p>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">GL Account</label>
+          <div className="expense-form-group">
+            <label className="expense-form-label">GL Account</label>
             <input
               type="text"
               value={newExpense.glAccount}
               onChange={(e) => handleInputChange('glAccount', e.target.value)}
               placeholder="6000-100"
-              className="form-input"
+              className="expense-form-input"
             />
           </div>
+        </div>
 
-          <div className="form-group form-grid-full">
-            <label className="form-label">Notes</label>
+        {/* Location & Cost Center Section */}
+        <div className="form-section-header">
+          <MapPin size={20} className="form-section-icon" />
+          Assignment
+        </div>
+
+        <div className="expense-form-grid">
+          <div className="expense-form-group">
+            <label className="expense-form-label">
+              Cost Center <span className="required-indicator">*</span>
+            </label>
+            <select
+              value={newExpense.costCenterId}
+              onChange={(e) => handleInputChange('costCenterId', e.target.value)}
+              className="expense-form-select"
+              required
+            >
+              <option value="">Select cost center</option>
+              {costCenters.map((cc) => (
+                <option key={cc.id} value={cc.id}>{cc.code} - {cc.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="expense-form-group">
+            <label className="expense-form-label">Location</label>
+            <select
+              value={newExpense.locationId}
+              onChange={(e) => handleInputChange('locationId', e.target.value)}
+              className="expense-form-select"
+            >
+              <option value="">Select location</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.code} - {loc.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="expense-form-group expense-form-grid-full">
+            <label className="expense-form-label">Additional Notes</label>
             <textarea
               value={newExpense.notes}
               onChange={(e) => handleInputChange('notes', e.target.value)}
-              placeholder="Additional notes or details"
-              className="form-input"
-              rows="2"
+              placeholder="Add any additional context or details..."
+              className="expense-form-textarea"
               maxLength={500}
             />
-            <p className="form-hint">
+            <p className="expense-form-hint">
               {newExpense.notes.length}/500 characters
             </p>
           </div>
 
-          <div className="form-group">
-            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="expense-form-group expense-form-grid-full">
+            <div className="checkbox-group" onClick={() => handleInputChange('isReimbursable', !newExpense.isReimbursable)}>
               <input
                 type="checkbox"
                 checked={newExpense.isReimbursable}
                 onChange={(e) => handleInputChange('isReimbursable', e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
               />
-              Reimbursable to employee
-            </label>
-          </div>
-
-          <div className="form-group form-grid-full">
-            <label className="form-label">
-              Attach Receipt
-            </label>
-
-            {receiptId ? (
-              <div className="receipt-preview-container">
-                <div className="alert alert-success">
-                  <CheckCircle size={16} />
-                  <span>Receipt processed with AI - Data extracted!</span>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    setReceiptId(null);
-                    setReceiptPreview(null);
-                  }}
-                  style={{ marginTop: '12px' }}
-                >
-                  Remove Receipt
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="receipt-option-btn upload-btn"
-                style={{
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '12px',
-                  padding: '24px 16px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 6px rgba(102, 126, 234, 0.3)',
-                  marginTop: '12px',
-                  width: '100%'
-                }}
-                onClick={() => setShowReceiptUpload(true)}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(102, 126, 234, 0.4)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(102, 126, 234, 0.3)';
-                }}
-              >
-                <Camera size={32} />
-                <span style={{ fontSize: '16px', fontWeight: '600' }}>Scan Receipt with AI</span>
-                <p style={{ margin: 0, fontSize: '13px', opacity: 0.9 }}>Auto-extract vendor, date, amount & more</p>
-              </button>
-            )}
-            <p className="form-hint" style={{ marginTop: '12px' }}>
-              AI-powered OCR extracts data automatically • PDF, PNG, JPG • Max 10MB
-            </p>
+              <span className="checkbox-label">Reimbursable to employee</span>
+            </div>
           </div>
         </div>
 
+        {/* Receipt Upload Section */}
+        <div className="form-section-header">
+          <Camera size={20} className="form-section-icon" />
+          Receipt
+        </div>
+
+        <div className="expense-form-grid-full">
+          {receiptId ? (
+            <div className="receipt-processed">
+              <div className="receipt-processed-info">
+                <CheckCircle size={20} />
+                <span className="receipt-processed-text">Receipt processed with AI - Data extracted!</span>
+              </div>
+              <button
+                type="button"
+                className="remove-receipt-btn"
+                onClick={() => setReceiptId(null)}
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="receipt-upload-section" onClick={() => setShowReceiptUpload(true)}>
+              <div className="receipt-upload-icon">
+                <Camera size={40} />
+              </div>
+              <div className="receipt-upload-title">Scan Receipt with AI</div>
+              <p className="receipt-upload-description">Auto-extract vendor, date, amount & more</p>
+            </div>
+          )}
+          <p className="expense-form-hint" style={{ marginTop: '12px' }}>
+            AI-powered OCR extracts data automatically • PDF, PNG, JPG • Max 10MB
+          </p>
+        </div>
+
+        {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          className="btn btn-primary btn-full btn-lg mt-4"
+          className="expense-submit-btn"
           disabled={isSubmitting}
         >
           {isSubmitting ? (
@@ -590,7 +576,7 @@ const ExpenseSubmit = () => {
       {/* Receipt Upload Modal */}
       {showReceiptUpload && (
         <div className="modal-overlay" onClick={() => setShowReceiptUpload(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-content-large" onClick={(e) => e.stopPropagation()}>
             <ReceiptUpload
               onReceiptProcessed={handleReceiptProcessed}
               onClose={() => setShowReceiptUpload(false)}
@@ -602,36 +588,15 @@ const ExpenseSubmit = () => {
       {/* Reimbursable Expense Confirmation Modal */}
       {showReimbursableConfirm && (
         <div className="modal-overlay" onClick={handleReimbursableCancel}>
-          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                background: 'var(--color-warning-50)',
-                marginBottom: '1rem'
-              }}>
-                <AlertTriangle size={32} color="var(--color-warning-500)" />
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ textAlign: 'center' }}>
+              <div className="modal-icon-wrapper" style={{ background: '#FEF3C7' }}>
+                <AlertTriangle size={32} color="#F59E0B" />
               </div>
 
-              <h3 style={{
-                fontSize: 'var(--text-xl)',
-                fontWeight: 'var(--font-semibold)',
-                color: 'var(--color-text-primary)',
-                marginBottom: '0.5rem'
-              }}>
-                Confirm Reimbursable Expense
-              </h3>
+              <h3 className="modal-title">Confirm Reimbursable Expense</h3>
 
-              <p style={{
-                fontSize: 'var(--text-base)',
-                color: 'var(--color-text-secondary)',
-                marginBottom: '1.5rem',
-                lineHeight: '1.6'
-              }}>
+              <p className="modal-description">
                 You've marked this expense as <strong>reimbursable</strong>. This means you expect to be reimbursed for this expense.
                 <br /><br />
                 Once approved, this will create a <strong>bill payable to you</strong> in Xero for reimbursement processing.
@@ -639,22 +604,16 @@ const ExpenseSubmit = () => {
                 Is this correct?
               </p>
 
-              <div style={{
-                display: 'flex',
-                gap: '0.75rem',
-                justifyContent: 'center'
-              }}>
+              <div className="modal-actions">
                 <button
                   onClick={handleReimbursableCancel}
-                  className="btn btn-secondary"
-                  style={{ minWidth: '120px' }}
+                  className="modal-btn modal-btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReimbursableConfirm}
-                  className="btn btn-primary"
-                  style={{ minWidth: '120px' }}
+                  className="modal-btn modal-btn-primary"
                 >
                   Yes, Submit
                 </button>

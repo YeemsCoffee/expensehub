@@ -116,7 +116,7 @@ const Approvals = () => {
   }
 
   return (
-    <div>
+    <div className="container">
       <div style={{ marginBottom: '1.5rem' }}>
         <h2 className="page-title" style={{ marginBottom: '0.5rem' }}>Pending Approvals</h2>
         <p className="text-gray-600">Review and approve expense reports requiring your authorization</p>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, ExternalLink } from 'lucide-react';
+import { Plus, ExternalLink } from 'lucide-react';
 import { VENDORS } from '../utils/constants';
 import api from '../services/api';
+import '../styles/marketplace.css';
 
-const Marketplace = ({ onAddToCart }) => {
+const Marketplace = ({ onAddToCart, onRefreshCart }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [punchoutSuccess, setPunchoutSuccess] = useState(false);
@@ -16,10 +17,15 @@ const Marketplace = ({ onAddToCart }) => {
       // Clear the URL parameter
       window.history.replaceState({}, '', window.location.pathname);
 
+      // Refresh cart to show newly added items
+      if (onRefreshCart) {
+        onRefreshCart();
+      }
+
       // Show success message for 5 seconds
       setTimeout(() => setPunchoutSuccess(false), 5000);
     }
-  }, []);
+  }, [onRefreshCart]);
 
   const handleAmazonPunchout = async () => {
     try {
@@ -31,24 +37,10 @@ const Marketplace = ({ onAddToCart }) => {
       // Request punchout session setup (server-side POST to Amazon)
       const response = await api.post('/amazon-punchout/setup', { costCenterId });
 
-      const { startUrl, success } = response.data;
+      const { startUrl } = response.data;
 
-      // Create a form to POST the cXML to Amazon
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = amazonTargetUrl;
-      form.target = '_self';
-      form.enctype = 'application/x-www-form-urlencoded';
-
-      // Add the cXML as form data
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'cXML-urlencoded';
-      input.value = cxmlRequest;
-
-      form.appendChild(input);
-      document.body.appendChild(form);
-      form.submit();
+      // Redirect to Amazon's StartPage URL
+      window.location.href = startUrl;
 
     } catch (error) {
       console.error('Failed to initiate Amazon punchout:', error);
@@ -74,86 +66,106 @@ const Marketplace = ({ onAddToCart }) => {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h2 className="page-title">Vendor Marketplace</h2>
-        <div className="search-bar">
-          <Search className="search-icon" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            className="form-input"
-          />
+    <div className="marketplace-container">
+      <div className="marketplace-header">
+        <div className="marketplace-header-content">
+          <h1 className="marketplace-title">Vendor Marketplace</h1>
+          <p className="marketplace-subtitle">Shop from our trusted vendor partners</p>
         </div>
+        {/* Removed search for cleaner look - can be added back if needed */}
       </div>
 
       {punchoutSuccess && (
-        <div className="alert alert-success mb-4">
-          <strong>Success!</strong> Items from Amazon Business have been added to your cart.
+        <div className="marketplace-success-banner">
+          <div className="success-banner-icon">✓</div>
+          <div className="success-banner-content">
+            <strong>Items added successfully!</strong>
+            <p>Your Amazon Business items have been added to your cart</p>
+          </div>
         </div>
       )}
 
       {!selectedVendor ? (
         <div>
           <div className="vendor-grid">
-              {/* Amazon Business Punchout Card */}
-              <div className="vendor-card vendor-card-featured">
-                <div className="vendor-card-header">
-                  <div>
-                    <h3 className="vendor-name">
-                      Amazon Business
-                      <span className="badge badge-primary ml-2">Integration</span>
-                    </h3>
-                    <p className="vendor-category">General Supplies & More</p>
+            {/* Amazon Business Card */}
+            <div className="amazon-featured-card">
+              <div className="amazon-card-content">
+                <div className="amazon-card-header">
+                  <div className="amazon-logo-section">
+                    <h3 className="amazon-title">Amazon Business</h3>
+                    <span className="amazon-badge">Integration</span>
                   </div>
-                  <div className="vendor-rating">
-                    <span className="vendor-rating-star">★</span>
-                    <span className="vendor-rating-value">4.8</span>
+                  <div className="amazon-rating">
+                    <div className="rating-stars">★★★★★</div>
+                    <span className="rating-text">4.8</span>
                   </div>
                 </div>
-                <p className="vendor-product-count">Millions of products available</p>
+
+                <p className="amazon-description">
+                  Access millions of products with competitive pricing and fast delivery.
+                </p>
+
+                <div className="amazon-features">
+                  <div className="feature-item">
+                    <span className="feature-icon">📦</span>
+                    <span>Millions of Products</span>
+                  </div>
+                  <div className="feature-item">
+                    <span className="feature-icon">⚡</span>
+                    <span>Fast Delivery</span>
+                  </div>
+                </div>
+
                 <button
                   onClick={handleAmazonPunchout}
                   disabled={loading}
-                  className="btn btn-primary btn-full"
+                  className="amazon-shop-button"
                 >
                   {loading ? (
-                    <span>Connecting...</span>
+                    <span className="button-loading">
+                      <span className="loading-spinner"></span>
+                      Connecting...
+                    </span>
                   ) : (
                     <>
-                      <ExternalLink className="w-4 h-4" />
-                      <span>Shop on Amazon Business</span>
+                      <ExternalLink size={18} />
+                      <span>Shop on Amazon</span>
+                      <span className="button-arrow">→</span>
                     </>
                   )}
                 </button>
-                <p className="text-xs text-gray-500 mt-2">
-                  You'll be redirected to Amazon Business. Items added will return to your cart.
+
+                <p className="amazon-note">
+                  Items will be added to your cart
                 </p>
               </div>
+            </div>
 
-              {/* Regular Vendors */}
-              {VENDORS.map((vendor) => (
-                <div
-                  key={vendor.id}
-                  onClick={() => setSelectedVendor(vendor)}
-                  className="vendor-card"
-                >
-                  <div className="vendor-card-header">
-                    <div>
-                      <h3 className="vendor-name">{vendor.name}</h3>
-                      <p className="vendor-category">{vendor.category}</p>
-                    </div>
-                    <div className="vendor-rating">
-                      <span className="vendor-rating-star">★</span>
-                      <span className="vendor-rating-value">{vendor.rating}</span>
-                    </div>
+            {/* Regular Vendors */}
+            {VENDORS.map((vendor) => (
+              <div
+                key={vendor.id}
+                onClick={() => setSelectedVendor(vendor)}
+                className="vendor-card-modern"
+              >
+                <div className="vendor-card-header">
+                  <div>
+                    <h3 className="vendor-name">{vendor.name}</h3>
+                    <p className="vendor-category">{vendor.category}</p>
                   </div>
-                  <p className="vendor-product-count">{vendor.products.length} products available</p>
-                  <button className="btn btn-primary btn-full">
-                    Browse Products
-                  </button>
+                  <div className="vendor-rating">
+                    <span className="vendor-rating-star">★</span>
+                    <span className="vendor-rating-value">{vendor.rating}</span>
+                  </div>
                 </div>
-              ))}
+                <p className="vendor-product-count">{vendor.products.length} products available</p>
+                <button className="vendor-browse-button">
+                  Browse Products
+                  <span className="button-arrow">→</span>
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       ) : (

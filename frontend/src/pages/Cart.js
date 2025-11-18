@@ -1,12 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, X } from 'lucide-react';
-import { COST_CENTERS } from '../utils/constants';
 import { calculateCartTotal, calculateTax, formatCurrency } from '../utils/helpers';
+import api from '../services/api';
 
 const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) => {
+  const [costCenters, setCostCenters] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedCostCenter, setSelectedCostCenter] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [loading, setLoading] = useState(true);
+
   const subtotal = calculateCartTotal(cart);
   const tax = calculateTax(subtotal);
   const total = subtotal + tax;
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [ccResponse, locResponse] = await Promise.all([
+          api.get('/cost-centers'),
+          api.get('/locations')
+        ]);
+        setCostCenters(ccResponse.data);
+        setLocations(locResponse.data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleCheckout = () => {
+    if (!selectedCostCenter) {
+      alert('Please select a cost center before submitting');
+      return;
+    }
+    if (!selectedLocation) {
+      alert('Please select a shipping location before submitting');
+      return;
+    }
+    onCheckout(selectedCostCenter, selectedLocation);
+  };
 
   if (cart.length === 0) {
     return (
@@ -87,22 +124,42 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
           </div>
           <div className="order-summary-actions">
             <div className="form-group">
-              <label className="form-label">Cost Center</label>
-              <select className="form-select">
+              <label className="form-label">Cost Center *</label>
+              <select
+                className="form-select"
+                value={selectedCostCenter}
+                onChange={(e) => setSelectedCostCenter(e.target.value)}
+                required
+              >
                 <option value="">Select cost center</option>
-                {COST_CENTERS.map((cc) => (
-                  <option key={cc.code} value={cc.code}>{cc.code} - {cc.name}</option>
+                {costCenters.map((cc) => (
+                  <option key={cc.id} value={cc.id}>{cc.code} - {cc.name}</option>
                 ))}
               </select>
             </div>
+            <div className="form-group">
+              <label className="form-label">Shipping Location *</label>
+              <select
+                className="form-select"
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                required
+              >
+                <option value="">Select shipping location</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.code} - {loc.name} ({loc.city}, {loc.state})</option>
+                ))}
+              </select>
+              <p className="form-hint">Where should Amazon orders be delivered?</p>
+            </div>
             <button
-              onClick={onCheckout}
+              onClick={handleCheckout}
               className="btn btn-primary btn-full btn-lg"
             >
               Submit for Approval
             </button>
             <p className="order-summary-note">
-              Orders require manager approval before processing
+              Items will be submitted as expense reports for manager approval
             </p>
           </div>
         </div>

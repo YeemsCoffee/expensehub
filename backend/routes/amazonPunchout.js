@@ -321,10 +321,15 @@ router.post('/return', async (req, res) => {
       const quantity = parseInt(item['@_quantity']) || 1;
       const unitPrice = parseFloat(item.ItemDetail?.UnitPrice?.Money?.['#text'] || item.ItemDetail?.UnitPrice?.Money) || 0;
       const description = item.ItemDetail?.Description?.['#text'] || item.ItemDetail?.Description || 'Amazon Business Item';
-      const supplierPartId = item.ItemDetail?.SupplierPartID || '';
+      const supplierPartId = item.ItemID?.SupplierPartID || '';
       const manufacturerPartId = item.ItemDetail?.ManufacturerPartID || '';
 
-      console.log('Processing item:', {description, quantity, unitPrice});
+      // CRITICAL: Capture SupplierPartAuxiliaryID (Amazon cart/session ID)
+      // This is required to place orders with Amazon after approval
+      // NOTE: SupplierPartAuxiliaryID is under ItemID, not ItemDetail!
+      const supplierPartAuxiliaryID = item.ItemID?.SupplierPartAuxiliaryID || '';
+
+      console.log('Processing item:', {description, quantity, unitPrice, supplierPartId, supplierPartAuxiliaryID});
 
       // Create a product entry for this Amazon item
       const productResult = await db.query(
@@ -357,16 +362,17 @@ router.post('/return', async (req, res) => {
       const productId = productResult.rows[0].id;
       console.log('Created/updated product with ID:', productId);
 
-      // Add to cart
+      // Add to cart with Amazon SPAID for order placement
       await db.query(
-        `INSERT INTO cart_items (user_id, product_id, quantity, cost_center_id)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO cart_items (user_id, product_id, quantity, cost_center_id, amazon_spaid)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (user_id, product_id) DO UPDATE SET
            quantity = cart_items.quantity + EXCLUDED.quantity,
+           amazon_spaid = EXCLUDED.amazon_spaid,
            updated_at = CURRENT_TIMESTAMP`,
-        [session.user_id, productId, quantity, session.cost_center_id]
+        [session.user_id, productId, quantity, session.cost_center_id, supplierPartAuxiliaryID]
       );
-      console.log('Added item to cart for user:', session.user_id);
+      console.log('Added item to cart for user:', session.user_id, 'with SPAID:', supplierPartAuxiliaryID);
     }
 
     console.log('All items processed successfully');
@@ -456,4 +462,163 @@ router.get('/debug/cxml', authMiddleware, async (req, res) => {
   }
 });
 
+// Helper function to build cXML OrderRequest for Amazon
+function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
+  const timestamp = new Date().toISOString();
+  const payloadId = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+
+  // Extract Amazon SPAID (format: "session-id,line-number")
+  const amazonSpaid = expense.amazon_spaid;
+
+  // Use location address if provided, otherwise fall back to env defaults
+  const shipStreet = location?.address || process.env.COMPANY_SHIP_STREET || '123 Main Street';
+  const shipCity = location?.city || process.env.COMPANY_SHIP_CITY || 'Seattle';
+  const shipState = location?.state || process.env.COMPANY_SHIP_STATE || 'WA';
+  const shipZip = location?.zip_code || process.env.COMPANY_SHIP_ZIP || '98101';
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
+<cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
+  <Header>
+    <From>
+      <Credential domain="NetworkId">
+        <Identity>${AMAZON_CONFIG.identity}</Identity>
+      </Credential>
+    </From>
+    <To>
+      <Credential domain="NetworkId">
+        <Identity>Amazon</Identity>
+      </Credential>
+    </To>
+    <Sender>
+      <Credential domain="NetworkId">
+        <Identity>${AMAZON_CONFIG.identity}</Identity>
+        <SharedSecret>${AMAZON_CONFIG.sharedSecret}</SharedSecret>
+      </Credential>
+      <UserAgent>ExpenseHub 1.0</UserAgent>
+    </Sender>
+  </Header>
+  <Request deploymentMode="${AMAZON_CONFIG.useProd ? 'production' : 'test'}">
+    <OrderRequest>
+      <OrderRequestHeader orderID="${poNumber}" orderDate="${expense.date}" type="new">
+        <Total>
+          <Money currency="USD">${expense.amount}</Money>
+        </Total>
+        <ShipTo>
+          <Address>
+            <Name xml:lang="en">${location?.name || userName}</Name>
+            <PostalAddress>
+              <Street>${shipStreet}</Street>
+              <City>${shipCity}</City>
+              <State>${shipState}</State>
+              <PostalCode>${shipZip}</PostalCode>
+              <Country isoCountryCode="US">United States</Country>
+            </PostalAddress>
+          </Address>
+        </ShipTo>
+        <BillTo>
+          <Address addressID="${AMAZON_CONFIG.identity}">
+            <Name xml:lang="en">ExpenseHub</Name>
+          </Address>
+        </BillTo>
+        <Contact role="buyer">
+          <Name xml:lang="en">${userName}</Name>
+          <Email>${userEmail}</Email>
+        </Contact>
+      </OrderRequestHeader>
+      <ItemOut quantity="${expense.quantity || 1}" lineNumber="1">
+        <ItemID>
+          <SupplierPartID>${expense.description}</SupplierPartID>
+          <SupplierPartAuxiliaryID>${amazonSpaid}</SupplierPartAuxiliaryID>
+        </ItemID>
+        <ItemDetail>
+          <UnitPrice>
+            <Money currency="USD">${expense.amount}</Money>
+          </UnitPrice>
+          <Description xml:lang="en">${expense.description}|${amazonSpaid}</Description>
+        </ItemDetail>
+      </ItemOut>
+    </OrderRequest>
+  </Request>
+</cXML>`;
+}
+
+// Function to send OrderRequest to Amazon PO URL
+async function sendOrderToAmazon(expense, userInfo) {
+  try {
+    ensureAmazonConfig();
+
+    if (!expense.amazon_spaid) {
+      throw new Error('Missing Amazon SPAID - cannot place order');
+    }
+
+    // Generate internal PO number
+    const poNumber = `PO-${Date.now()}-${expense.id}`;
+
+    // Build cXML OrderRequest
+    const orderRequest = buildOrderRequest(
+      expense,
+      userInfo.email,
+      userInfo.name,
+      poNumber,
+      userInfo.location
+    );
+
+    console.log('=== AMAZON ORDER REQUEST DEBUG ===');
+    console.log('Expense ID:', expense.id);
+    console.log('Amazon SPAID:', expense.amazon_spaid);
+    console.log('PO Number:', poNumber);
+    console.log('Target URL:', AMAZON_CONFIG.poUrl);
+    console.log('Order Request (first 1000 chars):', orderRequest.substring(0, 1000));
+    console.log('=== END DEBUG ===');
+
+    // Send OrderRequest to Amazon PO URL
+    const response = await axios.post(
+      AMAZON_CONFIG.poUrl,
+      orderRequest,
+      {
+        headers: {
+          'Content-Type': 'text/xml; charset=UTF-8',
+          'Accept': 'text/xml,application/xml'
+        },
+        validateStatus: (status) => status >= 200 && status < 400
+      }
+    );
+
+    console.log('Amazon PO response status:', response.status);
+    console.log('Amazon PO response (first 500 chars):', response.data.substring(0, 500));
+
+    // Parse response to extract confirmation
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_'
+    });
+    const parsed = parser.parse(response.data);
+
+    // Extract order confirmation number if available
+    const orderStatus = parsed?.cXML?.Response?.Status?.['@_code'];
+    const orderMessage = parsed?.cXML?.Response?.Status?.['@_text'];
+
+    return {
+      success: orderStatus === '200',
+      poNumber: poNumber,
+      amazonResponse: response.data,
+      orderStatus: orderStatus,
+      orderMessage: orderMessage
+    };
+
+  } catch (error) {
+    console.error('Amazon order placement error:', error.message);
+    console.error('Error response:', error.response?.data);
+
+    return {
+      success: false,
+      error: error.message,
+      amazonResponse: error.response?.data
+    };
+  }
+}
+
+// Export the sendOrderToAmazon function for use in expense approval
 module.exports = router;
+module.exports.sendOrderToAmazon = sendOrderToAmazon;

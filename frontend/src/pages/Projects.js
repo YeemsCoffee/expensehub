@@ -161,13 +161,13 @@ const Projects = () => {
   }
 
   return (
-    <div>
+    <div className="container">
       <div className="page-header">
         <div>
           <h2 className="page-title">Project Requests</h2>
           <p className="text-gray-600">Submit new projects for approval</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowForm(!showForm)}
           className="btn btn-primary"
         >
