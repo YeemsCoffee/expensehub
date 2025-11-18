@@ -51,9 +51,9 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Code and name are required' });
     }
 
-    // Check if code already exists
+    // Check if code already exists (only check active cost centers)
     const existingResult = await db.query(
-      'SELECT id FROM cost_centers WHERE code = $1',
+      'SELECT id FROM cost_centers WHERE code = $1 AND is_active = true',
       [code]
     );
 

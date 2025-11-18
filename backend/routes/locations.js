@@ -60,9 +60,9 @@ router.post('/', authMiddleware, isManagerOrAdmin, [
 
     const { code, name, address, city, state, zipCode, country } = req.body;
 
-    // Check if code already exists
+    // Check if code already exists (only check active locations)
     const existingResult = await db.query(
-      'SELECT id FROM locations WHERE code = $1',
+      'SELECT id FROM locations WHERE code = $1 AND is_active = true',
       [code]
     );
 
