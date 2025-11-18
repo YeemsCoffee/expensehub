@@ -7,7 +7,10 @@ const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 // Get all active locations
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    console.log('[LOCATIONS] Fetching all active locations...');
+    console.log('[LOCATIONS] === START FETCH ===');
+    console.log('[LOCATIONS] User:', req.user);
+    console.log('[LOCATIONS] Executing query...');
+
     const result = await db.query(
       `SELECT id, code, name, address, city, state, zip_code, country, created_at
        FROM locations
@@ -15,18 +18,24 @@ router.get('/', authMiddleware, async (req, res) => {
        ORDER BY code`
     );
 
-    console.log(`[LOCATIONS] Found ${result.rows.length} active locations`);
+    console.log(`[LOCATIONS] Query successful - Found ${result.rows.length} locations`);
+    console.log('[LOCATIONS] Locations:', JSON.stringify(result.rows));
+    console.log('[LOCATIONS] === END FETCH ===');
+
     res.json(result.rows);
   } catch (error) {
-    console.error('[LOCATIONS] Fetch locations error:', error);
-    console.error('[LOCATIONS] Error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
+    console.error('[LOCATIONS] === ERROR ===');
+    console.error('[LOCATIONS] Error type:', error.constructor.name);
+    console.error('[LOCATIONS] Error message:', error.message);
+    console.error('[LOCATIONS] Error code:', error.code);
+    console.error('[LOCATIONS] Full error:', error);
+    console.error('[LOCATIONS] Stack trace:', error.stack);
+    console.error('[LOCATIONS] === END ERROR ===');
+
     res.status(500).json({
       error: 'Server error fetching locations',
-      details: process.env.NODE_ENV === 'production' ? undefined : error.message
+      message: error.message,
+      code: error.code
     });
   }
 });
