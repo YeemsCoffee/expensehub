@@ -97,6 +97,46 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] Amazon order tracking columns already exist - skipping Amazon migration');
     }
 
+    // 3. Check and apply Seed Data migration
+    console.log('[MIGRATION] Checking if seed data is needed...');
+    const checkData = await db.query(`
+      SELECT
+        (SELECT COUNT(*) FROM cost_centers WHERE is_active = true) as cc_count,
+        (SELECT COUNT(*) FROM locations WHERE is_active = true) as loc_count
+    `);
+
+    const ccCount = parseInt(checkData.rows[0].cc_count);
+    const locCount = parseInt(checkData.rows[0].loc_count);
+
+    console.log(`[MIGRATION] Found ${ccCount} cost centers and ${locCount} locations`);
+
+    if (ccCount === 0 || locCount === 0) {
+      console.log('📝 [MIGRATION] Applying seed data migration...');
+
+      const seedMigrationPath = path.join(__dirname, '../database/seed_data_migration.sql');
+      console.log(`[MIGRATION] Seed migration path: ${seedMigrationPath}`);
+
+      if (fs.existsSync(seedMigrationPath)) {
+        console.log('[MIGRATION] Reading seed migration file...');
+        const seedMigrationSQL = fs.readFileSync(seedMigrationPath, 'utf8');
+        console.log(`[MIGRATION] Seed migration file size: ${seedMigrationSQL.length} bytes`);
+
+        console.log('[MIGRATION] Executing seed migration SQL...');
+        await Promise.race([
+          db.query(seedMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Seed data migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Seed migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] Seed data already exists - skipping seed migration');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)
