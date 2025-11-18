@@ -136,12 +136,48 @@ app.use('/api/receipts', require('./routes/receipts')); // Receipt OCR with Very
 app.use('/api/xero', require('./routes/xero')); // Xero accounting integration
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'ExpenseHub API is running',
-    timestamp: new Date().toISOString()
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    const db = require('./config/database');
+
+    // Test database connection
+    await db.query('SELECT 1');
+
+    // Check if tables exist
+    const tables = await db.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN ('locations', 'cost_centers', 'expenses', 'users')
+      ORDER BY table_name
+    `);
+
+    // Check row counts
+    const counts = await db.query(`
+      SELECT
+        (SELECT COUNT(*) FROM locations WHERE is_active = true) as locations,
+        (SELECT COUNT(*) FROM cost_centers WHERE is_active = true) as cost_centers,
+        (SELECT COUNT(*) FROM users) as users
+    `);
+
+    res.json({
+      status: 'OK',
+      message: 'ExpenseHub API is running',
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: true,
+        tables: tables.rows.map(r => r.table_name),
+        counts: counts.rows[0]
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'ERROR',
+      message: 'Database connection failed',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // Serve static files from React build (only in production)
