@@ -21,12 +21,34 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+// Get location statistics (must come before /:id to avoid matching 'stats' as an id)
+router.get('/:id/stats', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `SELECT
+         COUNT(*) as expense_count,
+         COALESCE(SUM(amount), 0) as total_amount,
+         COALESCE(AVG(amount), 0) as avg_amount
+       FROM expenses
+       WHERE location_id = $1 AND status = 'approved'`,
+      [id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Fetch location stats error:', error);
+    res.status(500).json({ error: 'Server error fetching location statistics' });
+  }
+});
+
 // Get single location
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT id, code, name, address, city, state, country, created_at
-       FROM locations 
+       FROM locations
        WHERE id = $1 AND is_active = true`,
       [req.params.id]
     );
@@ -166,28 +188,6 @@ router.delete('/:id', authMiddleware, isManagerOrAdmin, async (req, res) => {
   } catch (error) {
     console.error('Delete location error:', error);
     res.status(500).json({ error: 'Server error deleting location' });
-  }
-});
-
-// Get location statistics
-router.get('/:id/stats', authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await db.query(
-      `SELECT 
-         COUNT(*) as expense_count,
-         COALESCE(SUM(amount), 0) as total_amount,
-         COALESCE(AVG(amount), 0) as avg_amount
-       FROM expenses
-       WHERE location_id = $1 AND status = 'approved'`,
-      [id]
-    );
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Fetch location stats error:', error);
-    res.status(500).json({ error: 'Server error fetching location statistics' });
   }
 });
 
