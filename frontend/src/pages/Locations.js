@@ -28,17 +28,27 @@ const Locations = () => {
       const response = await api.get('/locations');
       setLocations(response.data);
       setLoading(false);
-      
-      // Fetch stats for each location
+
+      // Fetch stats for each location (non-blocking)
       response.data.forEach(async (location) => {
-        const statsResponse = await api.get(`/locations/${location.id}/stats`);
-        setLocationStats(prev => ({
-          ...prev,
-          [location.id]: statsResponse.data
-        }));
+        try {
+          const statsResponse = await api.get(`/locations/${location.id}/stats`);
+          setLocationStats(prev => ({
+            ...prev,
+            [location.id]: statsResponse.data
+          }));
+        } catch (statsErr) {
+          console.warn(`Failed to load stats for location ${location.id}:`, statsErr.message);
+          // Set default stats if fetch fails
+          setLocationStats(prev => ({
+            ...prev,
+            [location.id]: { expense_count: 0, total_amount: 0, avg_amount: 0 }
+          }));
+        }
       });
     } catch (err) {
       console.error('Error fetching locations:', err);
+      console.error('Full error:', err.response?.data || err.message);
       setLoading(false);
     }
   };

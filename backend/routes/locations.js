@@ -7,6 +7,7 @@ const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 // Get all active locations
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    console.log('[LOCATIONS] Fetching all active locations...');
     const result = await db.query(
       `SELECT id, code, name, address, city, state, zip_code, country, created_at
        FROM locations
@@ -14,10 +15,19 @@ router.get('/', authMiddleware, async (req, res) => {
        ORDER BY code`
     );
 
+    console.log(`[LOCATIONS] Found ${result.rows.length} active locations`);
     res.json(result.rows);
   } catch (error) {
-    console.error('Fetch locations error:', error);
-    res.status(500).json({ error: 'Server error fetching locations' });
+    console.error('[LOCATIONS] Fetch locations error:', error);
+    console.error('[LOCATIONS] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({
+      error: 'Server error fetching locations',
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
+    });
   }
 });
 
