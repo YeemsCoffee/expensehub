@@ -97,7 +97,46 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] Amazon order tracking columns already exist - skipping Amazon migration');
     }
 
-    // 3. Check and apply Seed Data migration
+    // 3. Fix zip_code column naming issue
+    console.log('[MIGRATION] Checking zip_code column...');
+    const checkZipCode = await db.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'locations'
+      AND column_name IN ('zip_code', 'zipcode')
+    `);
+
+    const hasZipCode = checkZipCode.rows.some(r => r.column_name === 'zip_code');
+    const hasZipcode = checkZipCode.rows.some(r => r.column_name === 'zipcode');
+
+    console.log(`[MIGRATION] zip_code exists: ${hasZipCode}, zipcode exists: ${hasZipcode}`);
+
+    if (!hasZipCode || hasZipcode) {
+      console.log('📝 [MIGRATION] Applying zip_code column fix...');
+
+      const zipcodeMigrationPath = path.join(__dirname, '../database/fix_zipcode_column.sql');
+
+      if (fs.existsSync(zipcodeMigrationPath)) {
+        console.log('[MIGRATION] Reading zipcode migration file...');
+        const zipcodeMigrationSQL = fs.readFileSync(zipcodeMigrationPath, 'utf8');
+
+        console.log('[MIGRATION] Executing zipcode migration SQL...');
+        await Promise.race([
+          db.query(zipcodeMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] zip_code column fix applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Zipcode migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] zip_code column already correct');
+    }
+
+    // 4. Check and apply Seed Data migration
     console.log('[MIGRATION] Checking if seed data is needed...');
     const checkData = await db.query(`
       SELECT
