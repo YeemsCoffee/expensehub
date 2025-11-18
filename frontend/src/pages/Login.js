@@ -89,9 +89,9 @@ const Login = ({ onLoginSuccess, onNavigateToRegister }) => {
           </div>
 
           <div style={{ textAlign: 'right', marginBottom: '15px' }}>
-            <a href="#" onClick={handleForgotPasswordClick} style={{ fontSize: '14px', color: '#007bff', textDecoration: 'none' }}>
+            <button type="button" onClick={handleForgotPasswordClick} style={{ fontSize: '14px', color: '#007bff', textDecoration: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               Forgot Password?
-            </a>
+            </button>
           </div>
 
           <button
@@ -103,7 +103,7 @@ const Login = ({ onLoginSuccess, onNavigateToRegister }) => {
           </button>
 
           <div className="login-footer">
-            <p>Don't have an account? <a href="#" onClick={handleSignUpClick}>Sign up</a></p>
+            <p>Don't have an account? <button type="button" onClick={handleSignUpClick} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#007bff', textDecoration: 'underline' }}>Sign up</button></p>
           </div>
         </form>
       </div>

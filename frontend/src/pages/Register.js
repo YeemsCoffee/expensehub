@@ -189,7 +189,7 @@ const Register = ({ onRegisterSuccess, onNavigateToLogin }) => {
           </button>
 
           <div className="login-footer">
-            <p>Already have an account? <a href="#" onClick={handleSignInClick}>Sign in</a></p>
+            <p>Already have an account? <button type="button" onClick={handleSignInClick} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#007bff', textDecoration: 'underline' }}>Sign in</button></p>
           </div>
         </form>
       </div>

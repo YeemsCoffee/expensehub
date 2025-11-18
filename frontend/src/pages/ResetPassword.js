@@ -31,8 +31,8 @@ const ResetPassword = ({ onNavigateToLogin }) => {
     // Validate token
     const validateToken = async () => {
       try {
-        const response = await api.get(`/auth/validate-reset-token/${tokenFromUrl}`);
-        if (response.data.valid) {
+        const { data } = await api.get(`/auth/validate-reset-token/${tokenFromUrl}`);
+        if (data.valid) {
           setTokenValid(true);
         } else {
           setError('Invalid or expired reset token. Please request a new password reset.');
@@ -65,7 +65,7 @@ const ResetPassword = ({ onNavigateToLogin }) => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/reset-password', {
+      await api.post('/auth/reset-password', {
         token,
         newPassword
       });
@@ -121,12 +121,12 @@ const ResetPassword = ({ onNavigateToLogin }) => {
             </button>
             <div className="login-footer">
               <p>
-                <a href="#" onClick={(e) => {
+                <button type="button" onClick={(e) => {
                   e.preventDefault();
                   window.location.hash = 'forgot-password';
-                }}>
+                }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#007bff', textDecoration: 'underline' }}>
                   Request New Reset Link
-                </a>
+                </button>
               </p>
             </div>
           </div>
@@ -258,9 +258,9 @@ const ResetPassword = ({ onNavigateToLogin }) => {
 
           <div className="login-footer">
             <p>
-              <a href="#" onClick={handleBackToLogin}>
+              <button type="button" onClick={handleBackToLogin} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#007bff', textDecoration: 'underline' }}>
                 Back to Login
-              </a>
+              </button>
             </p>
           </div>
         </form>

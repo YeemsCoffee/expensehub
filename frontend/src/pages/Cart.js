@@ -8,7 +8,6 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
   const [locations, setLocations] = useState([]);
   const [selectedCostCenter, setSelectedCostCenter] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
-  const [loading, setLoading] = useState(true);
 
   const subtotal = calculateCartTotal(cart);
   const tax = calculateTax(subtotal);
@@ -23,10 +22,8 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
         ]);
         setCostCenters(ccResponse.data);
         setLocations(locResponse.data);
-        setLoading(false);
       } catch (error) {
         console.error('Failed to fetch data:', error);
-        setLoading(false);
       }
     };
 

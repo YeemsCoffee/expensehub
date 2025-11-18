@@ -15,7 +15,7 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/forgot-password', { email });
+      await api.post('/auth/forgot-password', { email });
       setSuccess(true);
       setEmail('');
     } catch (err) {
@@ -93,10 +93,10 @@ const ForgotPassword = ({ onNavigateToLogin }) => {
 
             <div className="login-footer">
               <p>
-                <a href="#" onClick={handleBackToLogin}>
+                <button type="button" className="btn-link" onClick={handleBackToLogin} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#007bff', textDecoration: 'underline' }}>
                   <ArrowLeft size={14} style={{ verticalAlign: 'middle', marginRight: '5px' }} />
                   Back to Login
-                </a>
+                </button>
               </p>
             </div>
           </form>

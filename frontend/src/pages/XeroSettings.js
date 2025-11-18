@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, ExternalLink, RefreshCw, Save } from 'lucide-react';
 import api from '../services/api';
 
@@ -27,17 +27,6 @@ const XeroSettings = () => {
     { id: 'utilities', label: 'Utilities' },
     { id: 'other', label: 'Other' }
   ];
-
-  useEffect(() => {
-    checkStatus();
-  }, []);
-
-  useEffect(() => {
-    if (selectedTenant) {
-      loadAccounts();
-      loadMappings();
-    }
-  }, [selectedTenant]);
 
   const checkStatus = async () => {
     try {
@@ -85,7 +74,7 @@ const XeroSettings = () => {
     }
   };
 
-  const loadAccounts = async () => {
+  const loadAccounts = useCallback(async () => {
     try {
       const response = await api.get(`/xero/accounts?tenantId=${selectedTenant}`);
       // Filter to expense accounts only
@@ -97,9 +86,9 @@ const XeroSettings = () => {
       console.error('Error loading accounts:', error);
       setMessage({ type: 'error', text: 'Failed to load Xero accounts' });
     }
-  };
+  }, [selectedTenant]);
 
-  const loadMappings = async () => {
+  const loadMappings = useCallback(async () => {
     try {
       const response = await api.get(`/xero/mappings?tenantId=${selectedTenant}`);
       const mappingsObj = {};
@@ -113,7 +102,18 @@ const XeroSettings = () => {
     } catch (error) {
       console.error('Error loading mappings:', error);
     }
-  };
+  }, [selectedTenant]);
+
+  useEffect(() => {
+    checkStatus();
+  }, []);
+
+  useEffect(() => {
+    if (selectedTenant) {
+      loadAccounts();
+      loadMappings();
+    }
+  }, [selectedTenant, loadAccounts, loadMappings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveMappings = async () => {
     setSaving(true);

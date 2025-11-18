@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle, XCircle, Clock, DollarSign, 
-  User, Calendar, MessageSquare, AlertCircle,
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  CheckCircle, XCircle, Clock, DollarSign,
+  User, Calendar, MessageSquare,
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import api from '../services/api';
@@ -16,11 +16,7 @@ const Approvals = () => {
   const [actioningId, setActioningId] = useState(null);
   const [comments, setComments] = useState({});
 
-  useEffect(() => {
-    fetchPendingApprovals();
-  }, []);
-
-  const fetchPendingApprovals = async () => {
+  const fetchPendingApprovals = useCallback(async () => {
     try {
       const response = await api.get('/expense-approvals/pending-for-me');
       setPendingApprovals(response.data);
@@ -30,7 +26,11 @@ const Approvals = () => {
       toast.error('Failed to load pending approvals');
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchPendingApprovals();
+  }, [fetchPendingApprovals]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApprove = async (expenseId) => {
     setActioningId(expenseId);
