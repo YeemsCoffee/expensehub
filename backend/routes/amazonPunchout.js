@@ -568,8 +568,13 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('Expense ID:', expense.id);
     console.log('Amazon SPAID:', expense.amazon_spaid);
     console.log('PO Number:', poNumber);
+    console.log('User Email:', userInfo.email);
+    console.log('User Name:', userInfo.name);
+    console.log('Location:', JSON.stringify(userInfo.location));
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
-    console.log('Order Request (first 1000 chars):', orderRequest.substring(0, 1000));
+    console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
+    console.log('Full Order Request XML:');
+    console.log(orderRequest);
     console.log('=== END DEBUG ===');
 
     // Send OrderRequest to Amazon PO URL
