@@ -850,4 +850,142 @@ router.get('/analytics/by-category', authMiddleware, async (req, res) => {
   }
 });
 
+// Admin endpoint to auto-approve stuck pending Amazon orders
+// This is useful for orders that should have been auto-approved but weren't due to bugs
+router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    console.log(`🔍 Admin: Searching for pending Amazon orders${userId ? ` for user ${userId}` : ''}...`);
+
+    // Find all pending expenses with Amazon SPAID
+    const query = userId
+      ? `SELECT e.*, u.email, u.first_name, u.last_name, u.role
+         FROM expenses e
+         JOIN users u ON e.user_id = u.id
+         WHERE e.user_id = $1 AND e.status = 'pending' AND e.amazon_spaid IS NOT NULL
+         ORDER BY e.created_at DESC`
+      : `SELECT e.*, u.email, u.first_name, u.last_name, u.role
+         FROM expenses e
+         JOIN users u ON e.user_id = u.id
+         WHERE e.status = 'pending' AND e.amazon_spaid IS NOT NULL
+         ORDER BY e.created_at DESC`;
+
+    const params = userId ? [userId] : [];
+    const result = await db.query(query, params);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No pending Amazon orders found',
+        processed: []
+      });
+    }
+
+    console.log(`Found ${result.rows.length} pending Amazon order(s)`);
+
+    const processed = [];
+
+    for (const expense of result.rows) {
+      try {
+        console.log(`📦 Processing expense ${expense.id} - User: ${expense.first_name} ${expense.last_name} (${expense.role})`);
+
+        // Update expense to approved status
+        await db.query(
+          `UPDATE expenses
+           SET status = 'approved',
+               approved_by = $1,
+               approved_at = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2`,
+          [req.user.id, expense.id]
+        );
+
+        console.log(`✓ Expense ${expense.id} approved`);
+
+        // If it has Amazon SPAID and order is pending, send to Amazon
+        if (expense.amazon_spaid && (!expense.amazon_order_status || expense.amazon_order_status === 'pending')) {
+          console.log(`🛒 Sending order to Amazon for expense ${expense.id}...`);
+
+          // Get location if expense has one
+          let location = null;
+          if (expense.location_id) {
+            const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [expense.location_id]);
+            location = locResult.rows[0];
+          }
+
+          const orderResult = await sendOrderToAmazon(expense, {
+            email: expense.email,
+            name: `${expense.first_name} ${expense.last_name}`,
+            location: location
+          });
+
+          if (orderResult.success) {
+            console.log(`✓ Amazon order placed successfully! PO Number: ${orderResult.poNumber}`);
+
+            // Update expense with Amazon PO confirmation
+            await db.query(
+              `UPDATE expenses
+               SET amazon_po_number = $1,
+                   amazon_order_status = 'confirmed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [orderResult.poNumber, expense.id]
+            );
+
+            processed.push({
+              expenseId: expense.id,
+              status: 'success',
+              poNumber: orderResult.poNumber,
+              message: 'Approved and sent to Amazon'
+            });
+          } else {
+            console.error(`✗ Failed to place Amazon order for expense ${expense.id}:`, orderResult.error);
+
+            // Mark order as failed
+            await db.query(
+              `UPDATE expenses
+               SET amazon_order_status = 'failed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [expense.id]
+            );
+
+            processed.push({
+              expenseId: expense.id,
+              status: 'failed',
+              error: orderResult.error,
+              message: 'Approved but failed to send to Amazon'
+            });
+          }
+        } else {
+          processed.push({
+            expenseId: expense.id,
+            status: 'approved',
+            message: 'Approved (no Amazon order to place)'
+          });
+        }
+      } catch (error) {
+        console.error(`✗ Error processing expense ${expense.id}:`, error.message);
+        processed.push({
+          expenseId: expense.id,
+          status: 'error',
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Processed ${processed.length} expense(s)`,
+      processed
+    });
+  } catch (error) {
+    console.error('Admin auto-approve error:', error);
+    res.status(500).json({ error: 'Server error auto-approving pending Amazon orders' });
+  }
+});
+
 module.exports = router;
