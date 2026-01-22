@@ -87,6 +87,44 @@ const Approvals = () => {
     }
   };
 
+  const [autoApprovingAmazon, setAutoApprovingAmazon] = useState(false);
+
+  const handleAutoApproveAmazonOrders = async () => {
+    if (!window.confirm('This will auto-approve all pending Amazon orders and send them to Amazon. Continue?')) {
+      return;
+    }
+
+    setAutoApprovingAmazon(true);
+
+    try {
+      const response = await api.post('/expenses/admin/auto-approve-pending-amazon-orders');
+
+      if (response.data.success) {
+        const { processed } = response.data;
+        const successCount = processed.filter(p => p.status === 'success').length;
+        const failedCount = processed.filter(p => p.status === 'failed' || p.status === 'error').length;
+
+        if (successCount > 0) {
+          toast.success(`Successfully approved and sent ${successCount} Amazon order(s)`);
+        }
+        if (failedCount > 0) {
+          toast.error(`${failedCount} order(s) failed to process`);
+        }
+        if (processed.length === 0) {
+          toast.info('No pending Amazon orders found');
+        }
+
+        // Refresh the pending approvals list
+        fetchPendingApprovals();
+      }
+    } catch (err) {
+      console.error('Error auto-approving Amazon orders:', err);
+      toast.error(err.response?.data?.error || 'Failed to auto-approve Amazon orders');
+    } finally {
+      setAutoApprovingAmazon(false);
+    }
+  };
+
   const toggleExpanded = (expenseId) => {
     setExpandedExpense(expandedExpense === expenseId ? null : expenseId);
   };
@@ -117,9 +155,36 @@ const Approvals = () => {
 
   return (
     <div className="container">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 className="page-title" style={{ marginBottom: '0.5rem' }}>Pending Approvals</h2>
-        <p className="text-gray-600">Review and approve expense reports requiring your authorization</p>
+      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2 className="page-title" style={{ marginBottom: '0.5rem' }}>Pending Approvals</h2>
+          <p className="text-gray-600">Review and approve expense reports requiring your authorization</p>
+        </div>
+        <button
+          onClick={handleAutoApproveAmazonOrders}
+          disabled={autoApprovingAmazon}
+          className="btn-secondary"
+          style={{
+            minWidth: '200px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem'
+          }}
+          title="Auto-approve all pending Amazon orders and send to Amazon"
+        >
+          {autoApprovingAmazon ? (
+            <>
+              <div className="loading-spinner" style={{ width: '16px', height: '16px' }}></div>
+              Processing...
+            </>
+          ) : (
+            <>
+              <CheckCircle size={16} />
+              Auto-Approve Amazon Orders
+            </>
+          )}
+        </button>
       </div>
 
       {/* Summary Stats */}
