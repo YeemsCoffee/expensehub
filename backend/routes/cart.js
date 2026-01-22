@@ -190,18 +190,55 @@ router.post('/checkout', authMiddleware, [
       return res.status(400).json({ error: 'Cart is empty' });
     }
 
-    // Check if user has a manager by checking approval chain
-    // If no manager exists, auto-approve expenses
-    const managerCheckResult = await db.query(
-      'SELECT manager_id FROM users WHERE id = $1',
-      [req.user.id]
+    // Determine approval requirements for cart items
+    // Use the same logic as regular expense creation to check approval rules and manager chains
+    // We'll calculate the total amount to determine the approval rule
+    const totalAmount = cartResult.rows.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    console.log(`Cart checkout for user ${req.user.id}: ${cartResult.rows.length} items, total amount: $${totalAmount}`);
+
+    // Find applicable approval rule based on total amount
+    const ruleResult = await db.query(
+      'SELECT * FROM find_approval_rule($1, $2)',
+      [totalAmount, costCenterId]
     );
 
-    const hasManager = managerCheckResult.rows[0]?.manager_id !== null;
-    const status = hasManager ? 'pending' : 'approved';
-    const approvedAt = hasManager ? null : new Date();
+    let needsApproval = false;
 
-    console.log(`User ${req.user.id} has manager: ${hasManager}. Status: ${status}`);
+    if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
+      const approvalRuleId = ruleResult.rows[0].find_approval_rule;
+
+      // Get the rule details
+      const rule = await db.query(
+        'SELECT * FROM approval_rules WHERE id = $1',
+        [approvalRuleId]
+      );
+
+      if (rule.rows.length > 0) {
+        const levelsRequired = rule.rows[0].levels_required;
+
+        // Get manager chain from org chart
+        const chainResult = await db.query(
+          'SELECT * FROM get_manager_chain($1, $2)',
+          [req.user.id, levelsRequired]
+        );
+
+        if (chainResult.rows.length > 0) {
+          // Complete manager chain exists - approval required
+          needsApproval = true;
+          console.log(`User ${req.user.id} has complete manager chain (${chainResult.rows.length} levels). Status: pending`);
+        } else {
+          // No complete manager chain found - auto-approve
+          console.log(`User ${req.user.id} has no complete manager chain for ${levelsRequired} levels. Status: approved (auto)`);
+        }
+      }
+    } else {
+      // No approval rule found - auto-approve
+      console.log(`No approval rule found for amount $${totalAmount}. Status: approved (auto)`);
+    }
+
+    const status = needsApproval ? 'pending' : 'approved';
+    const approvedAt = needsApproval ? null : new Date();
 
     // Create expenses for each cart item
     const expenses = [];
@@ -235,7 +272,7 @@ router.post('/checkout', authMiddleware, [
     console.log(`Cart checkout: Created ${expenses.length} expense(s) for user ${req.user.id}, status: ${status}`);
 
     // If auto-approved and has Amazon items, send orders to Amazon
-    if (!hasManager) {
+    if (!needsApproval) {
       const { sendOrderToAmazon } = require('./amazonPunchout');
 
       for (const expense of expenses) {
