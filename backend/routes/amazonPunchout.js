@@ -4,7 +4,7 @@ const axios = require('axios');
 const { XMLParser } = require('fast-xml-parser');
 const crypto = require('crypto');
 const db = require('../config/database');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 
 // Amazon Punchout Configuration
 const AMAZON_CONFIG = {
@@ -623,6 +623,102 @@ async function sendOrderToAmazon(expense, userInfo) {
     };
   }
 }
+
+// Admin endpoint to check for stuck Amazon punchout sessions and orders
+router.get('/admin/check-stuck-orders', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Admin checking for stuck Amazon orders...');
+
+    // 1. Check punchout sessions
+    const sessionsResult = await db.query(
+      `SELECT ps.id, ps.user_id, ps.vendor_name, ps.status, ps.buyer_cookie,
+              ps.created_at, ps.updated_at, ps.response_xml IS NOT NULL as has_response,
+              u.email, u.first_name, u.last_name
+       FROM punchout_sessions ps
+       JOIN users u ON ps.user_id = u.id
+       ORDER BY ps.created_at DESC
+       LIMIT 20`
+    );
+
+    // 2. Check cart items with Amazon SPAID
+    const cartResult = await db.query(
+      `SELECT ci.id, ci.user_id, ci.quantity, ci.amazon_spaid,
+              ci.created_at, ci.updated_at,
+              p.name, p.price, p.sku,
+              u.email, u.first_name, u.last_name
+       FROM cart_items ci
+       JOIN products p ON ci.product_id = p.id
+       JOIN users u ON ci.user_id = u.id
+       WHERE ci.amazon_spaid IS NOT NULL
+       ORDER BY ci.created_at DESC
+       LIMIT 50`
+    );
+
+    // 3. Check expenses with Amazon SPAID
+    const expensesResult = await db.query(
+      `SELECT e.id, e.user_id, e.description, e.amount, e.status,
+              e.amazon_spaid, e.amazon_order_status, e.amazon_po_number,
+              e.created_at,
+              u.email, u.first_name, u.last_name
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.amazon_spaid IS NOT NULL
+       ORDER BY e.created_at DESC
+       LIMIT 50`
+    );
+
+    // Find stuck sessions (have response but not completed)
+    const stuckSessions = sessionsResult.rows.filter(s => s.status !== 'completed' && s.has_response);
+
+    res.json({
+      summary: {
+        totalSessions: sessionsResult.rows.length,
+        stuckSessions: stuckSessions.length,
+        cartItems: cartResult.rows.length,
+        expenses: expensesResult.rows.length
+      },
+      sessions: sessionsResult.rows,
+      stuckSessions: stuckSessions,
+      cartItems: cartResult.rows,
+      expenses: expensesResult.rows
+    });
+
+  } catch (error) {
+    console.error('Admin check stuck orders error:', error);
+    res.status(500).json({ error: 'Failed to check stuck orders' });
+  }
+});
+
+// Admin endpoint to get user's current cart
+router.get('/admin/user-cart/:userId', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const cartResult = await db.query(
+      `SELECT ci.id, ci.quantity, ci.amazon_spaid, ci.created_at, ci.updated_at,
+              p.id as product_id, p.name, p.description, p.price, p.sku,
+              v.name as vendor_name,
+              cc.name as cost_center_name
+       FROM cart_items ci
+       JOIN products p ON ci.product_id = p.id
+       JOIN vendors v ON p.vendor_id = v.id
+       LEFT JOIN cost_centers cc ON ci.cost_center_id = cc.id
+       WHERE ci.user_id = $1
+       ORDER BY ci.created_at DESC`,
+      [userId]
+    );
+
+    res.json({
+      userId: parseInt(userId),
+      cartItems: cartResult.rows,
+      total: cartResult.rows.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    });
+
+  } catch (error) {
+    console.error('Admin get user cart error:', error);
+    res.status(500).json({ error: 'Failed to get user cart' });
+  }
+});
 
 // Export the sendOrderToAmazon function for use in expense approval
 module.exports = router;
