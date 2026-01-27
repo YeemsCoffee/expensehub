@@ -203,10 +203,12 @@ router.post('/checkout', authMiddleware, [
       [totalAmount, costCenterId]
     );
 
-    let needsApproval = false;
+    let approvalChain = null;
+    let approvalRuleId = null;
+    let currentApprovalLevel = 1;
 
     if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
-      const approvalRuleId = ruleResult.rows[0].find_approval_rule;
+      approvalRuleId = ruleResult.rows[0].find_approval_rule;
 
       // Get the rule details
       const rule = await db.query(
@@ -224,12 +226,20 @@ router.post('/checkout', authMiddleware, [
         );
 
         if (chainResult.rows.length > 0) {
-          // Complete manager chain exists - approval required
-          needsApproval = true;
+          // Build approval chain with manager details
+          approvalChain = chainResult.rows.map(row => ({
+            level: row.level,
+            user_id: row.manager_id,
+            user_name: row.manager_name,
+            user_email: row.manager_email,
+            status: 'pending'
+          }));
           console.log(`User ${req.user.id} has complete manager chain (${chainResult.rows.length} levels). Status: pending`);
         } else {
           // No complete manager chain found - auto-approve
           console.log(`User ${req.user.id} has no complete manager chain for ${levelsRequired} levels. Status: approved (auto)`);
+          approvalRuleId = null;
+          approvalChain = null;
         }
       }
     } else {
@@ -237,8 +247,8 @@ router.post('/checkout', authMiddleware, [
       console.log(`No approval rule found for amount $${totalAmount}. Status: approved (auto)`);
     }
 
-    const status = needsApproval ? 'pending' : 'approved';
-    const approvedAt = needsApproval ? null : new Date();
+    const status = approvalChain ? 'pending' : 'approved';
+    const approvedAt = approvalChain ? null : new Date();
 
     // Create expenses for each cart item
     const expenses = [];
@@ -257,10 +267,10 @@ router.post('/checkout', authMiddleware, [
       const amazonOrderStatus = amazonSpaid ? 'pending' : null;
 
       const expenseResult = await db.query(
-        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11)
+        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, approval_rule_id, approval_chain, current_approval_level)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14)
          RETURNING *`,
-        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus]
+        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
       );
 
       expenses.push(expenseResult.rows[0]);
@@ -271,8 +281,39 @@ router.post('/checkout', authMiddleware, [
 
     console.log(`Cart checkout: Created ${expenses.length} expense(s) for user ${req.user.id}, status: ${status}`);
 
+    // Send email notification to the first approver in the chain (non-blocking)
+    if (approvalChain && approvalChain.length > 0) {
+      const { sendExpenseSubmissionNotification } = require('../services/emailService');
+      const firstApprover = approvalChain[0];
+
+      // Send notification for each expense
+      for (const expense of expenses) {
+        const expenseData = {
+          id: expense.id,
+          date: expense.date,
+          amount: expense.amount,
+          category: expense.category,
+          description: expense.description,
+          vendor_name: expense.vendor_name,
+          notes: expense.notes
+        };
+        const managerData = {
+          name: firstApprover.user_name,
+          email: firstApprover.user_email
+        };
+        const submitterData = {
+          name: `${req.user.firstName} ${req.user.lastName}`
+        };
+
+        setImmediate(() => {
+          sendExpenseSubmissionNotification(expenseData, managerData, submitterData)
+            .catch(err => console.error('Failed to send approval notification:', err));
+        });
+      }
+    }
+
     // If auto-approved and has Amazon items, send orders to Amazon
-    if (!needsApproval) {
+    if (!approvalChain) {
       const { sendOrderToAmazon } = require('./amazonPunchout');
 
       for (const expense of expenses) {
