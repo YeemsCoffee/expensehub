@@ -390,10 +390,10 @@ router.post('/checkout', authMiddleware, [
     }
 
     res.json({
-      message: hasManager ? 'Expense reports submitted for approval' : 'Expense reports automatically approved',
+      message: approvalChain ? 'Expense reports submitted for approval' : 'Expense reports automatically approved',
       expenses,
       count: expenses.length,
-      autoApproved: !hasManager
+      autoApproved: !approvalChain
     });
   } catch (error) {
     console.error('Checkout error:', error);
