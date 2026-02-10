@@ -283,33 +283,44 @@ router.post('/checkout', authMiddleware, [
 
     // Send email notification to the first approver in the chain (non-blocking)
     if (approvalChain && approvalChain.length > 0) {
-      const { sendExpenseSubmissionNotification } = require('../services/emailService');
-      const firstApprover = approvalChain[0];
+      setImmediate(async () => {
+        try {
+          const { sendExpenseSubmissionNotification } = require('../services/emailService');
+          const firstApprover = approvalChain[0];
 
-      // Send notification for each expense
-      for (const expense of expenses) {
-        const expenseData = {
-          id: expense.id,
-          date: expense.date,
-          amount: expense.amount,
-          category: expense.category,
-          description: expense.description,
-          vendor_name: expense.vendor_name,
-          notes: expense.notes
-        };
-        const managerData = {
-          name: firstApprover.user_name,
-          email: firstApprover.user_email
-        };
-        const submitterData = {
-          name: `${req.user.firstName} ${req.user.lastName}`
-        };
+          // Get submitter name from database
+          const submitterResult = await db.query(
+            'SELECT first_name, last_name FROM users WHERE id = $1',
+            [req.user.id]
+          );
+          const submitter = submitterResult.rows[0];
 
-        setImmediate(() => {
-          sendExpenseSubmissionNotification(expenseData, managerData, submitterData)
-            .catch(err => console.error('Failed to send approval notification:', err));
-        });
-      }
+          // Send notification for each expense
+          for (const expense of expenses) {
+            const expenseData = {
+              id: expense.id,
+              date: expense.date,
+              amount: expense.amount,
+              category: expense.category,
+              description: expense.description,
+              vendor_name: expense.vendor_name,
+              notes: expense.notes
+            };
+            const managerData = {
+              name: firstApprover.user_name,
+              email: firstApprover.user_email
+            };
+            const submitterData = {
+              name: `${submitter.first_name} ${submitter.last_name}`
+            };
+
+            await sendExpenseSubmissionNotification(expenseData, managerData, submitterData)
+              .catch(err => console.error('Failed to send approval notification:', err));
+          }
+        } catch (err) {
+          console.error('Error sending approval notifications:', err);
+        }
+      });
     }
 
     // If auto-approved and has Amazon items, send orders to Amazon
