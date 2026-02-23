@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { sendExpenseApprovalNotification, sendExpenseRejectionNotification } = require('../services/emailService');
+const { sendOrderToAmazon } = require('./amazonPunchout');
 
 // Get all pending approvals for the current user (org-chart-based)
 router.get('/pending-for-me', authMiddleware, isManagerOrAdmin, async (req, res) => {
@@ -148,6 +149,72 @@ router.post('/:expenseId/approve', authMiddleware, isManagerOrAdmin, [
 
       sendExpenseApprovalNotification(expenseData, submitterData, approverData)
         .catch(err => console.error('Failed to send approval email:', err));
+
+      // Send Amazon order if this expense has a pending Amazon SPAID
+      const fullExpense = await db.query(
+        'SELECT * FROM expenses WHERE id = $1',
+        [expenseId]
+      );
+      const approvedExpense = fullExpense.rows[0];
+
+      if (approvedExpense?.amazon_spaid && approvedExpense?.amazon_order_status === 'pending') {
+        setImmediate(async () => {
+          try {
+            console.log(`🛒 [Amazon Order] Placing order for expense ${approvedExpense.id} after final approval`);
+
+            let location = null;
+            if (approvedExpense.location_id) {
+              const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [approvedExpense.location_id]);
+              location = locResult.rows[0];
+            }
+
+            const submitterResult = await db.query(
+              'SELECT email, first_name, last_name FROM users WHERE id = $1',
+              [approvedExpense.user_id]
+            );
+            const submitter = submitterResult.rows[0];
+
+            const orderResult = await sendOrderToAmazon(approvedExpense, {
+              email: submitter.email,
+              name: `${submitter.first_name} ${submitter.last_name}`,
+              location
+            });
+
+            if (orderResult.success) {
+              console.log(`✓ [Amazon Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+              await db.query(
+                `UPDATE expenses
+                 SET amazon_po_number = $1,
+                     amazon_order_status = 'confirmed',
+                     amazon_order_sent_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $2`,
+                [orderResult.poNumber, approvedExpense.id]
+              );
+            } else {
+              console.error(`✗ [Amazon Order] Failed to place order:`, orderResult.error);
+              await db.query(
+                `UPDATE expenses
+                 SET amazon_order_status = 'failed',
+                     amazon_order_sent_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1`,
+                [approvedExpense.id]
+              );
+            }
+          } catch (orderError) {
+            console.error(`Error placing Amazon order for expense ${approvedExpense.id}:`, orderError);
+            await db.query(
+              `UPDATE expenses
+               SET amazon_order_status = 'failed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [approvedExpense.id]
+            );
+          }
+        });
+      }
 
       res.json({
         message: 'Expense fully approved',
