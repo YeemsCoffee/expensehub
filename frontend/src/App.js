@@ -106,6 +106,12 @@ const App = () => {
         return;
       }
 
+      // Handle navigation routes
+      if (hash === 'projects') {
+        setActiveTab('projects');
+        return;
+      }
+
       // Handle auth routes
       if (hash === 'register') {
         setCurrentView('register');
