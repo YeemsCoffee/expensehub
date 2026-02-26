@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Calendar, DollarSign, User, Clock, CheckCircle,
-  XCircle, Trash2, FileText, TrendingUp, TrendingDown
+  XCircle, Trash2, FileText, TrendingUp, TrendingDown, Plus
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
@@ -200,39 +200,50 @@ const ProjectDetails = () => {
             </p>
           </div>
 
-          {isManager && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {project.status === 'pending' && (
-                <>
-                  <button onClick={handleApprove} className="btn-primary">
-                    <CheckCircle size={16} />
-                    Approve
-                  </button>
-                  <button onClick={handleReject} className="btn-secondary">
-                    <XCircle size={16} />
-                    Reject
-                  </button>
-                </>
-              )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {project.status === 'approved' && (
               <button
-                onClick={handleDelete}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.5rem 1rem',
-                  border: '1px solid #ef4444',
-                  borderRadius: '0.5rem',
-                  background: 'white',
-                  color: '#ef4444',
-                  cursor: 'pointer'
-                }}
+                onClick={() => window.location.hash = `#expenses-submit?projectId=${id}`}
+                className="btn-primary"
               >
-                <Trash2 size={16} />
-                Delete
+                <Plus size={16} />
+                Create Expense
               </button>
-            </div>
-          )}
+            )}
+            {isManager && (
+              <>
+                {project.status === 'pending' && (
+                  <>
+                    <button onClick={handleApprove} className="btn-primary">
+                      <CheckCircle size={16} />
+                      Approve
+                    </button>
+                    <button onClick={handleReject} className="btn-secondary">
+                      <XCircle size={16} />
+                      Reject
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={handleDelete}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    border: '1px solid #ef4444',
+                    borderRadius: '0.5rem',
+                    background: 'white',
+                    color: '#ef4444',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

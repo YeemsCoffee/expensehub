@@ -10,6 +10,7 @@ const ExpenseSubmit = () => {
   const toast = useToast();
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
@@ -31,6 +32,7 @@ const ExpenseSubmit = () => {
     tip: '',
     costCenterId: '',
     locationId: '',
+    projectId: '',
     vendorName: '',
     glAccount: '',
     notes: '',
@@ -104,13 +106,18 @@ const ExpenseSubmit = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [ccResponse, locResponse] = await Promise.all([
+      const [ccResponse, locResponse, projResponse] = await Promise.all([
         api.get('/cost-centers'),
-        api.get('/locations')
+        api.get('/locations'),
+        api.get('/projects')
       ]);
 
       setCostCenters(ccResponse.data);
       setLocations(locResponse.data);
+
+      // Only show approved projects for expense submission
+      const approvedProjects = projResponse.data.filter(p => p.status === 'approved');
+      setProjects(approvedProjects);
 
       setLoading(false);
     } catch (err) {
@@ -123,6 +130,20 @@ const ExpenseSubmit = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Handle pre-selected project from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    const projectId = urlParams.get('projectId');
+
+    if (projectId && projects.length > 0) {
+      // Check if the project exists in the approved projects list
+      const projectExists = projects.some(p => p.id === parseInt(projectId));
+      if (projectExists) {
+        setNewExpense(prev => ({ ...prev, projectId }));
+      }
+    }
+  }, [projects]);
 
   const handleInputChange = (field, value) => {
     setNewExpense({ ...newExpense, [field]: value });
@@ -223,6 +244,7 @@ const ExpenseSubmit = () => {
         amount: parseFloat(newExpense.amount),
         costCenterId: parseInt(newExpense.costCenterId),
         locationId: newExpense.locationId ? parseInt(newExpense.locationId) : null,
+        projectId: newExpense.projectId ? parseInt(newExpense.projectId) : null,
         costType: costType,
         vendorName: newExpense.vendorName,
         glAccount: newExpense.glAccount,
@@ -252,6 +274,7 @@ const ExpenseSubmit = () => {
         tip: '',
         costCenterId: newExpense.costCenterId, // Keep last used
         locationId: newExpense.locationId, // Keep last used
+        projectId: '', // Reset project
         vendorName: '',
         glAccount: '',
         notes: '',
@@ -492,6 +515,23 @@ const ExpenseSubmit = () => {
                 <option key={loc.id} value={loc.id}>{loc.code} - {loc.name}</option>
               ))}
             </select>
+          </div>
+
+          <div className="expense-form-group">
+            <label className="expense-form-label">Project</label>
+            <select
+              value={newExpense.projectId}
+              onChange={(e) => handleInputChange('projectId', e.target.value)}
+              className="expense-form-select"
+            >
+              <option value="">No project</option>
+              {projects.map((proj) => (
+                <option key={proj.id} value={proj.id}>{proj.code} - {proj.name}</option>
+              ))}
+            </select>
+            {projects.length === 0 && (
+              <p className="expense-form-hint">No approved projects available</p>
+            )}
           </div>
 
           <div className="expense-form-group expense-form-grid-full">
