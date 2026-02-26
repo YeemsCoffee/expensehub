@@ -72,8 +72,12 @@ const App = () => {
       // Fetch cart items from backend
       fetchCart();
 
-      // Set default tab based on role
-      if (userData.role === 'employee') {
+      // Check for initial hash route
+      const initialHash = window.location.hash.slice(1).split('?')[0].replace(/^\//, '');
+
+      if (initialHash.startsWith('project-details/')) {
+        setActiveTab('project-details');
+      } else if (userData.role === 'employee') {
         setActiveTab('home');
       } else if (userData.role === 'developer') {
         setActiveTab('home'); // Developers start at employee view
@@ -95,6 +99,14 @@ const App = () => {
 
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1).split('?')[0].replace(/^\//, '');
+
+      // Check for project-details route
+      if (hash.startsWith('project-details/')) {
+        setActiveTab('project-details');
+        return;
+      }
+
+      // Handle auth routes
       if (hash === 'register') {
         setCurrentView('register');
       } else if (hash === 'login') {

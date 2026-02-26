@@ -428,14 +428,20 @@ const Projects = () => {
 
                   <div className="approval-actions">
                     <button
-                      onClick={() => handleApprove(project.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleApprove(project.id);
+                      }}
                       className="btn btn-success btn-sm"
                     >
                       <CheckCircle size={16} />
                       Approve
                     </button>
                     <button
-                      onClick={() => handleReject(project.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReject(project.id);
+                      }}
                       className="btn btn-danger btn-sm"
                     >
                       <XCircle size={16} />
