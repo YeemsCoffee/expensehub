@@ -12,18 +12,18 @@
      PREMIUM COLOR SYSTEM
      ======================================== */
 
-  /* Primary - Modern Indigo (Stripe/Linear inspired) */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
-  --color-primary-950: #1e1b4b;
+  /* Primary - Company Green (#2B4628) */
+  --color-primary-50: #f3f6f2;
+  --color-primary-100: #e3e9e1;
+  --color-primary-200: #c7d4c3;
+  --color-primary-300: #a5b89f;
+  --color-primary-400: #7d9576;
+  --color-primary-500: #5a7353;
+  --color-primary-600: #2B4628;
+  --color-primary-700: #243a22;
+  --color-primary-800: #1d2f1b;
+  --color-primary-900: #162415;
+  --color-primary-950: #0e180d;
 
   /* Soft Neutrals - Calm & Minimal */
   --color-white: #ffffff;
@@ -39,10 +39,10 @@
   --color-gray-900: #0f172a;
   --color-gray-950: #020617;
 
-  /* Feedback Colors - Vibrant & Clear */
-  --color-success-50: #f0fdf4;
-  --color-success-500: #10b981;
-  --color-success-600: #059669;
+  /* Feedback Colors - Company Palette */
+  --color-success-50: #f3f6f2;
+  --color-success-500: #2B4628;
+  --color-success-600: #243a22;
 
   --color-warning-50: #fffbeb;
   --color-warning-500: #f59e0b;
@@ -52,18 +52,18 @@
   --color-error-500: #ef4444;
   --color-error-600: #dc2626;
 
-  --color-info-50: #eff6ff;
-  --color-info-500: #3b82f6;
-  --color-info-600: #2563eb;
+  --color-info-50: #f0f8fa;
+  --color-info-500: #BCD7DE;
+  --color-info-600: #a0c5ce;
 
   /* Semantic Tokens - Light Mode (Default) */
-  --color-primary: #4f46e5;
-  --color-primary-hover: #4338ca;
-  --color-primary-active: #3730a3;
+  --color-primary: #2B4628;
+  --color-primary-hover: #243a22;
+  --color-primary-active: #1d2f1b;
 
   --color-background: #ffffff;
-  --color-background-secondary: #f8fafc;
-  --color-background-tertiary: #f1f5f9;
+  --color-background-secondary: #F2ECD4;
+  --color-background-tertiary: #e8dfc4;
 
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
@@ -76,7 +76,7 @@
 
   --color-border: #e2e8f0;
   --color-border-hover: #cbd5e1;
-  --color-border-focus: #4f46e5;
+  --color-border-focus: #BCD7DE;
 
   --color-shadow-sm: rgba(15, 23, 42, 0.04);
   --color-shadow-md: rgba(15, 23, 42, 0.08);
@@ -162,7 +162,7 @@
   --shadow-card-hover: 0 8px 16px rgba(15, 23, 42, 0.1), 0 3px 6px rgba(15, 23, 42, 0.06);
 
   /* Focus ring - visible and accessible */
-  --shadow-focus: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  --shadow-focus: 0 0 0 3px rgba(188, 215, 222, 0.4);
 
   /* ========================================
      FLUID MOTION (< 300ms, ease-in-out)
@@ -217,9 +217,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-primary: #6366f1;
-    --color-primary-hover: #818cf8;
-    --color-primary-active: #a5b4fc;
+    --color-primary: #5a7353;
+    --color-primary-hover: #7d9576;
+    --color-primary-active: #a5b89f;
 
     --color-background: #0f172a;
     --color-background-secondary: #1e293b;
@@ -236,7 +236,7 @@
 
     --color-border: #334155;
     --color-border-hover: #475569;
-    --color-border-focus: #6366f1;
+    --color-border-focus: #BCD7DE;
 
     --color-shadow-sm: rgba(0, 0, 0, 0.2);
     --color-shadow-md: rgba(0, 0, 0, 0.3);
@@ -251,15 +251,15 @@
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-card-hover: 0 8px 16px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.3);
 
-    --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    --shadow-focus: 0 0 0 3px rgba(188, 215, 222, 0.3);
   }
 }
 
 /* Manual dark mode toggle - takes precedence over system preference */
 :root[data-theme="dark"] {
-  --color-primary: #6366f1;
-  --color-primary-hover: #818cf8;
-  --color-primary-active: #a5b4fc;
+  --color-primary: #5a7353;
+  --color-primary-hover: #7d9576;
+  --color-primary-active: #a5b89f;
 
   --color-background: #0f172a;
   --color-background-secondary: #1e293b;
@@ -276,7 +276,7 @@
 
   --color-border: #334155;
   --color-border-hover: #475569;
-  --color-border-focus: #6366f1;
+  --color-border-focus: #BCD7DE;
 
   --color-shadow-sm: rgba(0, 0, 0, 0.2);
   --color-shadow-md: rgba(0, 0, 0, 0.3);
@@ -291,7 +291,7 @@
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-card-hover: 0 8px 16px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.3);
 
-  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.25);
+  --shadow-focus: 0 0 0 3px rgba(188, 215, 222, 0.3);
 }
 
 /* ========================================

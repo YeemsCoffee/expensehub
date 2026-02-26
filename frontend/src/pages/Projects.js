@@ -333,7 +333,7 @@ const Projects = () => {
             </div>
 
             {/* WBS Elements Section */}
-            <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+            <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#F2ECD4', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <div>
                   <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

@@ -128,7 +128,7 @@ const ProjectDetails = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       pending: { color: '#f59e0b', bg: '#fef3c7', icon: Clock },
-      approved: { color: '#10b981', bg: '#d1fae5', icon: CheckCircle },
+      approved: { color: '#2B4628', bg: '#e3e9e1', icon: CheckCircle },
       rejected: { color: '#ef4444', bg: '#fee2e2', icon: XCircle }
     };
 
@@ -264,7 +264,7 @@ const ProjectDetails = () => {
           <h3 style={{ marginBottom: '1rem' }}>Budget Overview</h3>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: '#dbeafe', color: '#3b82f6' }}>
+              <div className="stat-icon" style={{ background: '#e3e9e1', color: '#2B4628' }}>
                 <DollarSign size={24} />
               </div>
               <div className="stat-content">
@@ -274,7 +274,7 @@ const ProjectDetails = () => {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: isOverBudget ? '#fee2e2' : '#d1fae5', color: isOverBudget ? '#ef4444' : '#10b981' }}>
+              <div className="stat-icon" style={{ background: isOverBudget ? '#fee2e2' : '#e3e9e1', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
                 {isOverBudget ? <TrendingDown size={24} /> : <TrendingUp size={24} />}
               </div>
               <div className="stat-content">
@@ -284,7 +284,7 @@ const ProjectDetails = () => {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: '#fef3c7', color: '#f59e0b' }}>
+              <div className="stat-icon" style={{ background: '#F2ECD4', color: '#5a7353' }}>
                 <DollarSign size={24} />
               </div>
               <div className="stat-content">
@@ -294,7 +294,7 @@ const ProjectDetails = () => {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: '#e0e7ff', color: '#6366f1' }}>
+              <div className="stat-icon" style={{ background: '#f0f8fa', color: '#a0c5ce' }}>
                 <FileText size={24} />
               </div>
               <div className="stat-content">
@@ -322,7 +322,7 @@ const ProjectDetails = () => {
               <div style={{
                 width: `${Math.min(100, budgetUsedPercent)}%`,
                 height: '100%',
-                background: isOverBudget ? '#ef4444' : '#10b981',
+                background: isOverBudget ? '#ef4444' : '#2B4628',
                 transition: 'width 0.3s ease'
               }}></div>
             </div>
@@ -362,7 +362,7 @@ const ProjectDetails = () => {
                       )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#10b981' }}>
+                      <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
                         {formatCurrency(totalSpent)}
                       </div>
                       <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
@@ -391,7 +391,7 @@ const ProjectDetails = () => {
                       <div style={{
                         width: `${Math.min(100, percentUsed)}%`,
                         height: '100%',
-                        background: isOverBudget ? '#ef4444' : '#10b981',
+                        background: isOverBudget ? '#ef4444' : '#2B4628',
                         transition: 'width 0.3s ease'
                       }}></div>
                     </div>
