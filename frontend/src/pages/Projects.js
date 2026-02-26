@@ -5,11 +5,12 @@ import api from '../services/api';
 const Projects = () => {
   const [myProjects, setMyProjects] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
+  const [costCenters, setCostCenters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [formData, setFormData] = useState({
-    code: '',
+    costCenterId: '',
     name: '',
     description: '',
     startDate: '',
@@ -26,6 +27,10 @@ const Projects = () => {
       const user = userStr ? JSON.parse(userStr) : null;
       const userRole = user?.role || 'employee';
       setIsManager(userRole === 'manager' || userRole === 'admin');
+
+      // Fetch cost centers for project submission
+      const ccResponse = await api.get('/cost-centers');
+      setCostCenters(ccResponse.data.filter(cc => cc.is_active));
 
       // Fetch my submitted projects
       const myResponse = await api.get('/projects/my-submissions');
@@ -54,7 +59,7 @@ const Projects = () => {
 
   const resetForm = () => {
     setFormData({
-      code: '',
+      costCenterId: '',
       name: '',
       description: '',
       startDate: '',
@@ -70,14 +75,14 @@ const Projects = () => {
     e.preventDefault();
     setError('');
 
-    if (!formData.code || !formData.name || !formData.description) {
-      setError('Please fill in code, name, and description (required fields)');
+    if (!formData.costCenterId || !formData.name || !formData.description) {
+      setError('Please fill in cost center, name, and description (required fields)');
       return;
     }
 
     try {
       await api.post('/projects/submit', {
-        code: formData.code,
+        costCenterId: parseInt(formData.costCenterId),
         name: formData.name,
         description: formData.description,
         startDate: formData.startDate || null,
@@ -190,16 +195,21 @@ const Projects = () => {
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
-                <label className="form-label">Project Code *</label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => handleInputChange('code', e.target.value)}
-                  placeholder="PROJ-001"
+                <label className="form-label">Cost Center *</label>
+                <select
+                  value={formData.costCenterId}
+                  onChange={(e) => handleInputChange('costCenterId', e.target.value)}
                   className="form-input"
                   required
-                />
-                <p className="form-hint">Unique identifier (e.g., PROJ-001, INIT-2024)</p>
+                >
+                  <option value="">Select a cost center</option>
+                  {costCenters.map(cc => (
+                    <option key={cc.id} value={cc.id}>
+                      {cc.code} - {cc.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="form-hint">Project code will be auto-generated based on cost center</p>
               </div>
 
               <div className="form-group">
