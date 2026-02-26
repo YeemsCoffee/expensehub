@@ -112,6 +112,11 @@ const App = () => {
         return;
       }
 
+      if (hash === 'expenses-submit') {
+        setActiveTab('expenses-submit');
+        return;
+      }
+
       // Handle auth routes
       if (hash === 'register') {
         setCurrentView('register');
