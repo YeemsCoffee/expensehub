@@ -18,12 +18,14 @@ const ProjectDetails = () => {
   const toast = useToast();
   const [project, setProject] = useState(null);
   const [stats, setStats] = useState(null);
+  const [wbsElements, setWbsElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
 
   useEffect(() => {
     fetchProjectDetails();
     fetchProjectStats();
+    fetchWbsElements();
     checkUserRole();
   }, [id]);
 
@@ -52,6 +54,15 @@ const ProjectDetails = () => {
       setStats(response.data);
     } catch (err) {
       console.error('Error fetching stats:', err);
+    }
+  };
+
+  const fetchWbsElements = async () => {
+    try {
+      const response = await api.get(`/projects/${id}/wbs`);
+      setWbsElements(response.data);
+    } catch (err) {
+      console.error('Error fetching WBS elements:', err);
     }
   };
 
@@ -315,6 +326,79 @@ const ProjectDetails = () => {
                 transition: 'width 0.3s ease'
               }}></div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* WBS Elements - Budget Breakdown */}
+      {wbsElements.length > 0 && (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Budget Breakdown by Category (WBS Elements)</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {wbsElements.map((wbs) => {
+              const budgetEstimate = parseFloat(wbs.budget_estimate);
+              const totalSpent = parseFloat(wbs.total_spent) || 0;
+              const remaining = budgetEstimate - totalSpent;
+              const percentUsed = budgetEstimate > 0 ? ((totalSpent / budgetEstimate) * 100).toFixed(1) : 0;
+              const isOverBudget = percentUsed > 100;
+
+              return (
+                <div key={wbs.id} style={{
+                  padding: '1rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  background: 'white'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>{wbs.category}</h4>
+                      <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
+                        Code: <strong>{wbs.code}</strong>
+                      </p>
+                      {wbs.description && (
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#9ca3af' }}>
+                          {wbs.description}
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#10b981' }}>
+                        {formatCurrency(totalSpent)}
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                        of {formatCurrency(budgetEstimate)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        {wbs.expense_count} expense{wbs.expense_count !== 1 ? 's' : ''}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#6b7280' }}>
+                        {percentUsed}% used • {formatCurrency(remaining)} {isOverBudget ? 'over' : 'remaining'}
+                      </span>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '0.5rem',
+                      background: '#f3f4f6',
+                      borderRadius: '9999px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        width: `${Math.min(100, percentUsed)}%`,
+                        height: '100%',
+                        background: isOverBudget ? '#ef4444' : '#10b981',
+                        transition: 'width 0.3s ease'
+                      }}></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
