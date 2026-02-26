@@ -6,7 +6,7 @@ const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 
 // Submit new project (all authenticated users)
 router.post('/submit', authMiddleware, [
-  body('code').notEmpty().trim(),
+  body('costCenterId').notEmpty().isInt(),
   body('name').notEmpty().trim(),
   body('description').notEmpty().trim(),
   body('startDate').optional().isISO8601(),
@@ -20,27 +20,36 @@ router.post('/submit', authMiddleware, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { code, name, description, startDate, endDate, budget, projectManager } = req.body;
+    const { costCenterId, name, description, startDate, endDate, budget, projectManager } = req.body;
 
-    // Check if code already exists
-    const existingResult = await db.query(
-      'SELECT id FROM projects WHERE code = $1',
-      [code]
+    // Get cost center code
+    const ccResult = await db.query(
+      'SELECT code FROM cost_centers WHERE id = $1 AND is_active = true',
+      [costCenterId]
     );
 
-    if (existingResult.rows.length > 0) {
-      return res.status(400).json({ error: 'Project code already exists' });
+    if (ccResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or inactive cost center' });
     }
+
+    const costCenterCode = ccResult.rows[0].code;
+
+    // Get next sequential project number (across all projects)
+    const countResult = await db.query('SELECT COUNT(*) as count FROM projects');
+    const nextProjectNumber = (parseInt(countResult.rows[0].count) + 1).toString().padStart(3, '0');
+
+    // Generate project code: XXXXX-XXX (cost center code - sequential number)
+    const generatedCode = `${costCenterCode}-${nextProjectNumber}`;
 
     // Create project with pending status
     const result = await db.query(
       `INSERT INTO projects (
-        code, name, description, start_date, end_date, budget, 
-        status, project_manager, submitted_by, is_active
+        code, name, description, start_date, end_date, budget,
+        status, project_manager, submitted_by, cost_center_id, is_active
       )
-      VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, true)
-      RETURNING id, code, name, description, start_date, end_date, budget, status, project_manager, submitted_by, created_at`,
-      [code, name, description, startDate, endDate, budget, projectManager, req.user.id]
+      VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, true)
+      RETURNING id, code, name, description, start_date, end_date, budget, status, project_manager, submitted_by, cost_center_id, created_at`,
+      [generatedCode, name, description, startDate, endDate, budget, projectManager, req.user.id, costCenterId]
     );
 
     res.status(201).json({
