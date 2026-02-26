@@ -330,4 +330,206 @@ router.delete('/:id', authMiddleware, isManagerOrAdmin, async (req, res) => {
   }
 });
 
+// ===== WBS ELEMENT ROUTES =====
+
+// Get all WBS elements for a project
+router.get('/:id/wbs', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `SELECT wbs.*,
+              COALESCE(SUM(e.amount), 0) as total_spent,
+              COUNT(e.id) as expense_count
+       FROM project_wbs_elements wbs
+       LEFT JOIN expenses e ON e.wbs_element_id = wbs.id AND e.status != 'rejected'
+       WHERE wbs.project_id = $1 AND wbs.is_active = true
+       GROUP BY wbs.id
+       ORDER BY wbs.code`,
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch WBS elements error:', error);
+    res.status(500).json({ error: 'Server error fetching WBS elements' });
+  }
+});
+
+// Create WBS elements for a project (bulk creation)
+router.post('/:id/wbs', authMiddleware, [
+  body('elements').isArray({ min: 1 }),
+  body('elements.*.category').notEmpty().trim(),
+  body('elements.*.budgetEstimate').isFloat({ min: 0 }),
+  body('elements.*.description').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    const { elements } = req.body;
+
+    // Get project code
+    const projectResult = await db.query(
+      'SELECT code, status FROM projects WHERE id = $1',
+      [id]
+    );
+
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const projectCode = projectResult.rows[0].code;
+
+    // Create WBS elements
+    const createdElements = [];
+    for (let i = 0; i < elements.length; i++) {
+      const element = elements[i];
+      const categoryNumber = (i + 1).toString().padStart(2, '0');
+      const wbsCode = `${projectCode}-${categoryNumber}`;
+
+      const result = await db.query(
+        `INSERT INTO project_wbs_elements (
+          project_id, code, category, description, budget_estimate, is_active
+        )
+        VALUES ($1, $2, $3, $4, $5, true)
+        RETURNING *`,
+        [id, wbsCode, element.category, element.description || null, element.budgetEstimate]
+      );
+
+      createdElements.push(result.rows[0]);
+    }
+
+    res.status(201).json({
+      message: 'WBS elements created successfully',
+      elements: createdElements
+    });
+  } catch (error) {
+    console.error('Create WBS elements error:', error);
+    if (error.code === '23505') { // Unique constraint violation
+      return res.status(400).json({ error: 'WBS element code already exists' });
+    }
+    res.status(500).json({ error: 'Server error creating WBS elements' });
+  }
+});
+
+// Update a WBS element
+router.put('/:id/wbs/:wbsId', authMiddleware, [
+  body('category').optional().notEmpty().trim(),
+  body('budgetEstimate').optional().isFloat({ min: 0 }),
+  body('description').optional().trim(),
+  body('isActive').optional().isBoolean()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id, wbsId } = req.params;
+    const { category, budgetEstimate, description, isActive } = req.body;
+
+    // Verify WBS element belongs to project
+    const checkResult = await db.query(
+      'SELECT * FROM project_wbs_elements WHERE id = $1 AND project_id = $2',
+      [wbsId, id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'WBS element not found' });
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (category !== undefined) {
+      updates.push(`category = $${paramIndex++}`);
+      values.push(category);
+    }
+    if (budgetEstimate !== undefined) {
+      updates.push(`budget_estimate = $${paramIndex++}`);
+      values.push(budgetEstimate);
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      values.push(description);
+    }
+    if (isActive !== undefined) {
+      updates.push(`is_active = $${paramIndex++}`);
+      values.push(isActive);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(wbsId);
+
+    const query = `
+      UPDATE project_wbs_elements
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await db.query(query, values);
+
+    res.json({
+      message: 'WBS element updated successfully',
+      element: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Update WBS element error:', error);
+    res.status(500).json({ error: 'Server error updating WBS element' });
+  }
+});
+
+// Delete a WBS element
+router.delete('/:id/wbs/:wbsId', authMiddleware, async (req, res) => {
+  try {
+    const { id, wbsId } = req.params;
+
+    // Verify WBS element belongs to project
+    const checkResult = await db.query(
+      'SELECT * FROM project_wbs_elements WHERE id = $1 AND project_id = $2',
+      [wbsId, id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'WBS element not found' });
+    }
+
+    // Check if WBS element has any expenses
+    const expenseCheck = await db.query(
+      'SELECT COUNT(*) as count FROM expenses WHERE wbs_element_id = $1',
+      [wbsId]
+    );
+
+    const expenseCount = parseInt(expenseCheck.rows[0].count);
+
+    if (expenseCount > 0) {
+      return res.status(400).json({
+        error: `Cannot delete WBS element. It has ${expenseCount} expense(s) associated with it.`
+      });
+    }
+
+    // Delete the WBS element
+    await db.query('DELETE FROM project_wbs_elements WHERE id = $1', [wbsId]);
+
+    res.json({
+      message: 'WBS element deleted successfully',
+      element: checkResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Delete WBS element error:', error);
+    res.status(500).json({ error: 'Server error deleting WBS element' });
+  }
+});
+
 module.exports = router;
