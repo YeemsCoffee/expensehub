@@ -10,6 +10,7 @@ import Cart from './pages/Cart';
 import CostCenters from './pages/CostCenters';
 import Locations from './pages/Locations';
 import Projects from './pages/Projects';
+import ProjectDetails from './pages/ProjectDetails';
 import Users from './pages/Users';
 import ApprovalRules from './pages/ApprovalRules';
 import Approvals from './pages/Approvals';
@@ -317,6 +318,8 @@ const App = () => {
         return <Locations />;
       case 'projects':
         return <Projects />;
+      case 'project-details':
+        return <ProjectDetails />;
       case 'users':
         return <Users />;
       case 'approval-rules':

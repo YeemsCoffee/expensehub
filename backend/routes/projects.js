@@ -221,7 +221,7 @@ router.get('/:id/stats', authMiddleware, async (req, res) => {
 
     // Get expense statistics
     const statsResult = await db.query(
-      `SELECT 
+      `SELECT
          COUNT(*) as expense_count,
          COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as total_spent,
          COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_amount,
@@ -246,6 +246,78 @@ router.get('/:id/stats', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Fetch project stats error:', error);
     res.status(500).json({ error: 'Server error fetching project statistics' });
+  }
+});
+
+// Get project details by ID
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `SELECT p.id, p.code, p.name, p.description, p.start_date, p.end_date,
+              p.budget, p.status, p.project_manager, p.created_at, p.updated_at,
+              p.approved_at, p.rejection_reason,
+              submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
+              submitter.email as submitted_by_email,
+              approver.first_name || ' ' || approver.last_name as approved_by_name
+       FROM projects p
+       LEFT JOIN users submitter ON p.submitted_by = submitter.id
+       LEFT JOIN users approver ON p.approved_by = approver.id
+       WHERE p.id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Fetch project error:', error);
+    res.status(500).json({ error: 'Server error fetching project' });
+  }
+});
+
+// Delete project (manager/admin/developer only)
+router.delete('/:id', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if project exists
+    const checkResult = await db.query(
+      'SELECT id, code, name FROM projects WHERE id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Check if project has any expenses
+    const expenseCheck = await db.query(
+      'SELECT COUNT(*) as count FROM expenses WHERE project_id = $1',
+      [id]
+    );
+
+    const expenseCount = parseInt(expenseCheck.rows[0].count);
+
+    if (expenseCount > 0) {
+      return res.status(400).json({
+        error: `Cannot delete project. It has ${expenseCount} expense(s) associated with it. Please reassign or delete the expenses first.`
+      });
+    }
+
+    // Delete the project
+    await db.query('DELETE FROM projects WHERE id = $1', [id]);
+
+    res.json({
+      message: 'Project deleted successfully',
+      project: checkResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ error: 'Server error deleting project' });
   }
 });
 
