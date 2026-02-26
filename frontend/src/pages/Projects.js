@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Folder, Calendar, DollarSign, User, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Folder, Calendar, DollarSign, User, Clock, CheckCircle, XCircle, Trash2, List } from 'lucide-react';
 import api from '../services/api';
 
 const Projects = () => {
@@ -18,6 +18,7 @@ const Projects = () => {
     budget: '',
     projectManager: ''
   });
+  const [wbsElements, setWbsElements] = useState([]);
   const [error, setError] = useState('');
 
   const fetchProjects = useCallback(async () => {
@@ -57,6 +58,20 @@ const Projects = () => {
     setFormData({ ...formData, [field]: value });
   };
 
+  const addWbsElement = () => {
+    setWbsElements([...wbsElements, { category: '', budgetEstimate: '', description: '' }]);
+  };
+
+  const removeWbsElement = (index) => {
+    setWbsElements(wbsElements.filter((_, i) => i !== index));
+  };
+
+  const updateWbsElement = (index, field, value) => {
+    const updated = [...wbsElements];
+    updated[index][field] = value;
+    setWbsElements(updated);
+  };
+
   const resetForm = () => {
     setFormData({
       costCenterId: '',
@@ -67,6 +82,7 @@ const Projects = () => {
       budget: '',
       projectManager: ''
     });
+    setWbsElements([]);
     setShowForm(false);
     setError('');
   };
@@ -80,8 +96,26 @@ const Projects = () => {
       return;
     }
 
+    // Validate WBS elements if any
+    if (wbsElements.length > 0) {
+      const invalidElement = wbsElements.find(el => !el.category || !el.budgetEstimate || parseFloat(el.budgetEstimate) <= 0);
+      if (invalidElement) {
+        setError('All WBS elements must have a category and valid budget estimate');
+        return;
+      }
+
+      // Calculate total WBS budget
+      const totalWbsBudget = wbsElements.reduce((sum, el) => sum + parseFloat(el.budgetEstimate), 0);
+      const projectBudget = formData.budget ? parseFloat(formData.budget) : 0;
+
+      if (projectBudget > 0 && Math.abs(totalWbsBudget - projectBudget) > 0.01) {
+        setError(`Total WBS budget ($${totalWbsBudget.toFixed(2)}) must equal project budget ($${projectBudget.toFixed(2)})`);
+        return;
+      }
+    }
+
     try {
-      await api.post('/projects/submit', {
+      const projectResponse = await api.post('/projects/submit', {
         costCenterId: parseInt(formData.costCenterId),
         name: formData.name,
         description: formData.description,
@@ -90,6 +124,19 @@ const Projects = () => {
         budget: formData.budget ? parseFloat(formData.budget) : null,
         projectManager: formData.projectManager || null
       });
+
+      const projectId = projectResponse.data.project.id;
+
+      // Create WBS elements if any
+      if (wbsElements.length > 0) {
+        await api.post(`/projects/${projectId}/wbs`, {
+          elements: wbsElements.map(el => ({
+            category: el.category,
+            budgetEstimate: parseFloat(el.budgetEstimate),
+            description: el.description || null
+          }))
+        });
+      }
 
       alert('Project submitted for approval!');
       fetchProjects();
@@ -257,7 +304,7 @@ const Projects = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Estimated Budget</label>
+                <label className="form-label">Total Project Budget</label>
                 <input
                   type="number"
                   step="0.01"
@@ -266,6 +313,11 @@ const Projects = () => {
                   placeholder="100000.00"
                   className="form-input"
                 />
+                {wbsElements.length > 0 && (
+                  <p className="form-hint" style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                    Total WBS Budget: ${wbsElements.reduce((sum, el) => sum + (parseFloat(el.budgetEstimate) || 0), 0).toFixed(2)}
+                  </p>
+                )}
               </div>
 
               <div className="form-group">
@@ -278,6 +330,101 @@ const Projects = () => {
                   className="form-input"
                 />
               </div>
+            </div>
+
+            {/* WBS Elements Section */}
+            <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#F2ECD4', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div>
+                  <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <List size={20} />
+                    WBS Elements (Budget Breakdown)
+                  </h4>
+                  <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0.25rem 0 0 0' }}>
+                    Break down project budget by category (e.g., Construction, Materials, Engineering)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addWbsElement}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.875rem' }}
+                >
+                  <Plus size={16} />
+                  Add Category
+                </button>
+              </div>
+
+              {wbsElements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>
+                  <p>No WBS elements added yet. Click "Add Category" to break down your budget.</p>
+                  <p style={{ fontSize: '0.875rem' }}>Example categories: Construction, Materials, Engineering Studies, Equipment</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {wbsElements.map((element, index) => (
+                    <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr auto', gap: '1rem', padding: '1rem', background: 'white', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.875rem' }}>Category *</label>
+                        <input
+                          type="text"
+                          value={element.category}
+                          onChange={(e) => updateWbsElement(index, 'category', e.target.value)}
+                          placeholder="e.g., Construction"
+                          className="form-input"
+                          style={{ fontSize: '0.875rem' }}
+                        />
+                        <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '0.25rem 0 0 0' }}>
+                          Code will be: {formData.costCenterId ? `${costCenters.find(cc => cc.id === parseInt(formData.costCenterId))?.code || 'XXX'}-XXX-${(index + 1).toString().padStart(2, '0')}` : 'Select cost center first'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.875rem' }}>Budget Estimate *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={element.budgetEstimate}
+                          onChange={(e) => updateWbsElement(index, 'budgetEstimate', e.target.value)}
+                          placeholder="25000.00"
+                          className="form-input"
+                          style={{ fontSize: '0.875rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.875rem' }}>Description</label>
+                        <input
+                          type="text"
+                          value={element.description}
+                          onChange={(e) => updateWbsElement(index, 'description', e.target.value)}
+                          placeholder="Optional description"
+                          className="form-input"
+                          style={{ fontSize: '0.875rem' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => removeWbsElement(index)}
+                          style={{
+                            padding: '0.5rem',
+                            border: '1px solid #ef4444',
+                            borderRadius: '0.375rem',
+                            background: 'white',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Remove category"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="form-actions">

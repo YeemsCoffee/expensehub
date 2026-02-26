@@ -10,6 +10,8 @@ const ExpenseSubmit = () => {
   const toast = useToast();
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [wbsElements, setWbsElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
@@ -31,6 +33,8 @@ const ExpenseSubmit = () => {
     tip: '',
     costCenterId: '',
     locationId: '',
+    projectId: '',
+    wbsElementId: '',
     vendorName: '',
     glAccount: '',
     notes: '',
@@ -104,13 +108,18 @@ const ExpenseSubmit = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [ccResponse, locResponse] = await Promise.all([
+      const [ccResponse, locResponse, projResponse] = await Promise.all([
         api.get('/cost-centers'),
-        api.get('/locations')
+        api.get('/locations'),
+        api.get('/projects')
       ]);
 
       setCostCenters(ccResponse.data);
       setLocations(locResponse.data);
+
+      // Only show approved projects for expense submission
+      const approvedProjects = projResponse.data.filter(p => p.status === 'approved');
+      setProjects(approvedProjects);
 
       setLoading(false);
     } catch (err) {
@@ -124,14 +133,40 @@ const ExpenseSubmit = () => {
     fetchData();
   }, [fetchData]);
 
+  // Handle pre-selected project from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+    const projectId = urlParams.get('projectId');
+
+    if (projectId && projects.length > 0) {
+      // Check if the project exists in the approved projects list
+      const projectExists = projects.some(p => p.id === parseInt(projectId));
+      if (projectExists) {
+        setNewExpense(prev => ({ ...prev, projectId }));
+      }
+    }
+  }, [projects]);
+
   const handleInputChange = (field, value) => {
-    setNewExpense({ ...newExpense, [field]: value });
+    const updates = { [field]: value };
+
+    // If project changes, clear WBS element and fetch new WBS elements
+    if (field === 'projectId') {
+      updates.wbsElementId = '';
+      if (value) {
+        fetchWbsElements(value);
+      } else {
+        setWbsElements([]);
+      }
+    }
+
+    setNewExpense({ ...newExpense, ...updates });
     saveSmartDefaults(field, value);
 
     // Smart category suggestion based on vendor
     if (field === 'vendorName' && value && recentVendors.length > 0) {
       // This could be enhanced with a more sophisticated matching algorithm
-      const matchingVendor = recentVendors.find(v => 
+      const matchingVendor = recentVendors.find(v =>
         v.toLowerCase().includes(value.toLowerCase())
       );
       if (matchingVendor) {
@@ -139,6 +174,16 @@ const ExpenseSubmit = () => {
         // For now, just show a hint
         setSuggestedCategory('Based on previous entries');
       }
+    }
+  };
+
+  const fetchWbsElements = async (projectId) => {
+    try {
+      const response = await api.get(`/projects/${projectId}/wbs`);
+      setWbsElements(response.data.filter(wbs => wbs.is_active));
+    } catch (err) {
+      console.error('Error fetching WBS elements:', err);
+      setWbsElements([]);
     }
   };
 
@@ -223,6 +268,8 @@ const ExpenseSubmit = () => {
         amount: parseFloat(newExpense.amount),
         costCenterId: parseInt(newExpense.costCenterId),
         locationId: newExpense.locationId ? parseInt(newExpense.locationId) : null,
+        projectId: newExpense.projectId ? parseInt(newExpense.projectId) : null,
+        wbsElementId: newExpense.wbsElementId ? parseInt(newExpense.wbsElementId) : null,
         costType: costType,
         vendorName: newExpense.vendorName,
         glAccount: newExpense.glAccount,
@@ -252,11 +299,15 @@ const ExpenseSubmit = () => {
         tip: '',
         costCenterId: newExpense.costCenterId, // Keep last used
         locationId: newExpense.locationId, // Keep last used
+        projectId: '', // Reset project
+        wbsElementId: '', // Reset WBS element
         vendorName: '',
         glAccount: '',
         notes: '',
         isReimbursable: newExpense.isReimbursable // Keep last used
       });
+
+      setWbsElements([]); // Clear WBS elements
 
       setReceiptId(null);
       setReimbursableConfirmed(false); // Reset confirmation flag
@@ -493,6 +544,59 @@ const ExpenseSubmit = () => {
               ))}
             </select>
           </div>
+
+          <div className="expense-form-group">
+            <label className="expense-form-label">Project</label>
+            <select
+              value={newExpense.projectId}
+              onChange={(e) => handleInputChange('projectId', e.target.value)}
+              className="expense-form-select"
+            >
+              <option value="">No project</option>
+              {projects.map((proj) => (
+                <option key={proj.id} value={proj.id}>{proj.code} - {proj.name}</option>
+              ))}
+            </select>
+            {projects.length === 0 && (
+              <p className="expense-form-hint">No approved projects available</p>
+            )}
+          </div>
+
+          {newExpense.projectId && (
+            <div className="expense-form-group">
+              <label className="expense-form-label">WBS Element / Budget Category</label>
+              <select
+                value={newExpense.wbsElementId}
+                onChange={(e) => handleInputChange('wbsElementId', e.target.value)}
+                className="expense-form-select"
+              >
+                <option value="">Select WBS element</option>
+                {wbsElements.map((wbs) => (
+                  <option key={wbs.id} value={wbs.id}>
+                    {wbs.code} - {wbs.category} (Budget: ${parseFloat(wbs.budget_estimate).toFixed(2)})
+                  </option>
+                ))}
+              </select>
+              {wbsElements.length === 0 && (
+                <p className="expense-form-hint">No WBS elements defined for this project</p>
+              )}
+              {wbsElements.length > 0 && newExpense.wbsElementId && (
+                <p className="expense-form-hint">
+                  {(() => {
+                    const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
+                    if (selectedWbs) {
+                      const spent = parseFloat(selectedWbs.total_spent) || 0;
+                      const budget = parseFloat(selectedWbs.budget_estimate);
+                      const remaining = budget - spent;
+                      const percentUsed = budget > 0 ? ((spent / budget) * 100).toFixed(1) : 0;
+                      return `Spent: $${spent.toFixed(2)} / $${budget.toFixed(2)} (${percentUsed}% used, $${remaining.toFixed(2)} remaining)`;
+                    }
+                    return '';
+                  })()}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="expense-form-group expense-form-grid-full">
             <label className="expense-form-label">Additional Notes</label>

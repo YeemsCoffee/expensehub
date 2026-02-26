@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Calendar, DollarSign, User, Clock, CheckCircle,
-  XCircle, Trash2, FileText, TrendingUp, TrendingDown
+  XCircle, Trash2, FileText, TrendingUp, TrendingDown, Plus
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
@@ -18,12 +18,14 @@ const ProjectDetails = () => {
   const toast = useToast();
   const [project, setProject] = useState(null);
   const [stats, setStats] = useState(null);
+  const [wbsElements, setWbsElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
 
   useEffect(() => {
     fetchProjectDetails();
     fetchProjectStats();
+    fetchWbsElements();
     checkUserRole();
   }, [id]);
 
@@ -52,6 +54,15 @@ const ProjectDetails = () => {
       setStats(response.data);
     } catch (err) {
       console.error('Error fetching stats:', err);
+    }
+  };
+
+  const fetchWbsElements = async () => {
+    try {
+      const response = await api.get(`/projects/${id}/wbs`);
+      setWbsElements(response.data);
+    } catch (err) {
+      console.error('Error fetching WBS elements:', err);
     }
   };
 
@@ -117,7 +128,7 @@ const ProjectDetails = () => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       pending: { color: '#f59e0b', bg: '#fef3c7', icon: Clock },
-      approved: { color: '#10b981', bg: '#d1fae5', icon: CheckCircle },
+      approved: { color: '#2B4628', bg: '#e3e9e1', icon: CheckCircle },
       rejected: { color: '#ef4444', bg: '#fee2e2', icon: XCircle }
     };
 
@@ -200,39 +211,50 @@ const ProjectDetails = () => {
             </p>
           </div>
 
-          {isManager && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {project.status === 'pending' && (
-                <>
-                  <button onClick={handleApprove} className="btn-primary">
-                    <CheckCircle size={16} />
-                    Approve
-                  </button>
-                  <button onClick={handleReject} className="btn-secondary">
-                    <XCircle size={16} />
-                    Reject
-                  </button>
-                </>
-              )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {project.status === 'approved' && (
               <button
-                onClick={handleDelete}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.5rem 1rem',
-                  border: '1px solid #ef4444',
-                  borderRadius: '0.5rem',
-                  background: 'white',
-                  color: '#ef4444',
-                  cursor: 'pointer'
-                }}
+                onClick={() => window.location.hash = `#expenses-submit?projectId=${id}`}
+                className="btn-primary"
               >
-                <Trash2 size={16} />
-                Delete
+                <Plus size={16} />
+                Create Expense
               </button>
-            </div>
-          )}
+            )}
+            {isManager && (
+              <>
+                {project.status === 'pending' && (
+                  <>
+                    <button onClick={handleApprove} className="btn-primary">
+                      <CheckCircle size={16} />
+                      Approve
+                    </button>
+                    <button onClick={handleReject} className="btn-secondary">
+                      <XCircle size={16} />
+                      Reject
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={handleDelete}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    border: '1px solid #ef4444',
+                    borderRadius: '0.5rem',
+                    background: 'white',
+                    color: '#ef4444',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -242,7 +264,7 @@ const ProjectDetails = () => {
           <h3 style={{ marginBottom: '1rem' }}>Budget Overview</h3>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: '#dbeafe', color: '#3b82f6' }}>
+              <div className="stat-icon" style={{ background: '#e3e9e1', color: '#2B4628' }}>
                 <DollarSign size={24} />
               </div>
               <div className="stat-content">
@@ -252,7 +274,7 @@ const ProjectDetails = () => {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: isOverBudget ? '#fee2e2' : '#d1fae5', color: isOverBudget ? '#ef4444' : '#10b981' }}>
+              <div className="stat-icon" style={{ background: isOverBudget ? '#fee2e2' : '#e3e9e1', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
                 {isOverBudget ? <TrendingDown size={24} /> : <TrendingUp size={24} />}
               </div>
               <div className="stat-content">
@@ -262,7 +284,7 @@ const ProjectDetails = () => {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: '#fef3c7', color: '#f59e0b' }}>
+              <div className="stat-icon" style={{ background: '#F2ECD4', color: '#5a7353' }}>
                 <DollarSign size={24} />
               </div>
               <div className="stat-content">
@@ -272,7 +294,7 @@ const ProjectDetails = () => {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: '#e0e7ff', color: '#6366f1' }}>
+              <div className="stat-icon" style={{ background: '#f0f8fa', color: '#a0c5ce' }}>
                 <FileText size={24} />
               </div>
               <div className="stat-content">
@@ -300,10 +322,83 @@ const ProjectDetails = () => {
               <div style={{
                 width: `${Math.min(100, budgetUsedPercent)}%`,
                 height: '100%',
-                background: isOverBudget ? '#ef4444' : '#10b981',
+                background: isOverBudget ? '#ef4444' : '#2B4628',
                 transition: 'width 0.3s ease'
               }}></div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* WBS Elements - Budget Breakdown */}
+      {wbsElements.length > 0 && (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Budget Breakdown by Category (WBS Elements)</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {wbsElements.map((wbs) => {
+              const budgetEstimate = parseFloat(wbs.budget_estimate);
+              const totalSpent = parseFloat(wbs.total_spent) || 0;
+              const remaining = budgetEstimate - totalSpent;
+              const percentUsed = budgetEstimate > 0 ? ((totalSpent / budgetEstimate) * 100).toFixed(1) : 0;
+              const isOverBudget = percentUsed > 100;
+
+              return (
+                <div key={wbs.id} style={{
+                  padding: '1rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  background: 'white'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>{wbs.category}</h4>
+                      <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
+                        Code: <strong>{wbs.code}</strong>
+                      </p>
+                      {wbs.description && (
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#9ca3af' }}>
+                          {wbs.description}
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
+                        {formatCurrency(totalSpent)}
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                        of {formatCurrency(budgetEstimate)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        {wbs.expense_count} expense{wbs.expense_count !== 1 ? 's' : ''}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#6b7280' }}>
+                        {percentUsed}% used • {formatCurrency(remaining)} {isOverBudget ? 'over' : 'remaining'}
+                      </span>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '0.5rem',
+                      background: '#f3f4f6',
+                      borderRadius: '9999px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        width: `${Math.min(100, percentUsed)}%`,
+                        height: '100%',
+                        background: isOverBudget ? '#ef4444' : '#2B4628',
+                        transition: 'width 0.3s ease'
+                      }}></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

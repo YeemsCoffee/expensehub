@@ -166,6 +166,7 @@ router.post('/', authMiddleware, [
   body('costCenterId').isInt(),
   body('locationId').optional().isInt(),
   body('projectId').optional().isInt(),
+  body('wbsElementId').optional().isInt(),
   body('costType').optional().isIn(['OPEX', 'CAPEX']),
   body('paymentMethod').optional().trim(),
   body('vendorName').optional().trim(),
@@ -181,7 +182,7 @@ router.post('/', authMiddleware, [
 
     const {
       date, description, category, amount, subtotal, tax, tip, costCenterId,
-      locationId, projectId, costType, paymentMethod,
+      locationId, projectId, wbsElementId, costType, paymentMethod,
       vendorName, glAccount, notes, isReimbursable
     } = req.body;
 
@@ -241,16 +242,16 @@ router.post('/', authMiddleware, [
 
     const result = await db.query(
       `INSERT INTO expenses (
-        user_id, cost_center_id, location_id, project_id,
+        user_id, cost_center_id, location_id, project_id, wbs_element_id,
         date, description, category, amount, subtotal, tax, tip, cost_type,
         payment_method, vendor_name, gl_account, notes, is_reimbursable,
         approval_rule_id, approval_chain, current_approval_level,
         status, approved_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *`,
       [
-        req.user.id, costCenterId, locationId, projectId,
+        req.user.id, costCenterId, locationId, projectId, wbsElementId,
         date, description, category, amount, subtotal, tax, tip, finalCostType,
         paymentMethod, vendorName, glAccount, notes, isReimbursable || false,
         approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel,
