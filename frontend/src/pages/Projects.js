@@ -308,7 +308,12 @@ const Projects = () => {
         ) : (
           <div className="cost-center-grid">
             {myProjects.map((project) => (
-              <div key={project.id} className="cost-center-card">
+              <div
+                key={project.id}
+                className="cost-center-card"
+                onClick={() => window.location.hash = `#project-details/${project.id}`}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="cost-center-header">
                   <div>
                     <h4 className="cost-center-code">{project.code}</h4>
@@ -370,7 +375,12 @@ const Projects = () => {
           ) : (
             <div className="cost-center-grid">
               {allProjects.map((project) => (
-                <div key={project.id} className="cost-center-card">
+                <div
+                  key={project.id}
+                  className="cost-center-card"
+                  onClick={() => window.location.hash = `#project-details/${project.id}`}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="cost-center-header">
                     <div>
                       <h4 className="cost-center-code">{project.code}</h4>
