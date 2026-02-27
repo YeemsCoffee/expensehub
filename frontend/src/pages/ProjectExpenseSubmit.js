@@ -254,8 +254,8 @@ const ProjectExpenseSubmit = () => {
         amount: parseFloat(newExpense.amount),
         subtotal: newExpense.subtotal ? parseFloat(newExpense.subtotal) : null,
         tax: newExpense.tax ? parseFloat(newExpense.tax) : null,
-        // Project expenses use project's cost center (set default for now)
-        costCenterId: 1, // TODO: Get from project or user default
+        // Project expenses use project's cost center
+        costCenterId: project.cost_center_id,
         projectId: project.id,
         wbsElementId: parseInt(newExpense.wbsElementId),
         costType: costType,

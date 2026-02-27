@@ -265,7 +265,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
     const result = await db.query(
       `SELECT p.id, p.code, p.name, p.description, p.start_date, p.end_date,
-              p.budget, p.status, p.project_manager, p.created_at, p.updated_at,
+              p.budget, p.status, p.project_manager, p.cost_center_id, p.created_at, p.updated_at,
               p.approved_at, p.rejection_reason,
               submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
               submitter.email as submitted_by_email,

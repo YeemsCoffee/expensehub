@@ -242,7 +242,7 @@
 /* Submit Button */
 .expense-submit-btn {
   width: 100%;
-  background: var(--primary-color);
+  background: var(--color-primary);
   color: white;
   border: none;
   padding: 1rem 2rem;
@@ -255,13 +255,13 @@
   justify-content: center;
   gap: 0.5rem;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 2px 8px rgba(43, 70, 40, 0.2);
 }
 
 .expense-submit-btn:hover:not(:disabled) {
-  background: var(--primary-dark);
+  background: var(--color-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(43, 70, 40, 0.3);
 }
 
 .expense-submit-btn:disabled {
