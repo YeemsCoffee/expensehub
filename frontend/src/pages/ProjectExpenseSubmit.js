@@ -72,6 +72,9 @@ const ProjectExpenseSubmit = () => {
         api.get(`/projects/${projectId}/wbs`)
       ]);
 
+      console.log('Project data loaded:', projResponse.data);
+      console.log('Project cost_center_id:', projResponse.data.cost_center_id);
+
       setProject(projResponse.data);
       setWbsElements(Array.isArray(wbsResponse.data) ? wbsResponse.data : []);
 
@@ -291,7 +294,18 @@ const ProjectExpenseSubmit = () => {
 
     } catch (err) {
       console.error('Submission error:', err);
-      toast.error(err.response?.data?.error || 'Failed to submit expense. Please try again.');
+      console.error('Error response:', err.response?.data);
+      console.error('Project cost_center_id:', project.cost_center_id);
+
+      // Show validation errors if available
+      let errorMessage = 'Failed to submit expense. Please try again.';
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        errorMessage = err.response.data.errors.map(e => e.msg || e.message).join(', ');
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+
+      toast.error(errorMessage);
       setReimbursableConfirmed(false);
     } finally {
       setIsSubmitting(false);
