@@ -13,6 +13,7 @@ const ProjectExpenseSubmit = () => {
   const [showReimbursableConfirm, setShowReimbursableConfirm] = useState(false);
   const [reimbursableConfirmed, setReimbursableConfirmed] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
@@ -104,7 +105,64 @@ const ProjectExpenseSubmit = () => {
       validFiles.push(file);
     }
 
-    setAttachedFiles(prev => [...prev, ...validFiles]);
+    if (validFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validFiles]);
+      toast.success(`${validFiles.length} file(s) attached`);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set to false if we're leaving the drop zone itself
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['.pdf', '.png', '.jpg', '.jpeg', '.doc', '.docx', '.xls', '.xlsx'];
+    const validFiles = [];
+
+    for (const file of files) {
+      // Check file size
+      if (file.size > maxSize) {
+        toast.error(`File ${file.name} exceeds 10MB limit`);
+        continue;
+      }
+
+      // Check file type
+      const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+      if (!allowedTypes.includes(fileExtension)) {
+        toast.error(`File ${file.name} has an unsupported file type`);
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validFiles]);
+      toast.success(`${validFiles.length} file(s) attached`);
+    }
   };
 
   const handleRemoveFile = (index) => {
@@ -541,24 +599,32 @@ const ProjectExpenseSubmit = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '2rem',
-                border: '2px dashed #d1d5db',
+                border: isDragging ? '2px dashed #2B4628' : '2px dashed #d1d5db',
                 borderRadius: '0.5rem',
                 cursor: 'pointer',
-                background: '#f9fafb',
+                background: isDragging ? '#e6f4ea' : '#f9fafb',
                 transition: 'all 0.2s',
               }}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#2B4628';
-                e.currentTarget.style.background = '#f0f8fa';
+                if (!isDragging) {
+                  e.currentTarget.style.borderColor = '#2B4628';
+                  e.currentTarget.style.background = '#f0f8fa';
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#d1d5db';
-                e.currentTarget.style.background = '#f9fafb';
+                if (!isDragging) {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.background = '#f9fafb';
+                }
               }}
             >
-              <Upload size={40} color="#6b7280" />
-              <div style={{ marginTop: '1rem', fontSize: '1rem', fontWeight: '600', color: '#374151' }}>
-                Click to upload files
+              <Upload size={40} color={isDragging ? '#2B4628' : '#6b7280'} />
+              <div style={{ marginTop: '1rem', fontSize: '1rem', fontWeight: '600', color: isDragging ? '#2B4628' : '#374151' }}>
+                {isDragging ? 'Drop files here' : 'Click to upload or drag & drop'}
               </div>
               <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
                 Receipts, invoices, or supporting documents
