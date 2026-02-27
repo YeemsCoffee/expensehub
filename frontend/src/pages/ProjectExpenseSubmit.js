@@ -72,6 +72,9 @@ const ProjectExpenseSubmit = () => {
         api.get(`/projects/${projectId}/wbs`)
       ]);
 
+      console.log('Project data loaded:', projResponse.data);
+      console.log('Project cost_center_id:', projResponse.data.cost_center_id);
+
       setProject(projResponse.data);
       setWbsElements(Array.isArray(wbsResponse.data) ? wbsResponse.data : []);
 
@@ -245,15 +248,12 @@ const ProjectExpenseSubmit = () => {
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // TODO: Add file upload support to backend
-      // For now, submit without files - files are collected but not sent
-      const response = await api.post('/expenses', {
+      // Build request payload - only include optional fields if they have values
+      const payload = {
         date: newExpense.date,
         description: newExpense.description,
         category: category,
         amount: parseFloat(newExpense.amount),
-        subtotal: newExpense.subtotal ? parseFloat(newExpense.subtotal) : null,
-        tax: newExpense.tax ? parseFloat(newExpense.tax) : null,
         // Project expenses use project's cost center
         costCenterId: project.cost_center_id,
         projectId: project.id,
@@ -262,7 +262,19 @@ const ProjectExpenseSubmit = () => {
         vendorName: newExpense.vendorName,
         notes: newExpense.notes,
         isReimbursable: newExpense.isReimbursable
-      });
+      };
+
+      // Only add subtotal and tax if they have values (don't send null)
+      if (newExpense.subtotal) {
+        payload.subtotal = parseFloat(newExpense.subtotal);
+      }
+      if (newExpense.tax) {
+        payload.tax = parseFloat(newExpense.tax);
+      }
+
+      // TODO: Add file upload support to backend
+      // For now, submit without files - files are collected but not sent
+      const response = await api.post('/expenses', payload);
 
       addToRecentExpenses(newExpense);
 
@@ -291,7 +303,18 @@ const ProjectExpenseSubmit = () => {
 
     } catch (err) {
       console.error('Submission error:', err);
-      toast.error(err.response?.data?.error || 'Failed to submit expense. Please try again.');
+      console.error('Error response:', err.response?.data);
+      console.error('Project cost_center_id:', project.cost_center_id);
+
+      // Show validation errors if available
+      let errorMessage = 'Failed to submit expense. Please try again.';
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        errorMessage = err.response.data.errors.map(e => e.msg || e.message).join(', ');
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+
+      toast.error(errorMessage);
       setReimbursableConfirmed(false);
     } finally {
       setIsSubmitting(false);
