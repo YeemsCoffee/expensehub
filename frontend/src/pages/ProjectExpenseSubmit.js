@@ -145,24 +145,6 @@ const ProjectExpenseSubmit = () => {
     return 'OPEX';
   };
 
-  const handleReceiptProcessed = (extractedData, receiptId) => {
-    setNewExpense(prev => ({
-      ...prev,
-      vendorName: extractedData.vendor || prev.vendorName,
-      date: extractedData.date || prev.date,
-      amount: extractedData.amount?.toString() || prev.amount,
-      subtotal: extractedData.subtotal?.toString() || prev.subtotal,
-      tax: extractedData.tax?.toString() || prev.tax,
-      tip: extractedData.tip?.toString() || prev.tip,
-      description: extractedData.description || prev.description,
-      notes: extractedData.notes || prev.notes
-    }));
-
-    setReceiptId(receiptId);
-    setShowReceiptUpload(false);
-    toast.success('Receipt data extracted! Review and submit.');
-  };
-
   const handleReimbursableConfirm = () => {
     setShowReimbursableConfirm(false);
     setReimbursableConfirmed(true);
