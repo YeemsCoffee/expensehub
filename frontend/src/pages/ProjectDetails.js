@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Calendar, DollarSign, User, Clock, CheckCircle,
-  XCircle, Trash2, FileText, TrendingUp, TrendingDown, Plus
+  XCircle, Trash2, FileText, TrendingUp, TrendingDown, Plus,
+  Eye, Download, X, Filter
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
+import StatusBadge from '../components/StatusBadge';
 
 const ProjectDetails = () => {
   // Parse project ID from hash (format: #project-details/123)
@@ -21,6 +23,13 @@ const ProjectDetails = () => {
   const [wbsElements, setWbsElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
+
+  // Expense modal state
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [selectedWbs, setSelectedWbs] = useState(null);
+  const [wbsExpenses, setWbsExpenses] = useState([]);
+  const [expensesSummary, setExpensesSummary] = useState(null);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
 
   // Listen for hash changes to update project ID
   useEffect(() => {
@@ -82,6 +91,50 @@ const ProjectDetails = () => {
       setWbsElements(response.data);
     } catch (err) {
       console.error('Error fetching WBS elements:', err);
+    }
+  };
+
+  const fetchWbsExpenses = async (wbsId) => {
+    setLoadingExpenses(true);
+    try {
+      const response = await api.get(`/projects/${id}/wbs/${wbsId}/expenses`);
+      setWbsExpenses(response.data.expenses);
+      setExpensesSummary(response.data.summary);
+      setSelectedWbs(response.data.wbsElement);
+      setShowExpenseModal(true);
+    } catch (err) {
+      console.error('Error fetching WBS expenses:', err);
+      toast.error('Failed to load expenses');
+    } finally {
+      setLoadingExpenses(false);
+    }
+  };
+
+  const downloadReport = async (format = 'csv') => {
+    try {
+      const response = await api.get(`/projects/${id}/report`, {
+        params: { format },
+        responseType: format === 'csv' ? 'blob' : 'json'
+      });
+
+      if (format === 'csv') {
+        // Create download link for CSV
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `project-${project.code}-report-${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        toast.success('Report downloaded successfully');
+      } else {
+        // Handle JSON format - could open in new tab or display
+        console.log('Report data:', response.data);
+        toast.success('Report generated successfully');
+      }
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      toast.error('Failed to download report');
     }
   };
 
@@ -231,6 +284,23 @@ const ProjectDetails = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {isManager && (
+              <button
+                onClick={() => downloadReport('csv')}
+                className="btn-secondary"
+                style={{
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  padding: '0.65rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <Download size={18} />
+                Export Report
+              </button>
+            )}
             {project.status === 'approved' && (
               <button
                 onClick={() => window.location.hash = `#project-expense-submit?projectId=${id}`}
@@ -380,7 +450,7 @@ const ProjectDetails = () => {
                   background: 'white'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>{wbs.category}</h4>
                       <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
                         Code: <strong>{wbs.code}</strong>
@@ -391,13 +461,35 @@ const ProjectDetails = () => {
                         </p>
                       )}
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
-                        {formatCurrency(totalSpent)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
+                          {formatCurrency(totalSpent)}
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                          of {formatCurrency(budgetEstimate)}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                        of {formatCurrency(budgetEstimate)}
-                      </div>
+                      {isManager && wbs.expense_count > 0 && (
+                        <button
+                          onClick={() => fetchWbsExpenses(wbs.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            border: '1px solid #2B4628',
+                            borderRadius: '0.5rem',
+                            background: 'white',
+                            color: '#2B4628',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          <Eye size={16} />
+                          View Expenses
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -519,6 +611,174 @@ const ProjectDetails = () => {
           )}
         </div>
       </div>
+
+      {/* Expense Modal */}
+      {showExpenseModal && selectedWbs && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '2rem'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '1200px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>
+                  Expenses for {selectedWbs.category}
+                </h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
+                  WBS Code: <strong>{selectedWbs.code}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowExpenseModal(false)}
+                style={{
+                  padding: '0.5rem',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  borderRadius: '0.25rem'
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Summary Stats */}
+            {expensesSummary && (
+              <div style={{
+                padding: '1rem 1.5rem',
+                background: '#f9fafb',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', fontSize: '0.875rem' }}>
+                  <div>
+                    <span style={{ color: '#6b7280' }}>Total: </span>
+                    <strong>{formatCurrency(expensesSummary.total_amount)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#f59e0b' }}>Pending: </span>
+                    <strong>{formatCurrency(expensesSummary.pending_amount)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#2B4628' }}>Approved: </span>
+                    <strong>{formatCurrency(expensesSummary.approved_amount)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#6b7280' }}>Count: </span>
+                    <strong>{expensesSummary.total_count} expense{expensesSummary.total_count !== '1' ? 's' : ''}</strong>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                  <div>
+                    <span style={{ color: '#6b7280' }}>OPEX: </span>
+                    <strong>{formatCurrency(expensesSummary.opex_amount)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#6b7280' }}>CAPEX: </span>
+                    <strong>{formatCurrency(expensesSummary.capex_amount)}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Expenses Table */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem' }}>
+              {loadingExpenses ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <div className="loading-spinner"></div>
+                  Loading expenses...
+                </div>
+              ) : wbsExpenses.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                  No expenses found for this WBS element
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Submitted By</th>
+                      <th>Category</th>
+                      <th>Amount</th>
+                      <th>Cost Type</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wbsExpenses.map((expense) => (
+                      <tr key={expense.id}>
+                        <td>{formatDate(expense.date)}</td>
+                        <td>
+                          <div style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {expense.description}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            <div style={{ fontWeight: '500' }}>{expense.submitted_by_name}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{expense.submitted_by_email}</div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '0.25rem',
+                            background: '#f3f4f6',
+                            fontSize: '0.75rem'
+                          }}>
+                            {expense.category}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: '600' }}>{formatCurrency(expense.amount)}</td>
+                        <td>
+                          <span style={{
+                            padding: '0.25rem 0.5rem',
+                            borderRadius: '0.25rem',
+                            background: expense.cost_type === 'CAPEX' ? '#dbeafe' : '#fef3c7',
+                            color: expense.cost_type === 'CAPEX' ? '#1e40af' : '#92400e',
+                            fontSize: '0.75rem',
+                            fontWeight: '500'
+                          }}>
+                            {expense.cost_type || 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <StatusBadge status={expense.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

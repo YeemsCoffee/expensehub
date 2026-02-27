@@ -567,4 +567,266 @@ router.delete('/:id/wbs/:wbsId', authMiddleware, async (req, res) => {
   }
 });
 
+// Get expenses for a specific WBS element
+router.get('/:id/wbs/:wbsId/expenses', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const wbsId = parseInt(req.params.wbsId);
+    const { status, startDate, endDate, minAmount, maxAmount } = req.query;
+
+    // Verify project exists and user has access
+    const projectResult = await pool.query(
+      'SELECT * FROM projects WHERE id = $1',
+      [projectId]
+    );
+
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Verify WBS element belongs to this project
+    const wbsResult = await pool.query(
+      'SELECT * FROM project_wbs_elements WHERE id = $1 AND project_id = $2',
+      [wbsId, projectId]
+    );
+
+    if (wbsResult.rows.length === 0) {
+      return res.status(404).json({ error: 'WBS element not found for this project' });
+    }
+
+    // Build expenses query with filters
+    let query = `
+      SELECT e.*,
+        u.first_name || ' ' || u.last_name as submitted_by_name,
+        u.email as submitted_by_email,
+        cc.code as cost_center_code,
+        cc.name as cost_center_name,
+        l.code as location_code,
+        l.name as location_name,
+        p.code as project_code,
+        p.name as project_name,
+        wbs.code as wbs_code,
+        wbs.category as wbs_category,
+        approver.first_name || ' ' || approver.last_name as approved_by_name
+      FROM expenses e
+      LEFT JOIN users u ON e.user_id = u.id
+      LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
+      LEFT JOIN locations l ON e.location_id = l.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      LEFT JOIN project_wbs_elements wbs ON e.wbs_element_id = wbs.id
+      LEFT JOIN users approver ON e.approved_by = approver.id
+      WHERE e.wbs_element_id = $1
+    `;
+
+    const queryParams = [wbsId];
+    let paramCount = 1;
+
+    // Add filters
+    if (status) {
+      paramCount++;
+      query += ` AND e.status = $${paramCount}`;
+      queryParams.push(status);
+    }
+
+    if (startDate) {
+      paramCount++;
+      query += ` AND e.date >= $${paramCount}`;
+      queryParams.push(startDate);
+    }
+
+    if (endDate) {
+      paramCount++;
+      query += ` AND e.date <= $${paramCount}`;
+      queryParams.push(endDate);
+    }
+
+    if (minAmount) {
+      paramCount++;
+      query += ` AND e.amount >= $${paramCount}`;
+      queryParams.push(parseFloat(minAmount));
+    }
+
+    if (maxAmount) {
+      paramCount++;
+      query += ` AND e.amount <= $${paramCount}`;
+      queryParams.push(parseFloat(maxAmount));
+    }
+
+    query += ' ORDER BY e.date DESC, e.created_at DESC';
+
+    const expensesResult = await pool.query(query, queryParams);
+
+    // Calculate summary statistics
+    const summaryQuery = `
+      SELECT
+        COUNT(*) as total_count,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_amount,
+        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as approved_amount,
+        COALESCE(SUM(CASE WHEN status = 'rejected' THEN amount ELSE 0 END), 0) as rejected_amount,
+        COALESCE(SUM(CASE WHEN cost_type = 'OPEX' THEN amount ELSE 0 END), 0) as opex_amount,
+        COALESCE(SUM(CASE WHEN cost_type = 'CAPEX' THEN amount ELSE 0 END), 0) as capex_amount
+      FROM expenses
+      WHERE wbs_element_id = $1
+    `;
+
+    const summaryResult = await pool.query(summaryQuery, [wbsId]);
+
+    res.json({
+      wbsElement: wbsResult.rows[0],
+      expenses: expensesResult.rows,
+      summary: summaryResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Get WBS expenses error:', error);
+    res.status(500).json({ error: 'Server error fetching WBS expenses' });
+  }
+});
+
+// Get project spend report
+router.get('/:id/report', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const { format = 'json' } = req.query; // Support 'json' or 'csv'
+
+    // Get project details
+    const projectResult = await pool.query(
+      'SELECT * FROM projects WHERE id = $1',
+      [projectId]
+    );
+
+    if (projectResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const project = projectResult.rows[0];
+
+    // Get overall project expense summary
+    const overallSummaryQuery = `
+      SELECT
+        COUNT(*) as total_expenses,
+        COALESCE(SUM(amount), 0) as total_spent,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_amount,
+        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as approved_amount,
+        COALESCE(SUM(CASE WHEN status = 'rejected' THEN amount ELSE 0 END), 0) as rejected_amount,
+        COALESCE(SUM(CASE WHEN cost_type = 'OPEX' THEN amount ELSE 0 END), 0) as opex_amount,
+        COALESCE(SUM(CASE WHEN cost_type = 'CAPEX' THEN amount ELSE 0 END), 0) as capex_amount,
+        COALESCE(SUM(CASE WHEN is_reimbursable = true THEN amount ELSE 0 END), 0) as reimbursable_amount,
+        COUNT(DISTINCT user_id) as unique_submitters
+      FROM expenses
+      WHERE project_id = $1
+    `;
+
+    const overallSummary = await pool.query(overallSummaryQuery, [projectId]);
+
+    // Get WBS element breakdown
+    const wbsBreakdownQuery = `
+      SELECT
+        wbs.id,
+        wbs.code,
+        wbs.category,
+        wbs.description,
+        wbs.budget_estimate,
+        COUNT(e.id) as expense_count,
+        COALESCE(SUM(CASE WHEN e.status != 'rejected' THEN e.amount ELSE 0 END), 0) as total_spent,
+        COALESCE(SUM(CASE WHEN e.status = 'pending' THEN e.amount ELSE 0 END), 0) as pending_amount,
+        COALESCE(SUM(CASE WHEN e.status = 'approved' THEN e.amount ELSE 0 END), 0) as approved_amount,
+        COALESCE(SUM(CASE WHEN e.cost_type = 'OPEX' AND e.status != 'rejected' THEN e.amount ELSE 0 END), 0) as opex_amount,
+        COALESCE(SUM(CASE WHEN e.cost_type = 'CAPEX' AND e.status != 'rejected' THEN e.amount ELSE 0 END), 0) as capex_amount,
+        wbs.budget_estimate - COALESCE(SUM(CASE WHEN e.status != 'rejected' THEN e.amount ELSE 0 END), 0) as remaining_budget,
+        CASE
+          WHEN wbs.budget_estimate > 0 THEN
+            (COALESCE(SUM(CASE WHEN e.status != 'rejected' THEN e.amount ELSE 0 END), 0) / wbs.budget_estimate * 100)
+          ELSE 0
+        END as budget_utilization_percentage
+      FROM project_wbs_elements wbs
+      LEFT JOIN expenses e ON e.wbs_element_id = wbs.id
+      WHERE wbs.project_id = $1 AND wbs.is_active = true
+      GROUP BY wbs.id, wbs.code, wbs.category, wbs.description, wbs.budget_estimate
+      ORDER BY wbs.code
+    `;
+
+    const wbsBreakdown = await pool.query(wbsBreakdownQuery, [projectId]);
+
+    // Get category breakdown
+    const categoryBreakdownQuery = `
+      SELECT
+        category,
+        COUNT(*) as expense_count,
+        COALESCE(SUM(CASE WHEN status != 'rejected' THEN amount ELSE 0 END), 0) as total_amount,
+        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as approved_amount
+      FROM expenses
+      WHERE project_id = $1
+      GROUP BY category
+      ORDER BY total_amount DESC
+    `;
+
+    const categoryBreakdown = await pool.query(categoryBreakdownQuery, [projectId]);
+
+    // Get top submitters
+    const topSubmittersQuery = `
+      SELECT
+        u.first_name || ' ' || u.last_name as submitter_name,
+        u.email as submitter_email,
+        COUNT(e.id) as expense_count,
+        COALESCE(SUM(CASE WHEN e.status != 'rejected' THEN e.amount ELSE 0 END), 0) as total_amount
+      FROM expenses e
+      JOIN users u ON e.user_id = u.id
+      WHERE e.project_id = $1
+      GROUP BY u.id, u.first_name, u.last_name, u.email
+      ORDER BY total_amount DESC
+      LIMIT 10
+    `;
+
+    const topSubmitters = await pool.query(topSubmittersQuery, [projectId]);
+
+    // Calculate total WBS budget
+    const totalWbsBudget = wbsBreakdown.rows.reduce((sum, wbs) => sum + parseFloat(wbs.budget_estimate || 0), 0);
+
+    const reportData = {
+      project: {
+        id: project.id,
+        code: project.code,
+        name: project.name,
+        description: project.description,
+        start_date: project.start_date,
+        end_date: project.end_date,
+        status: project.status,
+        total_wbs_budget: totalWbsBudget
+      },
+      summary: {
+        ...overallSummary.rows[0],
+        budget_remaining: totalWbsBudget - parseFloat(overallSummary.rows[0].total_spent || 0),
+        budget_utilization_percentage: totalWbsBudget > 0
+          ? (parseFloat(overallSummary.rows[0].total_spent || 0) / totalWbsBudget * 100)
+          : 0
+      },
+      wbsBreakdown: wbsBreakdown.rows,
+      categoryBreakdown: categoryBreakdown.rows,
+      topSubmitters: topSubmitters.rows,
+      generatedAt: new Date().toISOString()
+    };
+
+    // Return as JSON or CSV
+    if (format === 'csv') {
+      // Generate CSV for WBS breakdown
+      const csvHeader = 'WBS Code,Category,Description,Budget Estimate,Total Spent,Pending,Approved,OPEX,CAPEX,Remaining Budget,Utilization %\n';
+      const csvRows = wbsBreakdown.rows.map(wbs =>
+        `"${wbs.code}","${wbs.category}","${wbs.description || ''}",${wbs.budget_estimate},${wbs.total_spent},${wbs.pending_amount},${wbs.approved_amount},${wbs.opex_amount},${wbs.capex_amount},${wbs.remaining_budget},${parseFloat(wbs.budget_utilization_percentage).toFixed(2)}`
+      ).join('\n');
+
+      const csv = csvHeader + csvRows;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="project-${project.code}-report-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csv);
+    } else {
+      res.json(reportData);
+    }
+  } catch (error) {
+    console.error('Get project report error:', error);
+    res.status(500).json({ error: 'Server error generating project report' });
+  }
+});
+
 module.exports = router;
