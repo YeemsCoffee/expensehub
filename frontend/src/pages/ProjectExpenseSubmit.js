@@ -248,15 +248,12 @@ const ProjectExpenseSubmit = () => {
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // TODO: Add file upload support to backend
-      // For now, submit without files - files are collected but not sent
-      const response = await api.post('/expenses', {
+      // Build request payload - only include optional fields if they have values
+      const payload = {
         date: newExpense.date,
         description: newExpense.description,
         category: category,
         amount: parseFloat(newExpense.amount),
-        subtotal: newExpense.subtotal ? parseFloat(newExpense.subtotal) : null,
-        tax: newExpense.tax ? parseFloat(newExpense.tax) : null,
         // Project expenses use project's cost center
         costCenterId: project.cost_center_id,
         projectId: project.id,
@@ -265,7 +262,19 @@ const ProjectExpenseSubmit = () => {
         vendorName: newExpense.vendorName,
         notes: newExpense.notes,
         isReimbursable: newExpense.isReimbursable
-      });
+      };
+
+      // Only add subtotal and tax if they have values (don't send null)
+      if (newExpense.subtotal) {
+        payload.subtotal = parseFloat(newExpense.subtotal);
+      }
+      if (newExpense.tax) {
+        payload.tax = parseFloat(newExpense.tax);
+      }
+
+      // TODO: Add file upload support to backend
+      // For now, submit without files - files are collected but not sent
+      const response = await api.post('/expenses', payload);
 
       addToRecentExpenses(newExpense);
 
