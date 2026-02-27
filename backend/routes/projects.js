@@ -338,13 +338,15 @@ router.get('/:id/wbs', authMiddleware, async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      `SELECT wbs.*,
+      `SELECT wbs.id, wbs.project_id, wbs.code, wbs.category, wbs.description,
+              wbs.budget_estimate, wbs.is_active, wbs.created_at, wbs.updated_at,
               COALESCE(SUM(e.amount), 0) as total_spent,
-              COUNT(e.id) as expense_count
+              COUNT(e.id) FILTER (WHERE e.id IS NOT NULL) as expense_count
        FROM project_wbs_elements wbs
        LEFT JOIN expenses e ON e.wbs_element_id = wbs.id AND e.status != 'rejected'
        WHERE wbs.project_id = $1 AND wbs.is_active = true
-       GROUP BY wbs.id
+       GROUP BY wbs.id, wbs.project_id, wbs.code, wbs.category, wbs.description,
+                wbs.budget_estimate, wbs.is_active, wbs.created_at, wbs.updated_at
        ORDER BY wbs.code`,
       [id]
     );
