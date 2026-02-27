@@ -424,11 +424,30 @@ router.post('/:id/wbs', authMiddleware, [
   } catch (error) {
     console.error('Create WBS elements error:', error);
     console.error('Error details:', error.message);
+    console.error('Error code:', error.code);
     console.error('Error stack:', error.stack);
+
     if (error.code === '23505') { // Unique constraint violation
       return res.status(400).json({ error: 'WBS element code already exists' });
     }
-    res.status(500).json({ error: 'Server error creating WBS elements' });
+
+    if (error.code === '42P01') { // Table does not exist
+      return res.status(500).json({
+        error: 'WBS elements table not found. Please run database migrations.',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+
+    // Return detailed error in development mode
+    const errorResponse = {
+      error: 'Server error creating WBS elements',
+      ...(process.env.NODE_ENV === 'development' && {
+        details: error.message,
+        code: error.code
+      })
+    };
+
+    res.status(500).json(errorResponse);
   }
 });
 
