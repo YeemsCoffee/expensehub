@@ -233,7 +233,7 @@ const ProjectDetails = () => {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {project.status === 'approved' && (
               <button
-                onClick={() => window.location.hash = `#expenses-submit?projectId=${id}`}
+                onClick={() => window.location.hash = `#project-expense-submit?projectId=${id}`}
                 className="btn-primary"
                 style={{
                   fontSize: '0.95rem',

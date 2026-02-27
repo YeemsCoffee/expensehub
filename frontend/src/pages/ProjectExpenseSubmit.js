@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, CheckCircle, Camera, AlertTriangle, DollarSign, FileText, MapPin } from 'lucide-react';
+import { AlertCircle, CheckCircle, Camera, AlertTriangle, DollarSign, FileText, MapPin, ArrowLeft, FolderOpen } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
 import ReceiptUpload from '../components/ReceiptUpload';
 import '../styles/expense-submit.css';
 
-const ExpenseSubmit = () => {
+const ProjectExpenseSubmit = () => {
   const toast = useToast();
+  const [project, setProject] = useState(null);
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [wbsElements, setWbsElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,19 +21,23 @@ const ExpenseSubmit = () => {
 
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
-  const [suggestedCategory, setSuggestedCategory] = useState('');
+
+  // Get project ID from URL hash
+  const getProjectId = () => {
+    const hash = window.location.hash;
+    const match = hash.match(/projectId=(\d+)/);
+    return match ? match[1] : null;
+  };
 
   const [newExpense, setNewExpense] = useState({
-    date: new Date().toISOString().split('T')[0], // Default to today
+    date: new Date().toISOString().split('T')[0],
     description: '',
-    category: '',
     amount: '',
     subtotal: '',
     tax: '',
     tip: '',
     costCenterId: '',
     locationId: '',
-    projectId: '',
     wbsElementId: '',
     vendorName: '',
     glAccount: '',
@@ -47,7 +51,7 @@ const ExpenseSubmit = () => {
       try {
         const savedDefaults = localStorage.getItem('expenseDefaults');
         const recentExpenses = localStorage.getItem('recentExpenses');
-        
+
         if (savedDefaults) {
           const defaults = JSON.parse(savedDefaults);
           setNewExpense(prev => ({
@@ -60,7 +64,6 @@ const ExpenseSubmit = () => {
 
         if (recentExpenses) {
           const expenses = JSON.parse(recentExpenses);
-          // Extract unique vendors
           const vendors = [...new Set(expenses.map(e => e.vendorName).filter(Boolean))];
           setRecentVendors(vendors.slice(0, 5));
         }
@@ -71,6 +74,46 @@ const ExpenseSubmit = () => {
 
     loadSmartDefaults();
   }, []);
+
+  // Fetch initial data
+  const fetchData = useCallback(async () => {
+    const projectId = getProjectId();
+
+    if (!projectId) {
+      toast.error('No project specified. Please select a project first.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const [projResponse, ccResponse, locResponse, wbsResponse] = await Promise.all([
+        api.get(`/projects/${projectId}`),
+        api.get('/cost-centers'),
+        api.get('/locations'),
+        api.get(`/projects/${projectId}/wbs`)
+      ]);
+
+      setProject(projResponse.data);
+      setCostCenters(Array.isArray(ccResponse.data) ? ccResponse.data : []);
+      setLocations(Array.isArray(locResponse.data) ? locResponse.data : []);
+      setWbsElements(Array.isArray(wbsResponse.data) ? wbsResponse.data : []);
+
+      // Verify project is approved
+      if (projResponse.data.status !== 'approved') {
+        toast.error('This project is not approved yet. Expenses can only be submitted for approved projects.');
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      toast.error('Failed to load project data. Please try again.');
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Save defaults when form changes
   const saveSmartDefaults = useCallback((field, value) => {
@@ -91,102 +134,22 @@ const ExpenseSubmit = () => {
     try {
       const recentExpenses = localStorage.getItem('recentExpenses');
       const expenses = recentExpenses ? JSON.parse(recentExpenses) : [];
-      
-      // Add new expense and keep last 10
+
       expenses.unshift({
         vendorName: expense.vendorName,
-        category: expense.category,
         costCenterId: expense.costCenterId,
         locationId: expense.locationId
       });
-      
+
       localStorage.setItem('recentExpenses', JSON.stringify(expenses.slice(0, 10)));
     } catch (err) {
       console.error('Error saving recent expenses:', err);
     }
   }, []);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [ccResponse, locResponse, projResponse] = await Promise.all([
-        api.get('/cost-centers'),
-        api.get('/locations'),
-        api.get('/projects/approved')  // Use the correct endpoint
-      ]);
-
-      // Defensive checks for array responses
-      setCostCenters(Array.isArray(ccResponse.data) ? ccResponse.data : []);
-      setLocations(Array.isArray(locResponse.data) ? locResponse.data : []);
-
-      // Projects are already filtered to approved status by the backend
-      const projectsData = Array.isArray(projResponse.data) ? projResponse.data : [];
-      setProjects(projectsData);
-
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      console.error('Error details:', err.response?.data || err.message);
-      toast.error('Failed to load form data. Please try again.');
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Handle pre-selected project from URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
-    const projectId = urlParams.get('projectId');
-
-    if (projectId && projects.length > 0) {
-      // Check if the project exists in the approved projects list
-      const projectExists = projects.some(p => p.id === parseInt(projectId));
-      if (projectExists) {
-        setNewExpense(prev => ({ ...prev, projectId }));
-      }
-    }
-  }, [projects]);
-
   const handleInputChange = (field, value) => {
-    const updates = { [field]: value };
-
-    // If project changes, clear WBS element and fetch new WBS elements
-    if (field === 'projectId') {
-      updates.wbsElementId = '';
-      if (value) {
-        fetchWbsElements(value);
-      } else {
-        setWbsElements([]);
-      }
-    }
-
-    setNewExpense({ ...newExpense, ...updates });
+    setNewExpense({ ...newExpense, [field]: value });
     saveSmartDefaults(field, value);
-
-    // Smart category suggestion based on vendor
-    if (field === 'vendorName' && value && recentVendors.length > 0) {
-      // This could be enhanced with a more sophisticated matching algorithm
-      const matchingVendor = recentVendors.find(v =>
-        v.toLowerCase().includes(value.toLowerCase())
-      );
-      if (matchingVendor) {
-        // In a real app, you'd look up the category for this vendor
-        // For now, just show a hint
-        setSuggestedCategory('Based on previous entries');
-      }
-    }
-  };
-
-  const fetchWbsElements = async (projectId) => {
-    try {
-      const response = await api.get(`/projects/${projectId}/wbs`);
-      setWbsElements(response.data.filter(wbs => wbs.is_active));
-    } catch (err) {
-      console.error('Error fetching WBS elements:', err);
-      setWbsElements([]);
-    }
   };
 
   const determineCostType = (category, amount) => {
@@ -204,7 +167,6 @@ const ExpenseSubmit = () => {
   };
 
   const handleReceiptProcessed = (extractedData, receiptId) => {
-    // Auto-fill form with extracted data
     setNewExpense(prev => ({
       ...prev,
       vendorName: extractedData.vendor || prev.vendorName,
@@ -213,7 +175,6 @@ const ExpenseSubmit = () => {
       subtotal: extractedData.subtotal?.toString() || prev.subtotal,
       tax: extractedData.tax?.toString() || prev.tax,
       tip: extractedData.tip?.toString() || prev.tip,
-      category: extractedData.category || prev.category,
       description: extractedData.description || prev.description,
       notes: extractedData.notes || prev.notes
     }));
@@ -226,8 +187,6 @@ const ExpenseSubmit = () => {
   const handleReimbursableConfirm = () => {
     setShowReimbursableConfirm(false);
     setReimbursableConfirmed(true);
-    // Trigger actual submission by calling handleSubmit again
-    // (it will bypass the modal check this time)
     setTimeout(() => handleSubmit(), 50);
   };
 
@@ -237,13 +196,10 @@ const ExpenseSubmit = () => {
   };
 
   const handleSubmit = async () => {
-    // Validation
-    // Category is optional if a WBS element is selected (since WBS has category)
-    const categoryRequired = !newExpense.wbsElementId;
+    // Validation - WBS element is REQUIRED for project expenses
     if (!newExpense.date || !newExpense.description ||
-        (categoryRequired && !newExpense.category) ||
-        !newExpense.amount || !newExpense.costCenterId) {
-      toast.error('Please fill in all required fields');
+        !newExpense.amount || !newExpense.costCenterId || !newExpense.wbsElementId) {
+      toast.error('Please fill in all required fields including WBS element');
       return;
     }
 
@@ -253,37 +209,32 @@ const ExpenseSubmit = () => {
       return;
     }
 
-    // Optimistic UI - show success immediately
     setIsSubmitting(true);
-
-    // Show immediate success feedback
     toast.success('Expense submitted! Syncing...', { duration: 2000 });
 
     try {
-      // Use WBS category if WBS element is selected, otherwise use manual category
-      let finalCategory = newExpense.category;
-      if (newExpense.wbsElementId && wbsElements.length > 0) {
-        const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
-        if (selectedWbs) {
-          finalCategory = selectedWbs.category;
-        }
+      // Get category from selected WBS element
+      const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
+      if (!selectedWbs) {
+        toast.error('Selected WBS element not found');
+        setIsSubmitting(false);
+        return;
       }
 
-      // Auto-calculate cost type
-      const costType = determineCostType(finalCategory, parseFloat(newExpense.amount));
+      const category = selectedWbs.category;
+      const costType = determineCostType(category, parseFloat(newExpense.amount));
 
-      // Simulate network delay for demo
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const response = await api.post('/expenses', {
         date: newExpense.date,
         description: newExpense.description,
-        category: finalCategory,
+        category: category,
         amount: parseFloat(newExpense.amount),
         costCenterId: parseInt(newExpense.costCenterId),
         locationId: newExpense.locationId ? parseInt(newExpense.locationId) : null,
-        projectId: newExpense.projectId ? parseInt(newExpense.projectId) : null,
-        wbsElementId: newExpense.wbsElementId ? parseInt(newExpense.wbsElementId) : null,
+        projectId: project.id,
+        wbsElementId: parseInt(newExpense.wbsElementId),
         costType: costType,
         vendorName: newExpense.vendorName,
         glAccount: newExpense.glAccount,
@@ -291,45 +242,39 @@ const ExpenseSubmit = () => {
         isReimbursable: newExpense.isReimbursable
       });
 
-      // Save to recent expenses
       addToRecentExpenses(newExpense);
 
-      // Check if expense was auto-approved (no manager)
       const expense = response.data.expense;
       if (expense.status === 'approved') {
         toast.success('Expense automatically approved! ✓');
       } else {
-        toast.success('Expense report submitted successfully! ✓');
+        toast.success('Project expense submitted successfully! ✓');
       }
 
       // Reset form but keep smart defaults
       setNewExpense({
         date: new Date().toISOString().split('T')[0],
         description: '',
-        category: '',
         amount: '',
         subtotal: '',
         tax: '',
         tip: '',
-        costCenterId: newExpense.costCenterId, // Keep last used
-        locationId: newExpense.locationId, // Keep last used
-        projectId: '', // Reset project
-        wbsElementId: '', // Reset WBS element
+        costCenterId: newExpense.costCenterId,
+        locationId: newExpense.locationId,
+        wbsElementId: '',
         vendorName: '',
         glAccount: '',
         notes: '',
-        isReimbursable: newExpense.isReimbursable // Keep last used
+        isReimbursable: newExpense.isReimbursable
       });
 
-      setWbsElements([]); // Clear WBS elements
-
       setReceiptId(null);
-      setReimbursableConfirmed(false); // Reset confirmation flag
+      setReimbursableConfirmed(false);
 
     } catch (err) {
       console.error('Submission error:', err);
       toast.error(err.response?.data?.error || 'Failed to submit expense. Please try again.');
-      setReimbursableConfirmed(false); // Reset on error too
+      setReimbursableConfirmed(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -344,11 +289,86 @@ const ExpenseSubmit = () => {
     );
   }
 
+  if (!project) {
+    return (
+      <div className="expense-submit-container">
+        <div className="empty-state">
+          <h3>Project not found</h3>
+          <p>Please select a project to submit expenses.</p>
+          <button onClick={() => window.location.hash = '#projects'} className="btn-primary">
+            Go to Projects
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (project.status !== 'approved') {
+    return (
+      <div className="expense-submit-container">
+        <div className="empty-state">
+          <AlertTriangle size={48} color="#f59e0b" />
+          <h3>Project Not Approved</h3>
+          <p>Expenses can only be submitted for approved projects.</p>
+          <p>Project Status: <strong>{project.status}</strong></p>
+          <button onClick={() => window.location.hash = `#project-details/${project.id}`} className="btn-primary">
+            View Project Details
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Get selected WBS element for category display
+  const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
+
   return (
     <div className="expense-submit-container">
-      <div className="expense-submit-header">
-        <h2 className="expense-submit-title">Submit New Expense</h2>
-        <p className="expense-submit-subtitle">Create an expense report for approval</p>
+      {/* Header with Project Info */}
+      <div className="expense-submit-header" style={{ marginBottom: '1.5rem' }}>
+        <button
+          onClick={() => window.location.hash = `#project-details/${project.id}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            border: '1px solid #e5e7eb',
+            borderRadius: '0.5rem',
+            background: 'white',
+            cursor: 'pointer',
+            marginBottom: '1rem'
+          }}
+        >
+          <ArrowLeft size={16} />
+          Back to Project
+        </button>
+
+        <h2 className="expense-submit-title">Submit Project Expense</h2>
+
+        {/* Project Context Card */}
+        <div style={{
+          padding: '1rem',
+          background: '#f0f8fa',
+          border: '1px solid #a0c5ce',
+          borderRadius: '0.5rem',
+          marginTop: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <FolderOpen size={20} color="#5a7353" />
+            <div>
+              <div style={{ fontWeight: '600', fontSize: '1rem' }}>{project.name}</div>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                Project Code: <strong>{project.code}</strong>
+              </div>
+            </div>
+          </div>
+          {project.description && (
+            <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem', marginBottom: 0 }}>
+              {project.description}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Smart suggestions banner */}
@@ -360,6 +380,59 @@ const ExpenseSubmit = () => {
       )}
 
       <div className="expense-form-card">
+        {/* WBS Element Selection - PRIMARY FIELD */}
+        <div className="form-section-header">
+          <FolderOpen size={20} className="form-section-icon" />
+          Budget Category (WBS Element)
+        </div>
+
+        <div className="expense-form-grid-full" style={{ marginBottom: '1.5rem' }}>
+          <div className="expense-form-group">
+            <label className="expense-form-label">
+              WBS Element / Budget Category <span className="required-indicator">*</span>
+            </label>
+            <select
+              value={newExpense.wbsElementId}
+              onChange={(e) => handleInputChange('wbsElementId', e.target.value)}
+              className="expense-form-select"
+              required
+            >
+              <option value="">Select WBS element</option>
+              {wbsElements.map((wbs) => (
+                <option key={wbs.id} value={wbs.id}>
+                  {wbs.code} - {wbs.category} (Budget: ${parseFloat(wbs.budget_estimate).toFixed(2)})
+                </option>
+              ))}
+            </select>
+            {wbsElements.length === 0 && (
+              <p className="expense-form-hint" style={{ color: '#ef4444' }}>
+                ⚠️ No WBS elements defined for this project. Please contact your project manager.
+              </p>
+            )}
+            {selectedWbs && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                background: '#e3e9e1',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem'
+              }}>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <strong>Category:</strong> {selectedWbs.category}
+                </div>
+                <div>
+                  <strong>Budget Status:</strong> $
+                  {(parseFloat(selectedWbs.total_spent) || 0).toFixed(2)} of $
+                  {parseFloat(selectedWbs.budget_estimate).toFixed(2)} used
+                  ({selectedWbs.budget_estimate > 0
+                    ? ((parseFloat(selectedWbs.total_spent) / parseFloat(selectedWbs.budget_estimate)) * 100).toFixed(1)
+                    : 0}%)
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Amount Section */}
         <div className="form-section-header">
           <DollarSign size={20} className="form-section-icon" />
@@ -449,36 +522,6 @@ const ExpenseSubmit = () => {
             <p className="expense-form-hint">Defaults to today</p>
           </div>
 
-          <div className="expense-form-group">
-            <label className="expense-form-label">
-              Category {!newExpense.wbsElementId && <span className="required-indicator">*</span>}
-            </label>
-            <select
-              value={newExpense.category}
-              onChange={(e) => handleInputChange('category', e.target.value)}
-              className="expense-form-select"
-              required={!newExpense.wbsElementId}
-              disabled={!!newExpense.wbsElementId}
-            >
-              <option value="">
-                {newExpense.wbsElementId ? 'Category from WBS element' : 'Select a category'}
-              </option>
-              {EXPENSE_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            {newExpense.wbsElementId && wbsElements.length > 0 && (
-              <p className="expense-form-hint" style={{ color: '#10b981' }}>
-                Category will be auto-filled from selected WBS element: {
-                  wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId))?.category || ''
-                }
-              </p>
-            )}
-            {suggestedCategory && !newExpense.wbsElementId && (
-              <p className="expense-form-hint">{suggestedCategory}</p>
-            )}
-          </div>
-
           <div className="expense-form-group expense-form-grid-full">
             <label className="expense-form-label">
               Description <span className="required-indicator">*</span>
@@ -487,7 +530,7 @@ const ExpenseSubmit = () => {
               type="text"
               value={newExpense.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="e.g., Client dinner with ABC Corp"
+              placeholder="e.g., Construction materials for Phase 1"
               className="expense-form-input"
               maxLength={200}
               required
@@ -503,7 +546,7 @@ const ExpenseSubmit = () => {
               type="text"
               value={newExpense.vendorName}
               onChange={(e) => handleInputChange('vendorName', e.target.value)}
-              placeholder="e.g., Staples, Amazon Business"
+              placeholder="e.g., Acme Construction Supply"
               className="expense-form-input"
               list="recent-vendors"
             />
@@ -513,9 +556,6 @@ const ExpenseSubmit = () => {
                   <option key={idx} value={vendor} />
                 ))}
               </datalist>
-            )}
-            {recentVendors.length > 0 && (
-              <p className="expense-form-hint">Recently used vendors available</p>
             )}
           </div>
 
@@ -568,59 +608,6 @@ const ExpenseSubmit = () => {
               ))}
             </select>
           </div>
-
-          <div className="expense-form-group">
-            <label className="expense-form-label">Project</label>
-            <select
-              value={newExpense.projectId}
-              onChange={(e) => handleInputChange('projectId', e.target.value)}
-              className="expense-form-select"
-            >
-              <option value="">No project</option>
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id}>{proj.code} - {proj.name}</option>
-              ))}
-            </select>
-            {projects.length === 0 && (
-              <p className="expense-form-hint">No approved projects available</p>
-            )}
-          </div>
-
-          {newExpense.projectId && (
-            <div className="expense-form-group">
-              <label className="expense-form-label">WBS Element / Budget Category</label>
-              <select
-                value={newExpense.wbsElementId}
-                onChange={(e) => handleInputChange('wbsElementId', e.target.value)}
-                className="expense-form-select"
-              >
-                <option value="">Select WBS element</option>
-                {wbsElements.map((wbs) => (
-                  <option key={wbs.id} value={wbs.id}>
-                    {wbs.code} - {wbs.category} (Budget: ${parseFloat(wbs.budget_estimate).toFixed(2)})
-                  </option>
-                ))}
-              </select>
-              {wbsElements.length === 0 && (
-                <p className="expense-form-hint">No WBS elements defined for this project</p>
-              )}
-              {wbsElements.length > 0 && newExpense.wbsElementId && (
-                <p className="expense-form-hint">
-                  {(() => {
-                    const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
-                    if (selectedWbs) {
-                      const spent = parseFloat(selectedWbs.total_spent) || 0;
-                      const budget = parseFloat(selectedWbs.budget_estimate);
-                      const remaining = budget - spent;
-                      const percentUsed = budget > 0 ? ((spent / budget) * 100).toFixed(1) : 0;
-                      return `Spent: $${spent.toFixed(2)} / $${budget.toFixed(2)} (${percentUsed}% used, $${remaining.toFixed(2)} remaining)`;
-                    }
-                    return '';
-                  })()}
-                </p>
-              )}
-            </div>
-          )}
 
           <div className="expense-form-group expense-form-grid-full">
             <label className="expense-form-label">Additional Notes</label>
@@ -688,7 +675,7 @@ const ExpenseSubmit = () => {
         <button
           onClick={handleSubmit}
           className="expense-submit-btn"
-          disabled={isSubmitting}
+          disabled={isSubmitting || wbsElements.length === 0}
         >
           {isSubmitting ? (
             <>
@@ -696,7 +683,7 @@ const ExpenseSubmit = () => {
               Submitting...
             </>
           ) : (
-            'Submit Expense Report'
+            'Submit Project Expense'
           )}
         </button>
       </div>
@@ -754,4 +741,4 @@ const ExpenseSubmit = () => {
   );
 };
 
-export default ExpenseSubmit;
+export default ProjectExpenseSubmit;
