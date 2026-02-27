@@ -22,11 +22,30 @@ const ProjectDetails = () => {
   const [loading, setLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
 
+  // Listen for hash changes to update project ID
   useEffect(() => {
-    fetchProjectDetails();
-    fetchProjectStats();
-    fetchWbsElements();
-    checkUserRole();
+    const handleHashChange = () => {
+      const newId = getProjectId();
+      if (newId !== id) {
+        setId(newId);
+        setLoading(true);
+        setProject(null);
+        setStats(null);
+        setWbsElements([]);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchProjectDetails();
+      fetchProjectStats();
+      fetchWbsElements();
+      checkUserRole();
+    }
   }, [id]);
 
   const checkUserRole = () => {
