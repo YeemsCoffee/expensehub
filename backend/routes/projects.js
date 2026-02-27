@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin, isAdminOrDeveloper } = require('../middleware/auth');
 
 // Submit new project (all authenticated users)
 router.post('/submit', authMiddleware, [
