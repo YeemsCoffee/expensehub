@@ -127,7 +127,7 @@ const ExpenseSubmit = () => {
       toast.error('Failed to load form data');
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchData();

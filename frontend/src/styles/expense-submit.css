@@ -27,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
   color: white;
   padding: 1rem 1.25rem;
   border-radius: 12px;
@@ -203,7 +203,7 @@
 }
 
 .receipt-processed {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;

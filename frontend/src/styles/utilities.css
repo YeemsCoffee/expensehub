@@ -30,8 +30,8 @@
 }
 
 .badge-info {
-  background-color: #dbeafe;
-  color: #1e40af;
+  background-color: #f0f8fa;
+  color: #a0c5ce;
 }
 
 .badge-secondary {
@@ -169,9 +169,9 @@
 
 /* Enhanced Badge Styles */
 .badge-success {
-  background-color: #d1fae5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background-color: #e3e9e1;
+  color: #1d2f1b;
+  border: 1px solid #c7d4c3;
 }
 
 .badge-error {
@@ -181,9 +181,9 @@
 }
 
 .badge-primary {
-  background-color: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #bfdbfe;
+  background-color: #f0f8fa;
+  color: #a0c5ce;
+  border: 1px solid #BCD7DE;
 }
 
 /* Toast Notifications */
@@ -214,9 +214,9 @@
 }
 
 .toast-success {
-  background: #d1fae5;
-  border-left: 4px solid #10b981;
-  color: #065f46;
+  background: #e3e9e1;
+  border-left: 4px solid #2B4628;
+  color: #1d2f1b;
 }
 
 .toast-error {
@@ -226,9 +226,9 @@
 }
 
 .toast-info {
-  background: #dbeafe;
-  border-left: 4px solid #3b82f6;
-  color: #1e40af;
+  background: #f0f8fa;
+  border-left: 4px solid #BCD7DE;
+  color: #a0c5ce;
 }
 
 .toast-warning {

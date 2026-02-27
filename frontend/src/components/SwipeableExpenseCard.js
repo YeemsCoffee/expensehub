@@ -68,9 +68,9 @@ const SwipeableExpenseCard = ({
   };
 
   const getBackgroundColor = () => {
-    if (actionTriggered === 'approve') return '#10b981';
+    if (actionTriggered === 'approve') return '#2B4628';
     if (actionTriggered === 'reject') return '#ef4444';
-    if (currentX > 50) return 'rgba(16, 185, 129, 0.1)';
+    if (currentX > 50) return 'rgba(43, 70, 40, 0.1)';
     if (currentX < -50) return 'rgba(239, 68, 68, 0.1)';
     return 'white';
   };

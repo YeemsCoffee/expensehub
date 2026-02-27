@@ -96,9 +96,9 @@ const ExpenseTimeline = ({ expense }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
-        return '#10b981'; // Green
+        return '#2B4628'; // Company Green
       case 'current':
-        return '#3b82f6'; // Blue
+        return '#BCD7DE'; // Company Light Blue
       case 'rejected':
         return '#ef4444'; // Red
       default:
@@ -109,9 +109,9 @@ const ExpenseTimeline = ({ expense }) => {
   const getIconColor = (status) => {
     switch (status) {
       case 'completed':
-        return '#10b981';
+        return '#2B4628';
       case 'current':
-        return '#3b82f6';
+        return '#BCD7DE';
       case 'rejected':
         return '#ef4444';
       default:

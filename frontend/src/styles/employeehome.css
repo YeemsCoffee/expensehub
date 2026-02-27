@@ -10,7 +10,7 @@
 
 /* Hero Section - Reimbursement Status */
 .reimbursement-hero {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #2B4628 0%, #5a7353 100%);
   border-radius: 1.5rem;
   padding: 2rem;
   color: white;
@@ -18,7 +18,7 @@
   align-items: flex-start;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 20px 25px -5px rgba(43, 70, 40, 0.3);
 }
 
 .hero-icon {
@@ -73,7 +73,7 @@
 }
 
 .breakdown-approved {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid #2B4628;
 }
 
 .breakdown-pending {
@@ -118,7 +118,7 @@
 }
 
 .btn-icon-wrapper {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #2B4628 0%, #5a7353 100%);
   color: white;
   border-radius: 0.75rem;
   padding: 0.75rem;
@@ -191,8 +191,8 @@
 }
 
 .stat-icon-approved {
-  background: #d1fae5;
-  color: #059669;
+  background: #e3e9e1;
+  color: #2B4628;
 }
 
 .stat-content {
@@ -235,7 +235,7 @@
 .btn-link {
   background: none;
   border: none;
-  color: #6366f1;
+  color: #2B4628;
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
@@ -394,7 +394,7 @@
 }
 
 .action-tile:hover {
-  border-color: #6366f1;
+  border-color: #2B4628;
   background: #fafafa;
   transform: translateY(-2px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
