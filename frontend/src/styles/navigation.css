@@ -8,7 +8,7 @@
    ======================================== */
 
 .header {
-  background: linear-gradient(135deg, #1e3a8a 0%, #1e1b4b 100%);
+  background: linear-gradient(135deg, #2B4628 0%, #1d2f1b 100%);
   color: var(--color-text-inverse);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: relative;

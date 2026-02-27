@@ -216,8 +216,18 @@ const ProjectDetails = () => {
               <button
                 onClick={() => window.location.hash = `#expenses-submit?projectId=${id}`}
                 className="btn-primary"
+                style={{
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  padding: '0.75rem 1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 12px rgba(43, 70, 40, 0.2)',
+                  transition: 'all 0.2s ease'
+                }}
               >
-                <Plus size={16} />
+                <Plus size={20} />
                 Create Expense
               </button>
             )}
