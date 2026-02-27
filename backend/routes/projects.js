@@ -386,6 +386,18 @@ router.post('/:id/wbs', authMiddleware, [
 
     const projectCode = projectResult.rows[0].code;
 
+    // Check if WBS elements already exist for this project
+    const existingWbs = await db.query(
+      'SELECT COUNT(*) as count FROM project_wbs_elements WHERE project_id = $1 AND is_active = true',
+      [id]
+    );
+
+    if (existingWbs.rows[0].count > 0) {
+      return res.status(400).json({
+        error: 'WBS elements already exist for this project. Delete existing elements first.'
+      });
+    }
+
     // Create WBS elements
     const createdElements = [];
     for (let i = 0; i < elements.length; i++) {
@@ -411,6 +423,8 @@ router.post('/:id/wbs', authMiddleware, [
     });
   } catch (error) {
     console.error('Create WBS elements error:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     if (error.code === '23505') { // Unique constraint violation
       return res.status(400).json({ error: 'WBS element code already exists' });
     }

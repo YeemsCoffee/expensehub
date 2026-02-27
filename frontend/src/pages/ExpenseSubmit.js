@@ -238,7 +238,10 @@ const ExpenseSubmit = () => {
 
   const handleSubmit = async () => {
     // Validation
-    if (!newExpense.date || !newExpense.description || !newExpense.category ||
+    // Category is optional if a WBS element is selected (since WBS has category)
+    const categoryRequired = !newExpense.wbsElementId;
+    if (!newExpense.date || !newExpense.description ||
+        (categoryRequired && !newExpense.category) ||
         !newExpense.amount || !newExpense.costCenterId) {
       toast.error('Please fill in all required fields');
       return;
@@ -257,8 +260,17 @@ const ExpenseSubmit = () => {
     toast.success('Expense submitted! Syncing...', { duration: 2000 });
 
     try {
+      // Use WBS category if WBS element is selected, otherwise use manual category
+      let finalCategory = newExpense.category;
+      if (newExpense.wbsElementId && wbsElements.length > 0) {
+        const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
+        if (selectedWbs) {
+          finalCategory = selectedWbs.category;
+        }
+      }
+
       // Auto-calculate cost type
-      const costType = determineCostType(newExpense.category, parseFloat(newExpense.amount));
+      const costType = determineCostType(finalCategory, parseFloat(newExpense.amount));
 
       // Simulate network delay for demo
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -266,7 +278,7 @@ const ExpenseSubmit = () => {
       const response = await api.post('/expenses', {
         date: newExpense.date,
         description: newExpense.description,
-        category: newExpense.category,
+        category: finalCategory,
         amount: parseFloat(newExpense.amount),
         costCenterId: parseInt(newExpense.costCenterId),
         locationId: newExpense.locationId ? parseInt(newExpense.locationId) : null,
@@ -439,20 +451,30 @@ const ExpenseSubmit = () => {
 
           <div className="expense-form-group">
             <label className="expense-form-label">
-              Category <span className="required-indicator">*</span>
+              Category {!newExpense.wbsElementId && <span className="required-indicator">*</span>}
             </label>
             <select
               value={newExpense.category}
               onChange={(e) => handleInputChange('category', e.target.value)}
               className="expense-form-select"
-              required
+              required={!newExpense.wbsElementId}
+              disabled={!!newExpense.wbsElementId}
             >
-              <option value="">Select a category</option>
+              <option value="">
+                {newExpense.wbsElementId ? 'Category from WBS element' : 'Select a category'}
+              </option>
               {EXPENSE_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-            {suggestedCategory && (
+            {newExpense.wbsElementId && wbsElements.length > 0 && (
+              <p className="expense-form-hint" style={{ color: '#10b981' }}>
+                Category will be auto-filled from selected WBS element: {
+                  wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId))?.category || ''
+                }
+              </p>
+            )}
+            {suggestedCategory && !newExpense.wbsElementId && (
               <p className="expense-form-hint">{suggestedCategory}</p>
             )}
           </div>
