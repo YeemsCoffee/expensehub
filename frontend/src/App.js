@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import EmployeeHome from './pages/EmployeeHome';
 import Marketplace from './pages/Marketplace';
 import ExpenseSubmit from './pages/ExpenseSubmit';
+import ProjectExpenseSubmit from './pages/ProjectExpenseSubmit';
 import ExpenseHistory from './pages/ExpenseHistory';
 import Cart from './pages/Cart';
 import CostCenters from './pages/CostCenters';
@@ -114,6 +115,11 @@ const App = () => {
 
       if (hash === 'expenses-submit') {
         setActiveTab('expenses-submit');
+        return;
+      }
+
+      if (hash === 'project-expense-submit') {
+        setActiveTab('project-expense-submit');
         return;
       }
 
@@ -333,6 +339,8 @@ const App = () => {
         return <Marketplace onAddToCart={handleAddToCart} onRefreshCart={fetchCart} />;
       case 'expenses-submit':
         return <ExpenseSubmit />;
+      case 'project-expense-submit':
+        return <ProjectExpenseSubmit />;
       case 'expenses-history':
         return <ExpenseHistory />;
       case 'costcenters':
