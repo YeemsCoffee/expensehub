@@ -222,6 +222,7 @@ const Projects = () => {
         <button
           onClick={() => setShowForm(!showForm)}
           className="btn btn-primary"
+          style={{ color: '#F2ECD4' }}
         >
           <Plus size={20} />
           {showForm ? 'Cancel' : 'Submit Project'}
@@ -454,9 +455,10 @@ const Projects = () => {
             <p className="empty-state-subtext">
               Submit your first project request to get started
             </p>
-            <button 
+            <button
               onClick={() => setShowForm(true)}
               className="btn btn-primary mt-4"
+              style={{ color: '#F2ECD4' }}
             >
               <Plus size={20} />
               Submit Project
