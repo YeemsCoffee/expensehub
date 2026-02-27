@@ -182,7 +182,12 @@ const ExpenseSubmit = () => {
   const fetchWbsElements = async (projectId) => {
     try {
       const response = await api.get(`/projects/${projectId}/wbs`);
-      setWbsElements(response.data.filter(wbs => wbs.is_active));
+      console.log('WBS Elements API Response:', response.data);
+      console.log('WBS Elements count before filter:', response.data.length);
+      const filteredElements = response.data.filter(wbs => wbs.is_active);
+      console.log('WBS Elements count after filter:', filteredElements.length);
+      console.log('Sample WBS element:', response.data[0]);
+      setWbsElements(filteredElements);
     } catch (err) {
       console.error('Error fetching WBS elements:', err);
       setWbsElements([]);
