@@ -111,20 +111,22 @@ const ExpenseSubmit = () => {
       const [ccResponse, locResponse, projResponse] = await Promise.all([
         api.get('/cost-centers'),
         api.get('/locations'),
-        api.get('/projects')
+        api.get('/projects/approved')  // Use the correct endpoint
       ]);
 
-      setCostCenters(ccResponse.data);
-      setLocations(locResponse.data);
+      // Defensive checks for array responses
+      setCostCenters(Array.isArray(ccResponse.data) ? ccResponse.data : []);
+      setLocations(Array.isArray(locResponse.data) ? locResponse.data : []);
 
-      // Only show approved projects for expense submission
-      const approvedProjects = projResponse.data.filter(p => p.status === 'approved');
-      setProjects(approvedProjects);
+      // Projects are already filtered to approved status by the backend
+      const projectsData = Array.isArray(projResponse.data) ? projResponse.data : [];
+      setProjects(projectsData);
 
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
-      toast.error('Failed to load form data');
+      console.error('Error details:', err.response?.data || err.message);
+      toast.error('Failed to load form data. Please try again.');
       setLoading(false);
     }
   }, [toast]);
