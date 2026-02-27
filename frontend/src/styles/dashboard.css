@@ -20,8 +20,8 @@
 }
 
 .badge-info {
-  background-color: #dbeafe;
-  color: #1e40af;
+  background-color: #f0f8fa;
+  color: #a0c5ce;
 }
 
 .badge-secondary {
@@ -472,7 +472,7 @@
 }
 
 .cost-type-card.opex {
-  border-color: #3b82f6;
+  border-color: #BCD7DE;
 }
 
 .cost-type-card.capex {
@@ -498,7 +498,7 @@
 }
 
 .cost-type-percent.opex {
-  color: #3b82f6;
+  color: #BCD7DE;
 }
 
 .cost-type-percent.capex {
@@ -526,7 +526,7 @@
 }
 
 .cost-type-progress-bar.opex {
-  background-color: #3b82f6;
+  background-color: #BCD7DE;
 }
 
 .cost-type-progress-bar.capex {
@@ -586,7 +586,7 @@
 
 .category-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  background: linear-gradient(90deg, #2B4628 0%, #BCD7DE 100%);
   transition: width 0.3s ease;
 }
 

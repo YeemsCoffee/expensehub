@@ -158,11 +158,11 @@
 
 /* Stat card color variants */
 .stat-card-blue {
-  border-left-color: #3b82f6;
+  border-left-color: #BCD7DE;
 }
 
 .stat-card-blue:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.02) 0%, var(--color-surface) 100%);
+  background: linear-gradient(135deg, rgba(188, 215, 222, 0.02) 0%, var(--color-surface) 100%);
 }
 
 .stat-card-yellow {
@@ -174,11 +174,11 @@
 }
 
 .stat-card-green {
-  border-left-color: #10b981;
+  border-left-color: #2B4628;
 }
 
 .stat-card-green:hover {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.02) 0%, var(--color-surface) 100%);
+  background: linear-gradient(135deg, rgba(43, 70, 40, 0.02) 0%, var(--color-surface) 100%);
 }
 
 .stat-card-purple {

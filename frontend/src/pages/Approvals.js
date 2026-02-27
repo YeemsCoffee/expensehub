@@ -200,7 +200,7 @@ const Approvals = () => {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#dbeafe', color: '#3b82f6' }}>
+          <div className="stat-icon" style={{ background: '#f0f8fa', color: '#BCD7DE' }}>
             <DollarSign size={24} />
           </div>
           <div className="stat-content">
@@ -218,7 +218,7 @@ const Approvals = () => {
       <div className="card">
         {pendingApprovals.length === 0 ? (
           <div className="empty-state">
-            <CheckCircle size={48} style={{ color: '#10b981', marginBottom: '1rem' }} />
+            <CheckCircle size={48} style={{ color: '#2B4628', marginBottom: '1rem' }} />
             <h3>All caught up!</h3>
             <p>You have no pending expense approvals at this time</p>
           </div>
@@ -428,7 +428,7 @@ const Approvals = () => {
         }
 
         .approval-item:hover {
-          border-color: #6366f1;
+          border-color: #BCD7DE;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
@@ -476,7 +476,7 @@ const Approvals = () => {
 
         .approval-level {
           font-size: 0.875rem;
-          color: #6366f1;
+          color: #2B4628;
           font-weight: 600;
         }
 
@@ -494,7 +494,7 @@ const Approvals = () => {
         .approval-amount {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #10b981;
+          color: #2B4628;
         }
 
         .expand-toggle {
@@ -579,13 +579,13 @@ const Approvals = () => {
         }
 
         .approval-step-indicator.approved {
-          border-color: #10b981;
-          background: #ecfdf5;
+          border-color: #2B4628;
+          background: #f3f6f2;
         }
 
         .approval-step-indicator.current {
-          border-color: #6366f1;
-          background: #eff6ff;
+          border-color: #BCD7DE;
+          background: #f0f8fa;
         }
 
         .step-number {
@@ -601,7 +601,7 @@ const Approvals = () => {
         }
 
         .step-icon {
-          color: #10b981;
+          color: #2B4628;
           margin-top: 0.25rem;
         }
 
@@ -627,7 +627,7 @@ const Approvals = () => {
           width: 20px;
           height: 20px;
           border: 3px solid #f3f4f6;
-          border-top-color: #6366f1;
+          border-top-color: #2B4628;
           border-radius: 50%;
           animation: spin 0.6s linear infinite;
           margin-right: 0.5rem;

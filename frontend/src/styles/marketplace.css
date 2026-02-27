@@ -31,12 +31,12 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
   color: white;
   padding: 1.5rem;
   border-radius: 16px;
   margin-bottom: 2rem;
-  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 20px rgba(43, 70, 40, 0.3);
   animation: slideIn 0.3s ease-out;
 }
 
@@ -172,7 +172,7 @@
 }
 
 .amazon-shop-button {
-  background: #3b82f6;
+  background: #2B4628;
   color: white;
   border: none;
   padding: 0.875rem 1.5rem;

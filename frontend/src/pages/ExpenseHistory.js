@@ -317,7 +317,7 @@ const ExpenseHistory = () => {
                             onClick={() => window.location.href = `/expenses-submit?edit=${expense.id}`}
                             className="btn-icon"
                             title="Edit expense"
-                            style={{ color: '#3b82f6' }}
+                            style={{ color: '#2B4628' }}
                           >
                             <Edit2 size={18} />
                           </button>
