@@ -270,7 +270,8 @@ const ExpenseSubmit = () => {
       }
 
       // Auto-calculate cost type
-      const costType = determineCostType(finalCategory, parseFloat(newExpense.amount));
+      // Project expenses default to CAPEX
+      const costType = newExpense.projectId ? 'CAPEX' : determineCostType(finalCategory, parseFloat(newExpense.amount));
 
       // Simulate network delay for demo
       await new Promise(resolve => setTimeout(resolve, 500));
