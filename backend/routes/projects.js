@@ -575,7 +575,7 @@ router.get('/:id/wbs/:wbsId/expenses', authMiddleware, isAdminOrDeveloper, async
     const { status, startDate, endDate, minAmount, maxAmount } = req.query;
 
     // Verify project exists and user has access
-    const projectResult = await pool.query(
+    const projectResult = await db.query(
       'SELECT * FROM projects WHERE id = $1',
       [projectId]
     );
@@ -585,7 +585,7 @@ router.get('/:id/wbs/:wbsId/expenses', authMiddleware, isAdminOrDeveloper, async
     }
 
     // Verify WBS element belongs to this project
-    const wbsResult = await pool.query(
+    const wbsResult = await db.query(
       'SELECT * FROM project_wbs_elements WHERE id = $1 AND project_id = $2',
       [wbsId, projectId]
     );
@@ -654,7 +654,7 @@ router.get('/:id/wbs/:wbsId/expenses', authMiddleware, isAdminOrDeveloper, async
 
     query += ' ORDER BY e.date DESC, e.created_at DESC';
 
-    const expensesResult = await pool.query(query, queryParams);
+    const expensesResult = await db.query(query, queryParams);
 
     // Calculate summary statistics
     const summaryQuery = `
@@ -670,7 +670,7 @@ router.get('/:id/wbs/:wbsId/expenses', authMiddleware, isAdminOrDeveloper, async
       WHERE wbs_element_id = $1
     `;
 
-    const summaryResult = await pool.query(summaryQuery, [wbsId]);
+    const summaryResult = await db.query(summaryQuery, [wbsId]);
 
     res.json({
       wbsElement: wbsResult.rows[0],
@@ -690,7 +690,7 @@ router.get('/:id/report', authMiddleware, isAdminOrDeveloper, async (req, res) =
     const { format = 'json' } = req.query; // Support 'json' or 'csv'
 
     // Get project details
-    const projectResult = await pool.query(
+    const projectResult = await db.query(
       'SELECT * FROM projects WHERE id = $1',
       [projectId]
     );
@@ -717,7 +717,7 @@ router.get('/:id/report', authMiddleware, isAdminOrDeveloper, async (req, res) =
       WHERE project_id = $1
     `;
 
-    const overallSummary = await pool.query(overallSummaryQuery, [projectId]);
+    const overallSummary = await db.query(overallSummaryQuery, [projectId]);
 
     // Get WBS element breakdown
     const wbsBreakdownQuery = `
@@ -746,7 +746,7 @@ router.get('/:id/report', authMiddleware, isAdminOrDeveloper, async (req, res) =
       ORDER BY wbs.code
     `;
 
-    const wbsBreakdown = await pool.query(wbsBreakdownQuery, [projectId]);
+    const wbsBreakdown = await db.query(wbsBreakdownQuery, [projectId]);
 
     // Get category breakdown
     const categoryBreakdownQuery = `
@@ -761,7 +761,7 @@ router.get('/:id/report', authMiddleware, isAdminOrDeveloper, async (req, res) =
       ORDER BY total_amount DESC
     `;
 
-    const categoryBreakdown = await pool.query(categoryBreakdownQuery, [projectId]);
+    const categoryBreakdown = await db.query(categoryBreakdownQuery, [projectId]);
 
     // Get top submitters
     const topSubmittersQuery = `
@@ -778,7 +778,7 @@ router.get('/:id/report', authMiddleware, isAdminOrDeveloper, async (req, res) =
       LIMIT 10
     `;
 
-    const topSubmitters = await pool.query(topSubmittersQuery, [projectId]);
+    const topSubmitters = await db.query(topSubmittersQuery, [projectId]);
 
     // Calculate total WBS budget
     const totalWbsBudget = wbsBreakdown.rows.reduce((sum, wbs) => sum + parseFloat(wbs.budget_estimate || 0), 0);
