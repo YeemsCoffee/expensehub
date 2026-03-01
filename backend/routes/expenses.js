@@ -187,7 +187,8 @@ router.post('/', authMiddleware, [
     } = req.body;
 
     // Auto-determine cost type if not provided
-    const finalCostType = costType || determineCostType(category, amount);
+    // Project expenses default to CAPEX
+    const finalCostType = costType || (projectId ? 'CAPEX' : determineCostType(category, amount));
 
     // Find applicable approval rule based on amount
     const ruleResult = await db.query(

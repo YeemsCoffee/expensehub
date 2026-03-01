@@ -311,18 +311,33 @@ router.delete('/:id', authMiddleware, isManagerOrAdmin, async (req, res) => {
 
     const expenseCount = parseInt(expenseCheck.rows[0].count);
 
-    if (expenseCount > 0) {
+    // Only admins and developers can delete projects with expenses
+    // Managers must remove expenses first
+    const userRole = req.user.role;
+    const canDeleteWithExpenses = ['admin', 'developer'].includes(userRole);
+
+    if (expenseCount > 0 && !canDeleteWithExpenses) {
       return res.status(400).json({
-        error: `Cannot delete project. It has ${expenseCount} expense(s) associated with it. Please reassign or delete the expenses first.`
+        error: `Cannot delete project. It has ${expenseCount} expense(s) associated with it. Please reassign or delete the expenses first, or contact an administrator.`
       });
+    }
+
+    // For admins/developers deleting projects with expenses, cascade delete
+    if (expenseCount > 0 && canDeleteWithExpenses) {
+      // Delete associated expenses first
+      await db.query('DELETE FROM expenses WHERE project_id = $1', [id]);
+      console.log(`Admin/Developer ${req.user.id} deleted ${expenseCount} expense(s) associated with project ${id}`);
     }
 
     // Delete the project
     await db.query('DELETE FROM projects WHERE id = $1', [id]);
 
     res.json({
-      message: 'Project deleted successfully',
-      project: checkResult.rows[0]
+      message: expenseCount > 0
+        ? `Project and ${expenseCount} associated expense(s) deleted successfully`
+        : 'Project deleted successfully',
+      project: checkResult.rows[0],
+      deletedExpenses: expenseCount
     });
   } catch (error) {
     console.error('Delete project error:', error);
