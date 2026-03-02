@@ -1,4 +1,4 @@
-const pool = require('../db');
+const db = require('../config/database');
 
 /**
  * Audit Log Middleware
@@ -85,7 +85,7 @@ async function logAuditEntry(req, res, actionType, responseData, error) {
     };
 
     // Insert audit log entry
-    await pool.query(
+    await db.query(
       `INSERT INTO audit_log
        (user_id, username, action_type, table_name, record_id, action_description,
         old_values, new_values, changed_fields, ip_address, user_agent, session_id,
@@ -134,7 +134,7 @@ async function logProjectAudit(projectId, userId, actionType, changedFields, old
   try {
     if (!changedFields || changedFields.length === 0) {
       // No field changes, log general action
-      await pool.query(
+      await db.query(
         `INSERT INTO project_audit_trail
          (project_id, user_id, action_type, description, ip_address)
          VALUES ($1, $2, $3, $4, $5)`,
@@ -148,7 +148,7 @@ async function logProjectAudit(projectId, userId, actionType, changedFields, old
       const oldValue = oldValues?.[field];
       const newValue = newValues?.[field];
 
-      await pool.query(
+      await db.query(
         `INSERT INTO project_audit_trail
          (project_id, user_id, action_type, field_name, old_value, new_value, description, ip_address)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,

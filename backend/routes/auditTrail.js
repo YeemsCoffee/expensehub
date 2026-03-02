@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth, requireManager } = require('../middleware/auth');
-const pool = require('../db');
+const db = require('../config/database');
 
 // ============================================================================
 // AUDIT TRAIL ROUTES (View Only - No Modifications)
@@ -81,7 +81,7 @@ router.get('/', auth, requireManager, async (req, res) => {
     query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
-    const result = await pool.query(query, params);
+    const result = await db.query(query, params);
 
     // Get total count for pagination
     let countQuery = `
@@ -100,7 +100,7 @@ router.get('/', auth, requireManager, async (req, res) => {
     if (start_date) countQuery += ` AND al.action_timestamp >= $${countParams.indexOf(start_date) + 1}`;
     if (end_date) countQuery += ` AND al.action_timestamp <= $${countParams.indexOf(end_date) + 1}`;
 
-    const countResult = await pool.query(countQuery, countParams);
+    const countResult = await db.query(countQuery, countParams);
 
     res.json({
       entries: result.rows,
@@ -123,7 +123,7 @@ router.get('/project/:projectId', auth, async (req, res) => {
     const { projectId } = req.params;
     const { limit = 100, offset = 0 } = req.query;
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT pa.*
        FROM project_audit_trail pa
        WHERE pa.project_id = $1
@@ -133,7 +133,7 @@ router.get('/project/:projectId', auth, async (req, res) => {
     );
 
     // Get total count
-    const countResult = await pool.query(
+    const countResult = await db.query(
       'SELECT COUNT(*) as total FROM project_audit_trail WHERE project_id = $1',
       [projectId]
     );
@@ -159,7 +159,7 @@ router.get('/record/:tableName/:recordId', auth, async (req, res) => {
     const { tableName, recordId } = req.params;
     const { limit = 50, offset = 0 } = req.query;
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT al.*
        FROM audit_log al
        WHERE al.table_name = $1 AND al.record_id = $2
@@ -169,7 +169,7 @@ router.get('/record/:tableName/:recordId', auth, async (req, res) => {
     );
 
     // Get total count
-    const countResult = await pool.query(
+    const countResult = await db.query(
       `SELECT COUNT(*) as total
        FROM audit_log
        WHERE table_name = $1 AND record_id = $2`,
@@ -221,7 +221,7 @@ router.get('/user/:userId', auth, requireManager, async (req, res) => {
     query += ` ORDER BY al.action_timestamp DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
-    const result = await pool.query(query, params);
+    const result = await db.query(query, params);
 
     // Get total count
     let countQuery = 'SELECT COUNT(*) as total FROM audit_log WHERE user_id = $1';
@@ -237,7 +237,7 @@ router.get('/user/:userId', auth, requireManager, async (req, res) => {
       countParams.push(end_date);
     }
 
-    const countResult = await pool.query(countQuery, countParams);
+    const countResult = await db.query(countQuery, countParams);
 
     res.json({
       entries: result.rows,
@@ -264,7 +264,7 @@ router.get('/compare/:tableName/:recordId', auth, async (req, res) => {
       return res.status(400).json({ error: 'from_timestamp and to_timestamp are required' });
     }
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT al.*
        FROM audit_log al
        WHERE al.table_name = $1
@@ -329,7 +329,7 @@ router.get('/stats/summary', auth, requireManager, async (req, res) => {
     }
 
     // Action type distribution
-    const actionTypeStats = await pool.query(
+    const actionTypeStats = await db.query(
       `SELECT action_type, COUNT(*) as count
        FROM audit_log
        ${whereClause}
@@ -339,7 +339,7 @@ router.get('/stats/summary', auth, requireManager, async (req, res) => {
     );
 
     // User activity
-    const userActivityStats = await pool.query(
+    const userActivityStats = await db.query(
       `SELECT username, COUNT(*) as action_count
        FROM audit_log
        ${whereClause}
@@ -350,7 +350,7 @@ router.get('/stats/summary', auth, requireManager, async (req, res) => {
     );
 
     // Table activity
-    const tableActivityStats = await pool.query(
+    const tableActivityStats = await db.query(
       `SELECT table_name, COUNT(*) as action_count
        FROM audit_log
        ${whereClause}
@@ -360,7 +360,7 @@ router.get('/stats/summary', auth, requireManager, async (req, res) => {
     );
 
     // Success vs Failure rate
-    const statusStats = await pool.query(
+    const statusStats = await db.query(
       `SELECT action_status, COUNT(*) as count
        FROM audit_log
        ${whereClause}
@@ -369,7 +369,7 @@ router.get('/stats/summary', auth, requireManager, async (req, res) => {
     );
 
     // Total actions
-    const totalResult = await pool.query(
+    const totalResult = await db.query(
       `SELECT COUNT(*) as total FROM audit_log ${whereClause}`,
       params
     );
