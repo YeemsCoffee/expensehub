@@ -107,19 +107,26 @@ const App = () => {
         return;
       }
 
-      // Handle navigation routes
-      if (hash === 'projects') {
-        setActiveTab('projects');
-        return;
-      }
+      // Handle navigation routes (all possible tab IDs)
+      const navigationRoutes = [
+        'home',
+        'dashboard',
+        'marketplace',
+        'expenses-submit',
+        'expenses-history',
+        'approvals',
+        'projects',
+        'project-expense-submit',
+        'costcenters',
+        'locations',
+        'approval-rules',
+        'users',
+        'xero-settings',
+        'cart'
+      ];
 
-      if (hash === 'expenses-submit') {
-        setActiveTab('expenses-submit');
-        return;
-      }
-
-      if (hash === 'project-expense-submit') {
-        setActiveTab('project-expense-submit');
+      if (navigationRoutes.includes(hash)) {
+        setActiveTab(hash);
         return;
       }
 
@@ -132,6 +139,13 @@ const App = () => {
         setCurrentView('forgot-password');
       } else if (hash === 'reset-password') {
         setCurrentView('reset-password');
+      } else if (hash === '') {
+        // Empty hash - set default based on role
+        if (user?.role === 'employee' || user?.role === 'developer') {
+          setActiveTab('home');
+        } else if (user) {
+          setActiveTab('dashboard');
+        }
       }
     };
 
@@ -300,7 +314,7 @@ const App = () => {
       }));
 
       // Navigate to expense history to see submitted expenses
-      setActiveTab('expenses-history');
+      window.location.hash = '#expenses-history';
     } catch (error) {
       console.error('Checkout failed:', error);
       alert(error.response?.data?.error || 'Failed to submit expenses for approval');
@@ -308,9 +322,13 @@ const App = () => {
   };
 
   const handleCartClick = () => {
-    setActiveTab('cart');
+    window.location.hash = '#cart';
     // Refresh cart when navigating to cart page
     fetchCart();
+  };
+
+  const handleNavigate = (tabId) => {
+    window.location.hash = `#${tabId}`;
   };
 
   if (currentView === 'login') {
@@ -332,7 +350,7 @@ const App = () => {
   const renderPage = () => {
     switch(activeTab) {
       case 'home':
-        return <EmployeeHome onNavigate={setActiveTab} />;
+        return <EmployeeHome onNavigate={handleNavigate} />;
       case 'dashboard':
         return <Dashboard />;
       case 'marketplace':
@@ -366,13 +384,13 @@ const App = () => {
             onUpdateQuantity={handleUpdateCartQuantity}
             onRemoveItem={handleRemoveFromCart}
             onCheckout={handleCheckout}
-            onNavigate={setActiveTab}
+            onNavigate={handleNavigate}
           />
         );
       default:
         // Default based on role
         if (user?.role === 'employee' || user?.role === 'developer') {
-          return <EmployeeHome onNavigate={setActiveTab} />;
+          return <EmployeeHome onNavigate={handleNavigate} />;
         }
         return <Dashboard />;
     }
