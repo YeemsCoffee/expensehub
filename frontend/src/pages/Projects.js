@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Folder, Calendar, DollarSign, User, Clock, CheckCircle, XCircle, Trash2, List } from 'lucide-react';
+import { Plus, Folder, Calendar, DollarSign, User, Clock, CheckCircle, XCircle, Trash2, List, Download, FileText } from 'lucide-react';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 
 const Projects = () => {
   const [myProjects, setMyProjects] = useState([]);

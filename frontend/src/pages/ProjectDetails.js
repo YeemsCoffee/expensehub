@@ -294,7 +294,8 @@ const ProjectDetails = () => {
                   padding: '0.65rem 1.25rem',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.5rem'
+                  gap: '0.5rem',
+                  borderRadius: '0.5rem'
                 }}
               >
                 <Download size={18} />
@@ -314,7 +315,8 @@ const ProjectDetails = () => {
                   gap: '0.5rem',
                   boxShadow: '0 2px 8px rgba(43, 70, 40, 0.15)',
                   transition: 'all 0.2s ease',
-                  color: '#F2ECD4'
+                  color: '#F2ECD4',
+                  borderRadius: '0.5rem'
                 }}
               >
                 <Plus size={18} />
