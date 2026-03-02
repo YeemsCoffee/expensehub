@@ -20,6 +20,12 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+// Phase 2: SAP-Like Project Management Components
+import ProjectPhases from './pages/ProjectPhases';
+import ChangeRequests from './pages/ChangeRequests';
+import ProjectTemplates from './pages/ProjectTemplates';
+import ProjectDocuments from './pages/ProjectDocuments';
+import AuditTrail from './pages/AuditTrail';
 import { calculateCartTotal } from './utils/helpers';
 import api from './services/api';
 import './styles/design-tokens.css';
@@ -122,7 +128,13 @@ const App = () => {
         'approval-rules',
         'users',
         'xero-settings',
-        'cart'
+        'cart',
+        // Phase 2: SAP-Like Project Management Routes
+        'project-phases',
+        'change-requests',
+        'project-templates',
+        'project-documents',
+        'audit-trail'
       ];
 
       if (navigationRoutes.includes(hash)) {
@@ -387,6 +399,17 @@ const App = () => {
             onNavigate={handleNavigate}
           />
         );
+      // Phase 2: SAP-Like Project Management Routes
+      case 'project-phases':
+        return <ProjectPhases />;
+      case 'change-requests':
+        return <ChangeRequests />;
+      case 'project-templates':
+        return <ProjectTemplates onProjectCreated={() => handleNavigate('projects')} />;
+      case 'project-documents':
+        return <ProjectDocuments />;
+      case 'audit-trail':
+        return <AuditTrail />;
       default:
         // Default based on role
         if (user?.role === 'employee' || user?.role === 'developer') {
