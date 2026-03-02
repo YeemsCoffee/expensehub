@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { auth, requireManager } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
 const db = require('../config/database');
 
@@ -12,7 +12,7 @@ const db = require('../config/database');
  * GET /api/change-requests/project/:projectId
  * Get all change requests for a project
  */
-router.get('/project/:projectId', auth, auditLog('VIEW_CHANGE_REQUESTS'), async (req, res) => {
+router.get('/project/:projectId', authMiddleware, auditLog('VIEW_CHANGE_REQUESTS'), async (req, res) => {
   try {
     const { projectId } = req.params;
 
@@ -44,7 +44,7 @@ router.get('/project/:projectId', auth, auditLog('VIEW_CHANGE_REQUESTS'), async 
  * GET /api/change-requests/:id
  * Get a specific change request with approvals
  */
-router.get('/:id', auth, auditLog('VIEW_CHANGE_REQUEST'), async (req, res) => {
+router.get('/:id', authMiddleware, auditLog('VIEW_CHANGE_REQUEST'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -95,7 +95,7 @@ router.get('/:id', auth, auditLog('VIEW_CHANGE_REQUEST'), async (req, res) => {
  * POST /api/change-requests
  * Create a new change request
  */
-router.post('/', auth, auditLog('CREATE_CHANGE_REQUEST'), async (req, res) => {
+router.post('/', authMiddleware, auditLog('CREATE_CHANGE_REQUEST'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const {
@@ -180,7 +180,7 @@ router.post('/', auth, auditLog('CREATE_CHANGE_REQUEST'), async (req, res) => {
  * PUT /api/change-requests/:id
  * Update a change request
  */
-router.put('/:id', auth, auditLog('UPDATE_CHANGE_REQUEST'), async (req, res) => {
+router.put('/:id', authMiddleware, auditLog('UPDATE_CHANGE_REQUEST'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -261,7 +261,7 @@ router.put('/:id', auth, auditLog('UPDATE_CHANGE_REQUEST'), async (req, res) => 
  * POST /api/change-requests/:id/review
  * Review a change request (Manager)
  */
-router.post('/:id/review', auth, requireManager, auditLog('REVIEW_CHANGE_REQUEST'), async (req, res) => {
+router.post('/:id/review', authMiddleware, isManagerOrAdmin, auditLog('REVIEW_CHANGE_REQUEST'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -317,7 +317,7 @@ router.post('/:id/review', auth, requireManager, auditLog('REVIEW_CHANGE_REQUEST
  * POST /api/change-requests/:id/approve
  * Approve at specific level (Multi-level approval)
  */
-router.post('/:id/approve', auth, requireManager, auditLog('APPROVE_CHANGE_REQUEST_LEVEL'), async (req, res) => {
+router.post('/:id/approve', authMiddleware, isManagerOrAdmin, auditLog('APPROVE_CHANGE_REQUEST_LEVEL'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -395,7 +395,7 @@ router.post('/:id/approve', auth, requireManager, auditLog('APPROVE_CHANGE_REQUE
  * POST /api/change-requests/:id/implement
  * Mark change request as implemented
  */
-router.post('/:id/implement', auth, requireManager, auditLog('IMPLEMENT_CHANGE_REQUEST'), async (req, res) => {
+router.post('/:id/implement', authMiddleware, isManagerOrAdmin, auditLog('IMPLEMENT_CHANGE_REQUEST'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;

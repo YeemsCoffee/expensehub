@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { auth, requireManager } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
 const db = require('../config/database');
 
@@ -51,7 +51,7 @@ const upload = multer({
  * GET /api/project-documents/project/:projectId
  * Get all documents for a project
  */
-router.get('/project/:projectId', auth, auditLog('VIEW_PROJECT_DOCUMENTS'), async (req, res) => {
+router.get('/project/:projectId', authMiddleware, auditLog('VIEW_PROJECT_DOCUMENTS'), async (req, res) => {
   try {
     const { projectId } = req.params;
 
@@ -82,7 +82,7 @@ router.get('/project/:projectId', auth, auditLog('VIEW_PROJECT_DOCUMENTS'), asyn
  * GET /api/project-documents/:id
  * Get a specific document
  */
-router.get('/:id', auth, auditLog('VIEW_DOCUMENT'), async (req, res) => {
+router.get('/:id', authMiddleware, auditLog('VIEW_DOCUMENT'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -116,7 +116,7 @@ router.get('/:id', auth, auditLog('VIEW_DOCUMENT'), async (req, res) => {
  * GET /api/project-documents/:id/versions
  * Get all versions of a document
  */
-router.get('/:id/versions', auth, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req, res) => {
+router.get('/:id/versions', authMiddleware, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -174,7 +174,7 @@ router.get('/:id/versions', auth, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req
  * POST /api/project-documents/upload
  * Upload a new document
  */
-router.post('/upload', auth, upload.single('file'), auditLog('UPLOAD_DOCUMENT'), async (req, res) => {
+router.post('/upload', authMiddleware, upload.single('file'), auditLog('UPLOAD_DOCUMENT'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     if (!req.file) {
@@ -272,7 +272,7 @@ router.post('/upload', auth, upload.single('file'), auditLog('UPLOAD_DOCUMENT'),
  * GET /api/project-documents/:id/download
  * Download a document file
  */
-router.get('/:id/download', auth, auditLog('DOWNLOAD_DOCUMENT'), async (req, res) => {
+router.get('/:id/download', authMiddleware, auditLog('DOWNLOAD_DOCUMENT'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -311,7 +311,7 @@ router.get('/:id/download', auth, auditLog('DOWNLOAD_DOCUMENT'), async (req, res
  * PUT /api/project-documents/:id
  * Update document metadata
  */
-router.put('/:id', auth, auditLog('UPDATE_DOCUMENT'), async (req, res) => {
+router.put('/:id', authMiddleware, auditLog('UPDATE_DOCUMENT'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -376,7 +376,7 @@ router.put('/:id', auth, auditLog('UPDATE_DOCUMENT'), async (req, res) => {
  * POST /api/project-documents/:id/approve
  * Approve a document
  */
-router.post('/:id/approve', auth, requireManager, auditLog('APPROVE_DOCUMENT'), async (req, res) => {
+router.post('/:id/approve', authMiddleware, isManagerOrAdmin, auditLog('APPROVE_DOCUMENT'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -417,7 +417,7 @@ router.post('/:id/approve', auth, requireManager, auditLog('APPROVE_DOCUMENT'), 
  * DELETE /api/project-documents/:id
  * Soft delete a document
  */
-router.delete('/:id', auth, requireManager, auditLog('DELETE_DOCUMENT'), async (req, res) => {
+router.delete('/:id', authMiddleware, isManagerOrAdmin, auditLog('DELETE_DOCUMENT'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
