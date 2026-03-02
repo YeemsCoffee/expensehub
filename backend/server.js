@@ -135,6 +135,13 @@ app.use('/api/amazon-punchout', require('./routes/amazonPunchout')); // Amazon B
 app.use('/api/receipts', require('./routes/receipts')); // Receipt OCR with Veryfi
 app.use('/api/xero', require('./routes/xero')); // Xero accounting integration
 
+// Phase 2: SAP-like Project Management Features
+app.use('/api/project-phases', require('./routes/projectPhases')); // Project phases & milestones
+app.use('/api/change-requests', require('./routes/changeRequests')); // Change request management
+app.use('/api/project-templates', require('./routes/projectTemplates')); // Project templates
+app.use('/api/project-documents', require('./routes/projectDocuments')); // Document management
+app.use('/api/audit-trail', require('./routes/auditTrail')); // Audit trail / traceability
+
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
