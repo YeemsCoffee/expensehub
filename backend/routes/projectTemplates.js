@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth, requireManager } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
-const pool = require('../db');
+const db = require('../config/database');
 
 // ============================================================================
 // PROJECT TEMPLATES ROUTES
@@ -14,7 +14,7 @@ const pool = require('../db');
  */
 router.get('/', auth, auditLog('VIEW_PROJECT_TEMPLATES'), async (req, res) => {
   try {
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT pt.*,
               u.first_name || ' ' || u.last_name as created_by_name
        FROM project_templates pt
@@ -41,7 +41,7 @@ router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => 
     const { id } = req.params;
 
     // Get template
-    const templateResult = await pool.query(
+    const templateResult = await db.query(
       `SELECT pt.*,
               u.first_name || ' ' || u.last_name as created_by_name
        FROM project_templates pt
@@ -57,7 +57,7 @@ router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => 
     const template = templateResult.rows[0];
 
     // Get phases
-    const phasesResult = await pool.query(
+    const phasesResult = await db.query(
       `SELECT * FROM template_phases
        WHERE template_id = $1 AND is_active = true
        ORDER BY sequence_order`,
@@ -65,7 +65,7 @@ router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => 
     );
 
     // Get WBS elements
-    const wbsResult = await pool.query(
+    const wbsResult = await db.query(
       `SELECT * FROM template_wbs_elements
        WHERE template_id = $1 AND is_active = true
        ORDER BY category`,
@@ -73,7 +73,7 @@ router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => 
     );
 
     // Get milestones
-    const milestonesResult = await pool.query(
+    const milestonesResult = await db.query(
       `SELECT * FROM template_milestones
        WHERE template_id = $1 AND is_active = true
        ORDER BY days_from_start`,
@@ -96,7 +96,7 @@ router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => 
  * Create a new project template
  */
 router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_TEMPLATE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const {
       name,
@@ -208,7 +208,7 @@ router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_TEMPLATE'), asyn
  * Create a new project from a template
  */
 router.post('/:id/instantiate', auth, requireManager, auditLog('INSTANTIATE_PROJECT_TEMPLATE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const {
@@ -389,7 +389,7 @@ router.post('/:id/instantiate', auth, requireManager, auditLog('INSTANTIATE_PROJ
  * Soft delete a template
  */
 router.delete('/:id', auth, requireManager, auditLog('DELETE_PROJECT_TEMPLATE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
 

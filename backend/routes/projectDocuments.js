@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { auth, requireManager } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
-const pool = require('../db');
+const db = require('../config/database');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -55,7 +55,7 @@ router.get('/project/:projectId', auth, auditLog('VIEW_PROJECT_DOCUMENTS'), asyn
   try {
     const { projectId } = req.params;
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT pd.*,
               u1.first_name || ' ' || u1.last_name as uploaded_by_name,
               u2.first_name || ' ' || u2.last_name as approved_by_name,
@@ -86,7 +86,7 @@ router.get('/:id', auth, auditLog('VIEW_DOCUMENT'), async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT pd.*,
               u1.first_name || ' ' || u1.last_name as uploaded_by_name,
               u2.first_name || ' ' || u2.last_name as approved_by_name,
@@ -121,7 +121,7 @@ router.get('/:id/versions', auth, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req
     const { id } = req.params;
 
     // Get the document to find all related versions
-    const docResult = await pool.query(
+    const docResult = await db.query(
       'SELECT * FROM project_documents WHERE id = $1',
       [id]
     );
@@ -136,7 +136,7 @@ router.get('/:id/versions', auth, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req
     let rootId = id;
     let currentDoc = document;
     while (currentDoc.parent_document_id) {
-      const parentResult = await pool.query(
+      const parentResult = await db.query(
         'SELECT * FROM project_documents WHERE id = $1',
         [currentDoc.parent_document_id]
       );
@@ -146,7 +146,7 @@ router.get('/:id/versions', auth, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req
     }
 
     // Get all versions from root
-    const versionsResult = await pool.query(
+    const versionsResult = await db.query(
       `WITH RECURSIVE doc_versions AS (
          SELECT pd.*, u.first_name || ' ' || u.last_name as uploaded_by_name
          FROM project_documents pd
@@ -175,7 +175,7 @@ router.get('/:id/versions', auth, auditLog('VIEW_DOCUMENT_VERSIONS'), async (req
  * Upload a new document
  */
 router.post('/upload', auth, upload.single('file'), auditLog('UPLOAD_DOCUMENT'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -276,7 +276,7 @@ router.get('/:id/download', auth, auditLog('DOWNLOAD_DOCUMENT'), async (req, res
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
+    const result = await db.query(
       'SELECT * FROM project_documents WHERE id = $1 AND is_active = true',
       [id]
     );
@@ -312,7 +312,7 @@ router.get('/:id/download', auth, auditLog('DOWNLOAD_DOCUMENT'), async (req, res
  * Update document metadata
  */
 router.put('/:id', auth, auditLog('UPDATE_DOCUMENT'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const {
@@ -377,7 +377,7 @@ router.put('/:id', auth, auditLog('UPDATE_DOCUMENT'), async (req, res) => {
  * Approve a document
  */
 router.post('/:id/approve', auth, requireManager, auditLog('APPROVE_DOCUMENT'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
 
@@ -418,7 +418,7 @@ router.post('/:id/approve', auth, requireManager, auditLog('APPROVE_DOCUMENT'), 
  * Soft delete a document
  */
 router.delete('/:id', auth, requireManager, auditLog('DELETE_DOCUMENT'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
 

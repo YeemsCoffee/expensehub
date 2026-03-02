@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth, requireManager } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
-const pool = require('../db');
+const db = require('../config/database');
 
 // ============================================================================
 // PROJECT PHASES & MILESTONES ROUTES
@@ -20,7 +20,7 @@ router.get('/:projectId', auth, auditLog('VIEW_PROJECT_PHASES'), async (req, res
   try {
     const { projectId } = req.params;
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT pp.*,
               u.first_name || ' ' || u.last_name as approved_by_name
        FROM project_phases pp
@@ -42,7 +42,7 @@ router.get('/:projectId', auth, auditLog('VIEW_PROJECT_PHASES'), async (req, res
  * Create a new project phase
  */
 router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_PHASE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const {
       project_id,
@@ -92,7 +92,7 @@ router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_PHASE'), async (
  * Update a project phase
  */
 router.put('/:id', auth, requireManager, auditLog('UPDATE_PROJECT_PHASE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const {
@@ -156,7 +156,7 @@ router.put('/:id', auth, requireManager, auditLog('UPDATE_PROJECT_PHASE'), async
  * Approve a phase gate (Go/No-Go decision)
  */
 router.post('/:id/approve-gate', auth, requireManager, auditLog('APPROVE_PHASE_GATE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const { decision, notes } = req.body; // decision: approved, rejected, conditional
@@ -215,7 +215,7 @@ router.get('/milestones/:projectId', auth, auditLog('VIEW_PROJECT_MILESTONES'), 
   try {
     const { projectId } = req.params;
 
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT pm.*,
               pp.name as phase_name,
               u.first_name || ' ' || u.last_name as achieved_by_name
@@ -239,7 +239,7 @@ router.get('/milestones/:projectId', auth, auditLog('VIEW_PROJECT_MILESTONES'), 
  * Create a new milestone
  */
 router.post('/milestones', auth, requireManager, auditLog('CREATE_MILESTONE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const {
       project_id,
@@ -284,7 +284,7 @@ router.post('/milestones', auth, requireManager, auditLog('CREATE_MILESTONE'), a
  * Update a milestone
  */
 router.put('/milestones/:id', auth, requireManager, auditLog('UPDATE_MILESTONE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
     const {
@@ -345,7 +345,7 @@ router.put('/milestones/:id', auth, requireManager, auditLog('UPDATE_MILESTONE')
  * Soft delete a milestone
  */
 router.delete('/milestones/:id', auth, requireManager, auditLog('DELETE_MILESTONE'), async (req, res) => {
-  const client = await pool.connect();
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
 
