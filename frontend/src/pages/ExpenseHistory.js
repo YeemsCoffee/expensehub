@@ -126,6 +126,56 @@ const ExpenseHistory = () => {
     return expense.status === 'pending';
   };
 
+  const handleExport = () => {
+    if (expenses.length === 0) {
+      toast.error('No expenses to export');
+      return;
+    }
+
+    // Prepare CSV headers
+    const headers = ['Date', 'Description', 'Category', 'Cost Center', 'Location', 'Amount', 'Status', 'Vendor'];
+
+    // Prepare CSV rows
+    const rows = expenses.map(expense => [
+      new Date(expense.date).toLocaleDateString(),
+      expense.description,
+      expense.category,
+      expense.cost_center_code,
+      expense.location_code || '-',
+      parseFloat(expense.amount).toFixed(2),
+      expense.status.charAt(0).toUpperCase() + expense.status.slice(1),
+      expense.vendor_name || '-'
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => {
+        // Escape commas and quotes in cell content
+        const cellStr = String(cell);
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `expenses_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`Exported ${expenses.length} expense${expenses.length !== 1 ? 's' : ''} to CSV`);
+  };
+
   if (loading) {
     return <div className="page-title">Loading expenses...</div>;
   }
@@ -189,7 +239,7 @@ const ExpenseHistory = () => {
               <Filter size={16} />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
             </button>
-            <button className="btn btn-secondary">
+            <button onClick={handleExport} className="btn btn-secondary" title="Export expenses to CSV">
               <Download size={16} />
               Export
             </button>
