@@ -138,13 +138,15 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
       console.log('🔽 Dropdown toggle:', tabId, 'New state:', newState);
       setExpandedDropdown(newState);
     } else {
-      onTabChange(tabId);
+      // Update hash instead of directly calling onTabChange
+      window.location.hash = `#${tabId}`;
       setExpandedDropdown(null);
     }
   };
 
   const handleSubItemClick = (subItemId) => {
-    onTabChange(subItemId);
+    // Update hash instead of directly calling onTabChange
+    window.location.hash = `#${subItemId}`;
     setExpandedDropdown(null);
   };
 
