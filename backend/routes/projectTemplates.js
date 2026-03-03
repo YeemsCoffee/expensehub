@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { auth, requireManager } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
 const db = require('../config/database');
 
@@ -12,7 +12,7 @@ const db = require('../config/database');
  * GET /api/project-templates
  * Get all project templates (public + user's own)
  */
-router.get('/', auth, auditLog('VIEW_PROJECT_TEMPLATES'), async (req, res) => {
+router.get('/', authMiddleware, auditLog('VIEW_PROJECT_TEMPLATES'), async (req, res) => {
   try {
     const result = await db.query(
       `SELECT pt.*,
@@ -36,7 +36,7 @@ router.get('/', auth, auditLog('VIEW_PROJECT_TEMPLATES'), async (req, res) => {
  * GET /api/project-templates/:id
  * Get a specific template with all its components
  */
-router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => {
+router.get('/:id', authMiddleware, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -95,7 +95,7 @@ router.get('/:id', auth, auditLog('VIEW_PROJECT_TEMPLATE'), async (req, res) => 
  * POST /api/project-templates
  * Create a new project template
  */
-router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_TEMPLATE'), async (req, res) => {
+router.post('/', authMiddleware, isManagerOrAdmin, auditLog('CREATE_PROJECT_TEMPLATE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const {
@@ -207,7 +207,7 @@ router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_TEMPLATE'), asyn
  * POST /api/project-templates/:id/instantiate
  * Create a new project from a template
  */
-router.post('/:id/instantiate', auth, requireManager, auditLog('INSTANTIATE_PROJECT_TEMPLATE'), async (req, res) => {
+router.post('/:id/instantiate', authMiddleware, isManagerOrAdmin, auditLog('INSTANTIATE_PROJECT_TEMPLATE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -388,7 +388,7 @@ router.post('/:id/instantiate', auth, requireManager, auditLog('INSTANTIATE_PROJ
  * DELETE /api/project-templates/:id
  * Soft delete a template
  */
-router.delete('/:id', auth, requireManager, auditLog('DELETE_PROJECT_TEMPLATE'), async (req, res) => {
+router.delete('/:id', authMiddleware, isManagerOrAdmin, auditLog('DELETE_PROJECT_TEMPLATE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { auth, requireManager } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/auditLog');
 const db = require('../config/database');
 
@@ -16,7 +16,7 @@ const db = require('../config/database');
  * GET /api/project-phases/:projectId
  * Get all phases for a project
  */
-router.get('/:projectId', auth, auditLog('VIEW_PROJECT_PHASES'), async (req, res) => {
+router.get('/:projectId', authMiddleware, auditLog('VIEW_PROJECT_PHASES'), async (req, res) => {
   try {
     const { projectId } = req.params;
 
@@ -41,7 +41,7 @@ router.get('/:projectId', auth, auditLog('VIEW_PROJECT_PHASES'), async (req, res
  * POST /api/project-phases
  * Create a new project phase
  */
-router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_PHASE'), async (req, res) => {
+router.post('/', authMiddleware, isManagerOrAdmin, auditLog('CREATE_PROJECT_PHASE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const {
@@ -91,7 +91,7 @@ router.post('/', auth, requireManager, auditLog('CREATE_PROJECT_PHASE'), async (
  * PUT /api/project-phases/:id
  * Update a project phase
  */
-router.put('/:id', auth, requireManager, auditLog('UPDATE_PROJECT_PHASE'), async (req, res) => {
+router.put('/:id', authMiddleware, isManagerOrAdmin, auditLog('UPDATE_PROJECT_PHASE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -155,7 +155,7 @@ router.put('/:id', auth, requireManager, auditLog('UPDATE_PROJECT_PHASE'), async
  * POST /api/project-phases/:id/approve-gate
  * Approve a phase gate (Go/No-Go decision)
  */
-router.post('/:id/approve-gate', auth, requireManager, auditLog('APPROVE_PHASE_GATE'), async (req, res) => {
+router.post('/:id/approve-gate', authMiddleware, isManagerOrAdmin, auditLog('APPROVE_PHASE_GATE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -211,7 +211,7 @@ router.post('/:id/approve-gate', auth, requireManager, auditLog('APPROVE_PHASE_G
  * GET /api/project-phases/milestones/:projectId
  * Get all milestones for a project
  */
-router.get('/milestones/:projectId', auth, auditLog('VIEW_PROJECT_MILESTONES'), async (req, res) => {
+router.get('/milestones/:projectId', authMiddleware, auditLog('VIEW_PROJECT_MILESTONES'), async (req, res) => {
   try {
     const { projectId } = req.params;
 
@@ -238,7 +238,7 @@ router.get('/milestones/:projectId', auth, auditLog('VIEW_PROJECT_MILESTONES'), 
  * POST /api/project-phases/milestones
  * Create a new milestone
  */
-router.post('/milestones', auth, requireManager, auditLog('CREATE_MILESTONE'), async (req, res) => {
+router.post('/milestones', authMiddleware, isManagerOrAdmin, auditLog('CREATE_MILESTONE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const {
@@ -283,7 +283,7 @@ router.post('/milestones', auth, requireManager, auditLog('CREATE_MILESTONE'), a
  * PUT /api/project-phases/milestones/:id
  * Update a milestone
  */
-router.put('/milestones/:id', auth, requireManager, auditLog('UPDATE_MILESTONE'), async (req, res) => {
+router.put('/milestones/:id', authMiddleware, isManagerOrAdmin, auditLog('UPDATE_MILESTONE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
@@ -344,7 +344,7 @@ router.put('/milestones/:id', auth, requireManager, auditLog('UPDATE_MILESTONE')
  * DELETE /api/project-phases/milestones/:id
  * Soft delete a milestone
  */
-router.delete('/milestones/:id', auth, requireManager, auditLog('DELETE_MILESTONE'), async (req, res) => {
+router.delete('/milestones/:id', authMiddleware, isManagerOrAdmin, auditLog('DELETE_MILESTONE'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;

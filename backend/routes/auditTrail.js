@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { auth, requireManager } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 const db = require('../config/database');
 
 // ============================================================================
@@ -11,7 +11,7 @@ const db = require('../config/database');
  * GET /api/audit-trail
  * Get audit log entries with filters
  */
-router.get('/', auth, requireManager, async (req, res) => {
+router.get('/', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const {
       user_id,
@@ -118,7 +118,7 @@ router.get('/', auth, requireManager, async (req, res) => {
  * GET /api/audit-trail/project/:projectId
  * Get project-specific audit trail
  */
-router.get('/project/:projectId', auth, async (req, res) => {
+router.get('/project/:projectId', authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
     const { limit = 100, offset = 0 } = req.query;
@@ -154,7 +154,7 @@ router.get('/project/:projectId', auth, async (req, res) => {
  * GET /api/audit-trail/record/:tableName/:recordId
  * Get audit trail for a specific record
  */
-router.get('/record/:tableName/:recordId', auth, async (req, res) => {
+router.get('/record/:tableName/:recordId', authMiddleware, async (req, res) => {
   try {
     const { tableName, recordId } = req.params;
     const { limit = 50, offset = 0 } = req.query;
@@ -192,7 +192,7 @@ router.get('/record/:tableName/:recordId', auth, async (req, res) => {
  * GET /api/audit-trail/user/:userId
  * Get all actions by a specific user
  */
-router.get('/user/:userId', auth, requireManager, async (req, res) => {
+router.get('/user/:userId', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { limit = 100, offset = 0, start_date, end_date } = req.query;
@@ -255,7 +255,7 @@ router.get('/user/:userId', auth, requireManager, async (req, res) => {
  * GET /api/audit-trail/compare/:tableName/:recordId
  * Compare changes between two timestamps for a record
  */
-router.get('/compare/:tableName/:recordId', auth, async (req, res) => {
+router.get('/compare/:tableName/:recordId', authMiddleware, async (req, res) => {
   try {
     const { tableName, recordId } = req.params;
     const { from_timestamp, to_timestamp } = req.query;
@@ -316,7 +316,7 @@ router.get('/compare/:tableName/:recordId', auth, async (req, res) => {
  * GET /api/audit-trail/stats
  * Get audit statistics (Manager/Admin only)
  */
-router.get('/stats/summary', auth, requireManager, async (req, res) => {
+router.get('/stats/summary', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 
