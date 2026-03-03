@@ -146,7 +146,6 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
             {VENDORS.map((vendor) => (
               <div
                 key={vendor.id}
-                onClick={() => setSelectedVendor(vendor)}
                 className="vendor-card-modern"
               >
                 <div className="vendor-card-header">
@@ -159,11 +158,30 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
                     <span className="vendor-rating-value">{vendor.rating}</span>
                   </div>
                 </div>
-                <p className="vendor-product-count">{vendor.products.length} products available</p>
-                <button className="vendor-browse-button">
-                  Browse Products
-                  <span className="button-arrow">→</span>
-                </button>
+                <p className="vendor-product-count">
+                  {vendor.description}
+                </p>
+                {vendor.website ? (
+                  <a
+                    href={vendor.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="vendor-browse-button"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink size={16} />
+                    Visit Website
+                    <span className="button-arrow">→</span>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => setSelectedVendor(vendor)}
+                    className="vendor-browse-button"
+                  >
+                    Browse Products
+                    <span className="button-arrow">→</span>
+                  </button>
+                )}
               </div>
             ))}
           </div>
