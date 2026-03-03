@@ -26,17 +26,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
         },
         { id: 'projects', label: 'Projects', roles: ['developer'] },
         {
-          id: 'project-mgmt',
-          label: 'Project Mgmt',
-          roles: ['developer'],
-          hasDropdown: true,
-          description: 'Project Management Tools',
-          subItems: [
-            { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' }
-          ]
-        },
-        {
           id: 'settings',
           label: 'Settings',
           roles: ['developer'],
@@ -82,16 +71,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
         },
         { id: 'projects', label: 'Projects', roles: ['manager'] },
         {
-          id: 'project-mgmt',
-          label: 'Project Mgmt',
-          roles: ['manager'],
-          hasDropdown: true,
-          subItems: [
-            { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' }
-          ]
-        },
-        {
           id: 'settings',
           label: 'Settings',
           roles: ['manager'],
@@ -119,16 +98,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           ]
         },
         { id: 'projects', label: 'Projects', roles: ['admin'] },
-        {
-          id: 'project-mgmt',
-          label: 'Project Mgmt',
-          roles: ['admin'],
-          hasDropdown: true,
-          subItems: [
-            { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' }
-          ]
-        },
         {
           id: 'settings',
           label: 'Settings',
