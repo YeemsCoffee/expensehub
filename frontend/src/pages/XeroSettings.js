@@ -30,6 +30,9 @@ const XeroSettings = () => {
 
   const checkStatus = async () => {
     try {
+      // Wait a bit for auth to be restored after OAuth redirect
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const response = await api.get('/xero/status');
       setConnected(response.data.connected);
       setConnections(response.data.connections || []);
@@ -39,6 +42,10 @@ const XeroSettings = () => {
       }
     } catch (error) {
       console.error('Error checking Xero status:', error);
+      // Don't let auth errors here trigger logout - user might be in OAuth flow
+      if (error.response?.status === 401) {
+        console.warn('Authentication required for Xero settings');
+      }
     } finally {
       setLoading(false);
     }

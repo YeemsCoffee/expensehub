@@ -49,12 +49,19 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      // Redirect to login
-      window.location.hash = '';
-      window.location.reload();
+      // Check if we're in the middle of an OAuth flow (Xero callback)
+      const isOAuthCallback = window.location.hash.includes('connected=true') ||
+                               window.location.hash.includes('connected=false');
+
+      // Don't log out if we're handling an OAuth callback - the auth will be restored
+      if (!isOAuthCallback) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        // Redirect to login
+        window.location.hash = '';
+        window.location.reload();
+      }
     }
     return Promise.reject(error);
   }
