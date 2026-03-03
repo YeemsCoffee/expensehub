@@ -36,7 +36,6 @@ const ExpenseSubmit = () => {
     projectId: '',
     wbsElementId: '',
     vendorName: '',
-    glAccount: '',
     notes: '',
     isReimbursable: false
   });
@@ -287,7 +286,6 @@ const ExpenseSubmit = () => {
         wbsElementId: newExpense.wbsElementId ? parseInt(newExpense.wbsElementId) : null,
         costType: costType,
         vendorName: newExpense.vendorName,
-        glAccount: newExpense.glAccount,
         notes: newExpense.notes,
         isReimbursable: newExpense.isReimbursable
       });
@@ -317,7 +315,6 @@ const ExpenseSubmit = () => {
         projectId: '', // Reset project
         wbsElementId: '', // Reset WBS element
         vendorName: '',
-        glAccount: '',
         notes: '',
         isReimbursable: newExpense.isReimbursable // Keep last used
       });
@@ -518,17 +515,6 @@ const ExpenseSubmit = () => {
             {recentVendors.length > 0 && (
               <p className="expense-form-hint">Recently used vendors available</p>
             )}
-          </div>
-
-          <div className="expense-form-group">
-            <label className="expense-form-label">GL Account</label>
-            <input
-              type="text"
-              value={newExpense.glAccount}
-              onChange={(e) => handleInputChange('glAccount', e.target.value)}
-              placeholder="6000-100"
-              className="expense-form-input"
-            />
           </div>
         </div>
 
