@@ -166,7 +166,8 @@ router.delete('/', authMiddleware, async (req, res) => {
 // Checkout (submit cart as order/expense)
 router.post('/checkout', authMiddleware, [
   body('costCenterId').isInt(),
-  body('locationId').isInt()
+  body('locationId').isInt(),
+  body('category').notEmpty().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -174,7 +175,7 @@ router.post('/checkout', authMiddleware, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { costCenterId, locationId } = req.body;
+    const { costCenterId, locationId, category } = req.body;
 
     // Get cart items including Amazon SPAID for order placement
     const cartResult = await db.query(
@@ -255,12 +256,6 @@ router.post('/checkout', authMiddleware, [
     for (const item of cartResult.rows) {
       const amount = item.price * item.quantity;
       const description = `${item.name} (Qty: ${item.quantity})`;
-
-      // Determine category based on vendor
-      let category = 'Office Supplies';
-      if (item.vendor_name.toLowerCase().includes('amazon')) {
-        category = 'Office Supplies';
-      }
 
       // Store Amazon SPAID if present (needed for order placement)
       const amazonSpaid = item.amazon_spaid || null;
