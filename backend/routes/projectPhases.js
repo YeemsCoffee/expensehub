@@ -375,4 +375,59 @@ router.delete('/milestones/:id', authMiddleware, isManagerOrAdmin, auditLog('DEL
   }
 });
 
+/**
+ * POST /api/project-phases/:projectId/set-current/:phaseId
+ * Set the current phase for a project
+ */
+router.post('/:projectId/set-current/:phaseId', authMiddleware, isManagerOrAdmin, auditLog('SET_CURRENT_PHASE'), async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const { projectId, phaseId } = req.params;
+
+    await client.query('BEGIN');
+
+    // Verify phase belongs to project
+    const phaseCheck = await client.query(
+      'SELECT id, name FROM project_phases WHERE id = $1 AND project_id = $2 AND is_active = true',
+      [phaseId, projectId]
+    );
+
+    if (phaseCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Phase not found for this project' });
+    }
+
+    // Update project's current phase
+    const result = await client.query(
+      'UPDATE projects SET current_phase_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [phaseId, projectId]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    await client.query('COMMIT');
+
+    req.auditData = {
+      project: result.rows[0],
+      phase: phaseCheck.rows[0],
+      action: 'set_current_phase'
+    };
+
+    res.json({
+      message: 'Current phase updated successfully',
+      project: result.rows[0],
+      phase: phaseCheck.rows[0]
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error setting current phase:', err);
+    res.status(500).json({ error: 'Failed to set current phase' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

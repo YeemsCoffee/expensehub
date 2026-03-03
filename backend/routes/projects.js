@@ -266,13 +266,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const result = await db.query(
       `SELECT p.id, p.code, p.name, p.description, p.start_date, p.end_date,
               p.budget, p.status, p.project_manager, p.cost_center_id, p.created_at, p.updated_at,
-              p.approved_at, p.rejection_reason,
+              p.approved_at, p.rejection_reason, p.current_phase_id,
               submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
               submitter.email as submitted_by_email,
-              approver.first_name || ' ' || approver.last_name as approved_by_name
+              approver.first_name || ' ' || approver.last_name as approved_by_name,
+              phase.name as current_phase_name,
+              phase.status as current_phase_status,
+              phase.gate_approval_required as current_phase_gate_required,
+              phase.gate_decision as current_phase_gate_decision
        FROM projects p
        LEFT JOIN users submitter ON p.submitted_by = submitter.id
        LEFT JOIN users approver ON p.approved_by = approver.id
+       LEFT JOIN project_phases phase ON p.current_phase_id = phase.id
        WHERE p.id = $1`,
       [id]
     );
@@ -492,6 +497,16 @@ router.put('/:id/wbs/:wbsId', authMiddleware, [
       return res.status(404).json({ error: 'WBS element not found' });
     }
 
+    // Check if user is trying to update budget
+    if (budgetEstimate !== undefined) {
+      // Only admins and developers can update budget
+      if (req.user.role !== 'admin' && req.user.role !== 'developer') {
+        return res.status(403).json({
+          error: 'Access denied. Only administrators and developers can modify WBS element budgets.'
+        });
+      }
+    }
+
     // Build update query dynamically
     const updates = [];
     const values = [];
@@ -537,6 +552,64 @@ router.put('/:id/wbs/:wbsId', authMiddleware, [
   } catch (error) {
     console.error('Update WBS element error:', error);
     res.status(500).json({ error: 'Server error updating WBS element' });
+  }
+});
+
+// Increase WBS element budget (Admin/Developer only)
+router.patch('/:id/wbs/:wbsId/increase-budget', authMiddleware, isAdminOrDeveloper, [
+  body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
+  body('reason').notEmpty().trim().withMessage('Reason for budget increase is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id, wbsId } = req.params;
+    const { amount, reason } = req.body;
+
+    // Verify WBS element belongs to project
+    const checkResult = await db.query(
+      'SELECT * FROM project_wbs_elements WHERE id = $1 AND project_id = $2',
+      [wbsId, id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'WBS element not found' });
+    }
+
+    const currentBudget = parseFloat(checkResult.rows[0].budget_estimate || 0);
+    const newBudget = currentBudget + parseFloat(amount);
+
+    // Update the budget
+    const result = await db.query(
+      `UPDATE project_wbs_elements
+       SET budget_estimate = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [newBudget, wbsId]
+    );
+
+    // Log the budget increase (you could create a separate audit table for this)
+    console.log(`WBS Budget Increase: User ${req.user.id} (${req.user.role}) increased WBS ${wbsId} budget from ${currentBudget} to ${newBudget}. Reason: ${reason}`);
+
+    res.json({
+      message: 'WBS element budget increased successfully',
+      element: result.rows[0],
+      previousBudget: currentBudget,
+      increaseAmount: parseFloat(amount),
+      newBudget: newBudget,
+      reason: reason,
+      increasedBy: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role
+      }
+    });
+  } catch (error) {
+    console.error('Increase WBS budget error:', error);
+    res.status(500).json({ error: 'Server error increasing WBS element budget' });
   }
 });
 
