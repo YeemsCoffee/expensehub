@@ -275,7 +275,7 @@ const App = () => {
     }
   };
 
-  const handleCheckout = async (costCenterId, locationId) => {
+  const handleCheckout = async (costCenterId, locationId, category) => {
     if (cart.length === 0) return;
 
     if (!costCenterId) {
@@ -288,10 +288,16 @@ const App = () => {
       return;
     }
 
+    if (!category) {
+      alert('Please select an expense category');
+      return;
+    }
+
     try {
       const response = await api.post('/cart/checkout', {
         costCenterId: parseInt(costCenterId),
-        locationId: parseInt(locationId)
+        locationId: parseInt(locationId),
+        category: category
       });
 
       const totalAmount = calculateCartTotal(cart);

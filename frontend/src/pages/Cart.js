@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, X } from 'lucide-react';
 import { calculateCartTotal, calculateTax, formatCurrency } from '../utils/helpers';
+import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 
 const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) => {
@@ -8,6 +9,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
   const [locations, setLocations] = useState([]);
   const [selectedCostCenter, setSelectedCostCenter] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Office Supplies');
 
   const subtotal = calculateCartTotal(cart);
   const tax = calculateTax(subtotal);
@@ -39,7 +41,11 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
       alert('Please select a shipping location before submitting');
       return;
     }
-    onCheckout(selectedCostCenter, selectedLocation);
+    if (!selectedCategory) {
+      alert('Please select an expense category before submitting');
+      return;
+    }
+    onCheckout(selectedCostCenter, selectedLocation, selectedCategory);
   };
 
   if (cart.length === 0) {
@@ -133,6 +139,20 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
                   <option key={cc.id} value={cc.id}>{cc.code} - {cc.name}</option>
                 ))}
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Expense Category *</label>
+              <select
+                className="form-select"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                required
+              >
+                {EXPENSE_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+              <p className="form-hint">What type of expense is this purchase?</p>
             </div>
             <div className="form-group">
               <label className="form-label">Shipping Location *</label>
