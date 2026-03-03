@@ -1,10 +1,18 @@
 # Initialize Project Phases for Old Projects
 
-If you have existing projects that were created before the phase management feature was added, they won't show phase information in the project details page.
+## When Do Projects Get Phases?
 
-## Solution
+**New Projects (after this update):**
+- Phases are automatically created when a project is **approved**
+- No manual action needed for newly approved projects
 
-Call this endpoint to automatically create default phases for all projects that don't have any phases yet:
+**Old Projects (created before phase feature):**
+- They won't show phase information in the project details page
+- Need to run the initialization endpoint below (one-time operation)
+
+## Solution for Old Projects
+
+Call this endpoint to automatically create default phases for all old projects that don't have any phases yet:
 
 ### Using curl (recommended)
 
