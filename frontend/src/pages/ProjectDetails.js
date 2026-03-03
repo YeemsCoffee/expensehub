@@ -24,6 +24,7 @@ const ProjectDetails = () => {
   const [phases, setPhases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
+  const [isAdminOrDeveloper, setIsAdminOrDeveloper] = useState(false);
 
   // Expense modal state
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -31,6 +32,12 @@ const ProjectDetails = () => {
   const [wbsExpenses, setWbsExpenses] = useState([]);
   const [expensesSummary, setExpensesSummary] = useState(null);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
+
+  // Budget increase modal state
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [budgetIncreaseAmount, setBudgetIncreaseAmount] = useState('');
+  const [budgetIncreaseReason, setBudgetIncreaseReason] = useState('');
+  const [selectedWbsForBudget, setSelectedWbsForBudget] = useState(null);
 
   // Listen for hash changes to update project ID
   useEffect(() => {
@@ -64,6 +71,7 @@ const ProjectDetails = () => {
     const user = userStr ? JSON.parse(userStr) : null;
     const userRole = user?.role || 'employee';
     setIsManager(['manager', 'admin', 'developer'].includes(userRole));
+    setIsAdminOrDeveloper(['admin', 'developer'].includes(userRole));
   };
 
   const fetchProjectDetails = async () => {
@@ -119,6 +127,42 @@ const ProjectDetails = () => {
       toast.error('Failed to load expenses');
     } finally {
       setLoadingExpenses(false);
+    }
+  };
+
+  const openBudgetIncreaseModal = (wbs) => {
+    setSelectedWbsForBudget(wbs);
+    setBudgetIncreaseAmount('');
+    setBudgetIncreaseReason('');
+    setShowBudgetModal(true);
+  };
+
+  const handleBudgetIncrease = async () => {
+    if (!budgetIncreaseAmount || parseFloat(budgetIncreaseAmount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (!budgetIncreaseReason.trim()) {
+      toast.error('Please provide a reason for the budget increase');
+      return;
+    }
+
+    try {
+      const response = await api.patch(
+        `/projects/${id}/wbs/${selectedWbsForBudget.id}/increase-budget`,
+        {
+          amount: parseFloat(budgetIncreaseAmount),
+          reason: budgetIncreaseReason
+        }
+      );
+
+      toast.success(`Budget increased by ${formatCurrency(parseFloat(budgetIncreaseAmount))}`);
+      setShowBudgetModal(false);
+      // Refresh WBS elements to show updated budget
+      fetchWbsElements();
+    } catch (err) {
+      console.error('Error increasing budget:', err);
+      toast.error(err.response?.data?.error || 'Failed to increase budget');
     }
   };
 
@@ -543,7 +587,7 @@ const ProjectDetails = () => {
                         </p>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '1.25rem', fontWeight: '600', color: isOverBudget ? '#ef4444' : '#2B4628' }}>
                           {formatCurrency(totalSpent)}
@@ -552,26 +596,48 @@ const ProjectDetails = () => {
                           of {formatCurrency(budgetEstimate)}
                         </div>
                       </div>
-                      {isManager && wbs.expense_count > 0 && (
-                        <button
-                          onClick={() => fetchWbsExpenses(wbs.id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            padding: '0.5rem 1rem',
-                            border: '1px solid #2B4628',
-                            borderRadius: '0.5rem',
-                            background: 'white',
-                            color: '#2B4628',
-                            cursor: 'pointer',
-                            fontSize: '0.875rem'
-                          }}
-                        >
-                          <Eye size={16} />
-                          View Expenses
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {isManager && wbs.expense_count > 0 && (
+                          <button
+                            onClick={() => fetchWbsExpenses(wbs.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.5rem 1rem',
+                              border: '1px solid #2B4628',
+                              borderRadius: '0.5rem',
+                              background: 'white',
+                              color: '#2B4628',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem'
+                            }}
+                          >
+                            <Eye size={16} />
+                            View Expenses
+                          </button>
+                        )}
+                        {isAdminOrDeveloper && (
+                          <button
+                            onClick={() => openBudgetIncreaseModal(wbs)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.5rem 1rem',
+                              border: '1px solid #3b82f6',
+                              borderRadius: '0.5rem',
+                              background: 'white',
+                              color: '#3b82f6',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem'
+                            }}
+                          >
+                            <TrendingUp size={16} />
+                            Increase Budget
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -921,6 +987,150 @@ const ProjectDetails = () => {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Budget Increase Modal */}
+      {showBudgetModal && selectedWbsForBudget && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '2rem'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '2rem'
+          }}>
+            {/* Modal Header */}
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>
+                Increase Budget for {selectedWbsForBudget.category}
+              </h3>
+              <button
+                onClick={() => setShowBudgetModal(false)}
+                style={{
+                  padding: '0.5rem',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  borderRadius: '0.25rem'
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Current Budget Info */}
+            <div style={{
+              padding: '1rem',
+              background: '#f9fafb',
+              borderRadius: '0.5rem',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                Current Budget
+              </div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#2B4628' }}>
+                {formatCurrency(parseFloat(selectedWbsForBudget.budget_estimate))}
+              </div>
+            </div>
+
+            {/* Form */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                Increase Amount ($) *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={budgetIncreaseAmount}
+                onChange={(e) => setBudgetIncreaseAmount(e.target.value)}
+                placeholder="Enter amount to increase"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem'
+                }}
+              />
+              {budgetIncreaseAmount && parseFloat(budgetIncreaseAmount) > 0 && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#3b82f6' }}>
+                  New budget will be: {formatCurrency(parseFloat(selectedWbsForBudget.budget_estimate) + parseFloat(budgetIncreaseAmount))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                Reason for Increase *
+              </label>
+              <textarea
+                value={budgetIncreaseReason}
+                onChange={(e) => setBudgetIncreaseReason(e.target.value)}
+                placeholder="Explain why this budget increase is needed..."
+                rows="4"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowBudgetModal(false)}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  background: 'white',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBudgetIncrease}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  background: '#3b82f6',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <TrendingUp size={16} />
+                Increase Budget
+              </button>
             </div>
           </div>
         </div>
