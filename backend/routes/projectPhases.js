@@ -430,4 +430,93 @@ router.post('/:projectId/set-current/:phaseId', authMiddleware, isManagerOrAdmin
   }
 });
 
+/**
+ * POST /api/project-phases/admin/initialize-phases
+ * Initialize default phases for projects that don't have any
+ * (Admin/Developer only)
+ */
+router.post('/admin/initialize-phases', authMiddleware, async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    // Check if user is admin or developer
+    const userResult = await client.query(
+      'SELECT role FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (!userResult.rows[0] || !['admin', 'developer'].includes(userResult.rows[0].role)) {
+      return res.status(403).json({ error: 'Unauthorized. Admin or Developer role required.' });
+    }
+
+    await client.query('BEGIN');
+
+    // Find all approved/in_progress projects without phases
+    const projectsResult = await client.query(`
+      SELECT p.id, p.name, p.status
+      FROM projects p
+      WHERE p.status IN ('approved', 'in_progress', 'planning')
+        AND NOT EXISTS (
+          SELECT 1 FROM project_phases pp WHERE pp.project_id = p.id
+        )
+      ORDER BY p.id
+    `);
+
+    const projectsToInitialize = projectsResult.rows;
+    const initializedProjects = [];
+
+    for (const project of projectsToInitialize) {
+      // Create default phases for this project
+      const phases = [
+        { name: 'Planning', description: 'Initial project planning and requirements gathering', sequence: 1, status: 'in_progress', gate: true },
+        { name: 'Execution', description: 'Project implementation and development', sequence: 2, status: 'not_started', gate: true },
+        { name: 'Monitoring', description: 'Project monitoring and control', sequence: 3, status: 'not_started', gate: false },
+        { name: 'Closure', description: 'Project closure and final deliverables', sequence: 4, status: 'not_started', gate: true }
+      ];
+
+      let planningPhaseId = null;
+
+      for (const phase of phases) {
+        const phaseResult = await client.query(`
+          INSERT INTO project_phases (
+            project_id, name, description, sequence_order, status,
+            gate_approval_required, is_active
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, true)
+          RETURNING id
+        `, [project.id, phase.name, phase.description, phase.sequence, phase.status, phase.gate]);
+
+        if (phase.sequence === 1) {
+          planningPhaseId = phaseResult.rows[0].id;
+        }
+      }
+
+      // Set the current phase to Planning
+      await client.query(
+        'UPDATE projects SET current_phase_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [planningPhaseId, project.id]
+      );
+
+      initializedProjects.push({
+        id: project.id,
+        name: project.name,
+        status: project.status
+      });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: `Successfully initialized phases for ${initializedProjects.length} project(s)`,
+      projects: initializedProjects
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error initializing project phases:', err);
+    res.status(500).json({ error: 'Failed to initialize project phases', details: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

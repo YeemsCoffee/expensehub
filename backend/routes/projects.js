@@ -104,26 +104,31 @@ router.get('/pending', authMiddleware, isManagerOrAdmin, async (req, res) => {
 
 // Approve project (manager/admin only)
 router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
 
+    await client.query('BEGIN');
+
     // Check if project exists and is pending
-    const checkResult = await db.query(
+    const checkResult = await client.query(
       'SELECT id, status FROM projects WHERE id = $1',
       [id]
     );
 
     if (checkResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Project not found' });
     }
 
     if (checkResult.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Project is not pending approval' });
     }
 
     // Approve project
-    const result = await db.query(
-      `UPDATE projects 
+    const result = await client.query(
+      `UPDATE projects
        SET status = 'approved',
            approved_by = $1,
            approved_at = CURRENT_TIMESTAMP,
@@ -133,13 +138,50 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
       [req.user.id, id]
     );
 
+    // Create default phases for the newly approved project
+    const phases = [
+      { name: 'Planning', description: 'Initial project planning and requirements gathering', sequence: 1, status: 'in_progress', gate: true },
+      { name: 'Execution', description: 'Project implementation and development', sequence: 2, status: 'not_started', gate: true },
+      { name: 'Monitoring', description: 'Project monitoring and control', sequence: 3, status: 'not_started', gate: false },
+      { name: 'Closure', description: 'Project closure and final deliverables', sequence: 4, status: 'not_started', gate: true }
+    ];
+
+    let planningPhaseId = null;
+
+    for (const phase of phases) {
+      const phaseResult = await client.query(
+        `INSERT INTO project_phases (
+          project_id, name, description, sequence_order, status,
+          gate_approval_required, is_active
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, true)
+        RETURNING id`,
+        [id, phase.name, phase.description, phase.sequence, phase.status, phase.gate]
+      );
+
+      if (phase.sequence === 1) {
+        planningPhaseId = phaseResult.rows[0].id;
+      }
+    }
+
+    // Set the current phase to Planning
+    await client.query(
+      'UPDATE projects SET current_phase_id = $1 WHERE id = $2',
+      [planningPhaseId, id]
+    );
+
+    await client.query('COMMIT');
+
     res.json({
-      message: 'Project approved successfully',
+      message: 'Project approved successfully with default phases created',
       project: result.rows[0]
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Approve project error:', error);
     res.status(500).json({ error: 'Server error approving project' });
+  } finally {
+    client.release();
   }
 });
 

@@ -310,7 +310,7 @@
 .vendor-browse-button {
   width: 100%;
   background: var(--primary-color);
-  color: white;
+  color: white !important;
   border: none;
   padding: 0.875rem 1.5rem;
   border-radius: 10px;
@@ -322,11 +322,17 @@
   justify-content: center;
   gap: 0.5rem;
   transition: all 0.2s ease;
+  text-decoration: none;
 }
 
 .vendor-browse-button:hover {
   background: var(--primary-dark);
   transform: translateY(-2px);
+  color: white !important;
+}
+
+.vendor-browse-button:visited {
+  color: white !important;
 }
 
 .vendor-browse-button .button-arrow {
