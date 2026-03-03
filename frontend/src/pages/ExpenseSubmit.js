@@ -10,8 +10,6 @@ const ExpenseSubmit = () => {
   const toast = useToast();
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [wbsElements, setWbsElements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
@@ -33,8 +31,6 @@ const ExpenseSubmit = () => {
     tip: '',
     costCenterId: '',
     locationId: '',
-    projectId: '',
-    wbsElementId: '',
     vendorName: '',
     notes: '',
     isReimbursable: false
@@ -107,19 +103,14 @@ const ExpenseSubmit = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [ccResponse, locResponse, projResponse] = await Promise.all([
+      const [ccResponse, locResponse] = await Promise.all([
         api.get('/cost-centers'),
-        api.get('/locations'),
-        api.get('/projects/approved')  // Use the correct endpoint
+        api.get('/locations')
       ]);
 
       // Defensive checks for array responses
       setCostCenters(Array.isArray(ccResponse.data) ? ccResponse.data : []);
       setLocations(Array.isArray(locResponse.data) ? locResponse.data : []);
-
-      // Projects are already filtered to approved status by the backend
-      const projectsData = Array.isArray(projResponse.data) ? projResponse.data : [];
-      setProjects(projectsData);
 
       setLoading(false);
     } catch (err) {
@@ -134,34 +125,8 @@ const ExpenseSubmit = () => {
     fetchData();
   }, [fetchData]);
 
-  // Handle pre-selected project from URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
-    const projectId = urlParams.get('projectId');
-
-    if (projectId && projects.length > 0) {
-      // Check if the project exists in the approved projects list
-      const projectExists = projects.some(p => p.id === parseInt(projectId));
-      if (projectExists) {
-        setNewExpense(prev => ({ ...prev, projectId }));
-      }
-    }
-  }, [projects]);
-
   const handleInputChange = (field, value) => {
-    const updates = { [field]: value };
-
-    // If project changes, clear WBS element and fetch new WBS elements
-    if (field === 'projectId') {
-      updates.wbsElementId = '';
-      if (value) {
-        fetchWbsElements(value);
-      } else {
-        setWbsElements([]);
-      }
-    }
-
-    setNewExpense({ ...newExpense, ...updates });
+    setNewExpense({ ...newExpense, [field]: value });
     saveSmartDefaults(field, value);
 
     // Smart category suggestion based on vendor
@@ -175,16 +140,6 @@ const ExpenseSubmit = () => {
         // For now, just show a hint
         setSuggestedCategory('Based on previous entries');
       }
-    }
-  };
-
-  const fetchWbsElements = async (projectId) => {
-    try {
-      const response = await api.get(`/projects/${projectId}/wbs`);
-      setWbsElements(response.data.filter(wbs => wbs.is_active));
-    } catch (err) {
-      console.error('Error fetching WBS elements:', err);
-      setWbsElements([]);
     }
   };
 
@@ -237,10 +192,8 @@ const ExpenseSubmit = () => {
 
   const handleSubmit = async () => {
     // Validation
-    // Category is optional if a WBS element is selected (since WBS has category)
-    const categoryRequired = !newExpense.wbsElementId;
     if (!newExpense.date || !newExpense.description ||
-        (categoryRequired && !newExpense.category) ||
+        !newExpense.category ||
         !newExpense.amount || !newExpense.costCenterId) {
       toast.error('Please fill in all required fields');
       return;
@@ -259,18 +212,8 @@ const ExpenseSubmit = () => {
     toast.success('Expense submitted! Syncing...', { duration: 2000 });
 
     try {
-      // Use WBS category if WBS element is selected, otherwise use manual category
-      let finalCategory = newExpense.category;
-      if (newExpense.wbsElementId && wbsElements.length > 0) {
-        const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
-        if (selectedWbs) {
-          finalCategory = selectedWbs.category;
-        }
-      }
-
       // Auto-calculate cost type
-      // Project expenses default to CAPEX
-      const costType = newExpense.projectId ? 'CAPEX' : determineCostType(finalCategory, parseFloat(newExpense.amount));
+      const costType = determineCostType(newExpense.category, parseFloat(newExpense.amount));
 
       // Simulate network delay for demo
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -278,12 +221,10 @@ const ExpenseSubmit = () => {
       const response = await api.post('/expenses', {
         date: newExpense.date,
         description: newExpense.description,
-        category: finalCategory,
+        category: newExpense.category,
         amount: parseFloat(newExpense.amount),
         costCenterId: parseInt(newExpense.costCenterId),
         locationId: newExpense.locationId ? parseInt(newExpense.locationId) : null,
-        projectId: newExpense.projectId ? parseInt(newExpense.projectId) : null,
-        wbsElementId: newExpense.wbsElementId ? parseInt(newExpense.wbsElementId) : null,
         costType: costType,
         vendorName: newExpense.vendorName,
         notes: newExpense.notes,
@@ -312,14 +253,10 @@ const ExpenseSubmit = () => {
         tip: '',
         costCenterId: newExpense.costCenterId, // Keep last used
         locationId: newExpense.locationId, // Keep last used
-        projectId: '', // Reset project
-        wbsElementId: '', // Reset WBS element
         vendorName: '',
         notes: '',
         isReimbursable: newExpense.isReimbursable // Keep last used
       });
-
-      setWbsElements([]); // Clear WBS elements
 
       setReceiptId(null);
       setReimbursableConfirmed(false); // Reset confirmation flag
@@ -449,30 +386,20 @@ const ExpenseSubmit = () => {
 
           <div className="expense-form-group">
             <label className="expense-form-label">
-              Category {!newExpense.wbsElementId && <span className="required-indicator">*</span>}
+              Category <span className="required-indicator">*</span>
             </label>
             <select
               value={newExpense.category}
               onChange={(e) => handleInputChange('category', e.target.value)}
               className="expense-form-select"
-              required={!newExpense.wbsElementId}
-              disabled={!!newExpense.wbsElementId}
+              required
             >
-              <option value="">
-                {newExpense.wbsElementId ? 'Category from WBS element' : 'Select a category'}
-              </option>
+              <option value="">Select a category</option>
               {EXPENSE_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-            {newExpense.wbsElementId && wbsElements.length > 0 && (
-              <p className="expense-form-hint" style={{ color: '#10b981' }}>
-                Category will be auto-filled from selected WBS element: {
-                  wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId))?.category || ''
-                }
-              </p>
-            )}
-            {suggestedCategory && !newExpense.wbsElementId && (
+            {suggestedCategory && (
               <p className="expense-form-hint">{suggestedCategory}</p>
             )}
           </div>
@@ -555,59 +482,6 @@ const ExpenseSubmit = () => {
               ))}
             </select>
           </div>
-
-          <div className="expense-form-group">
-            <label className="expense-form-label">Project</label>
-            <select
-              value={newExpense.projectId}
-              onChange={(e) => handleInputChange('projectId', e.target.value)}
-              className="expense-form-select"
-            >
-              <option value="">No project</option>
-              {projects.map((proj) => (
-                <option key={proj.id} value={proj.id}>{proj.code} - {proj.name}</option>
-              ))}
-            </select>
-            {projects.length === 0 && (
-              <p className="expense-form-hint">No approved projects available</p>
-            )}
-          </div>
-
-          {newExpense.projectId && (
-            <div className="expense-form-group">
-              <label className="expense-form-label">WBS Element / Budget Category</label>
-              <select
-                value={newExpense.wbsElementId}
-                onChange={(e) => handleInputChange('wbsElementId', e.target.value)}
-                className="expense-form-select"
-              >
-                <option value="">Select WBS element</option>
-                {wbsElements.map((wbs) => (
-                  <option key={wbs.id} value={wbs.id}>
-                    {wbs.code} - {wbs.category} (Budget: ${parseFloat(wbs.budget_estimate).toFixed(2)})
-                  </option>
-                ))}
-              </select>
-              {wbsElements.length === 0 && (
-                <p className="expense-form-hint">No WBS elements defined for this project</p>
-              )}
-              {wbsElements.length > 0 && newExpense.wbsElementId && (
-                <p className="expense-form-hint">
-                  {(() => {
-                    const selectedWbs = wbsElements.find(w => w.id === parseInt(newExpense.wbsElementId));
-                    if (selectedWbs) {
-                      const spent = parseFloat(selectedWbs.total_spent) || 0;
-                      const budget = parseFloat(selectedWbs.budget_estimate);
-                      const remaining = budget - spent;
-                      const percentUsed = budget > 0 ? ((spent / budget) * 100).toFixed(1) : 0;
-                      return `Spent: $${spent.toFixed(2)} / $${budget.toFixed(2)} (${percentUsed}% used, $${remaining.toFixed(2)} remaining)`;
-                    }
-                    return '';
-                  })()}
-                </p>
-              )}
-            </div>
-          )}
 
           <div className="expense-form-group expense-form-grid-full">
             <label className="expense-form-label">Additional Notes</label>
