@@ -266,13 +266,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const result = await db.query(
       `SELECT p.id, p.code, p.name, p.description, p.start_date, p.end_date,
               p.budget, p.status, p.project_manager, p.cost_center_id, p.created_at, p.updated_at,
-              p.approved_at, p.rejection_reason,
+              p.approved_at, p.rejection_reason, p.current_phase_id,
               submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
               submitter.email as submitted_by_email,
-              approver.first_name || ' ' || approver.last_name as approved_by_name
+              approver.first_name || ' ' || approver.last_name as approved_by_name,
+              phase.name as current_phase_name,
+              phase.status as current_phase_status,
+              phase.gate_approval_required as current_phase_gate_required,
+              phase.gate_decision as current_phase_gate_decision
        FROM projects p
        LEFT JOIN users submitter ON p.submitted_by = submitter.id
        LEFT JOIN users approver ON p.approved_by = approver.id
+       LEFT JOIN project_phases phase ON p.current_phase_id = phase.id
        WHERE p.id = $1`,
       [id]
     );

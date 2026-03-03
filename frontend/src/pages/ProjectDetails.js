@@ -657,6 +657,70 @@ const ProjectDetails = () => {
             <p>{formatDate(project.created_at)}</p>
           </div>
 
+          {project.current_phase_name && (
+            <>
+              <div>
+                <label style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem', display: 'block' }}>
+                  Current Phase
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontWeight: '600' }}>{project.current_phase_name}</span>
+                  {project.current_phase_status && (
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      background: project.current_phase_status === 'completed' ? '#f0fdf4' : project.current_phase_status === 'in_progress' ? '#eff6ff' : '#f3f4f6',
+                      color: project.current_phase_status === 'completed' ? '#10b981' : project.current_phase_status === 'in_progress' ? '#3b82f6' : '#6b7280'
+                    }}>
+                      {project.current_phase_status.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {project.current_phase_gate_required && (
+                <div>
+                  <label style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem', display: 'block' }}>
+                    Gate Status
+                  </label>
+                  {project.current_phase_gate_decision ? (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      background: project.current_phase_gate_decision === 'approved' ? '#f0fdf4' : '#fee2e2',
+                      color: project.current_phase_gate_decision === 'approved' ? '#10b981' : '#ef4444'
+                    }}>
+                      {project.current_phase_gate_decision === 'approved' ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                      Gate {project.current_phase_gate_decision}
+                    </span>
+                  ) : (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      background: '#fef3c7',
+                      color: '#f59e0b'
+                    }}>
+                      <Clock size={14} />
+                      Gate Pending Approval
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
           {project.approved_by_name && (
             <>
               <div>
