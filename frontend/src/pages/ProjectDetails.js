@@ -21,6 +21,7 @@ const ProjectDetails = () => {
   const [project, setProject] = useState(null);
   const [stats, setStats] = useState(null);
   const [wbsElements, setWbsElements] = useState([]);
+  const [phases, setPhases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isManager, setIsManager] = useState(false);
 
@@ -53,6 +54,7 @@ const ProjectDetails = () => {
       fetchProjectDetails();
       fetchProjectStats();
       fetchWbsElements();
+      fetchPhases();
       checkUserRole();
     }
   }, [id]);
@@ -91,6 +93,16 @@ const ProjectDetails = () => {
       setWbsElements(response.data);
     } catch (err) {
       console.error('Error fetching WBS elements:', err);
+    }
+  };
+
+  const fetchPhases = async () => {
+    try {
+      const response = await api.get(`/project-phases/${id}`);
+      setPhases(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Error fetching phases:', err);
+      setPhases([]);
     }
   };
 
@@ -359,6 +371,74 @@ const ProjectDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Phases & Gates - Project Progress */}
+      {phases && phases.length > 0 && (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Project Phases & Gates</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            {phases.map((phase, index) => {
+              const isActive = phase.status === 'active';
+              const isCompleted = phase.status === 'completed';
+              const isPending = phase.status === 'not_started';
+
+              return (
+                <div
+                  key={phase.id}
+                  style={{
+                    padding: '1rem',
+                    border: `2px solid ${isCompleted ? '#10b981' : isActive ? '#3b82f6' : '#e5e7eb'}`,
+                    borderRadius: '0.5rem',
+                    background: isCompleted ? '#f0fdf4' : isActive ? '#eff6ff' : 'white',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: '#6b7280',
+                      background: '#f3f4f6',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.25rem'
+                    }}>
+                      Phase {phase.sequence_order}
+                    </span>
+                    {isCompleted && <CheckCircle size={16} color="#10b981" />}
+                    {isActive && <Clock size={16} color="#3b82f6" />}
+                  </div>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                    {phase.name}
+                  </h4>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    {phase.gate_approval_required && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        {phase.gate_decision ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            color: phase.gate_decision === 'approved' ? '#10b981' : '#ef4444',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                          }}>
+                            {phase.gate_decision === 'approved' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                            Gate {phase.gate_decision}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#f59e0b', fontSize: '0.75rem', fontWeight: '600' }}>
+                            Gate Pending
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Budget Stats */}
       {stats && project.budget && (

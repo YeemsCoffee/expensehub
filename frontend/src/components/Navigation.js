@@ -26,20 +26,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
         },
         { id: 'projects', label: 'Projects', roles: ['developer'] },
         {
-          id: 'project-mgmt',
-          label: 'Project Mgmt',
-          roles: ['developer'],
-          hasDropdown: true,
-          description: 'Phase 2: SAP-Like Project Controls',
-          subItems: [
-            { id: 'project-phases', label: 'Phases & Gates' },
-            { id: 'change-requests', label: 'Change Control' },
-            { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' },
-            { id: 'audit-trail', label: 'Audit Trail' }
-          ]
-        },
-        {
           id: 'settings',
           label: 'Settings',
           roles: ['developer'],
@@ -85,19 +71,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
         },
         { id: 'projects', label: 'Projects', roles: ['manager'] },
         {
-          id: 'project-mgmt',
-          label: 'Project Mgmt',
-          roles: ['manager'],
-          hasDropdown: true,
-          subItems: [
-            { id: 'project-phases', label: 'Phases & Gates' },
-            { id: 'change-requests', label: 'Change Control' },
-            { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' },
-            { id: 'audit-trail', label: 'Audit Trail' }
-          ]
-        },
-        {
           id: 'settings',
           label: 'Settings',
           roles: ['manager'],
@@ -125,19 +98,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           ]
         },
         { id: 'projects', label: 'Projects', roles: ['admin'] },
-        {
-          id: 'project-mgmt',
-          label: 'Project Mgmt',
-          roles: ['admin'],
-          hasDropdown: true,
-          subItems: [
-            { id: 'project-phases', label: 'Phases & Gates' },
-            { id: 'change-requests', label: 'Change Control' },
-            { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' },
-            { id: 'audit-trail', label: 'Audit Trail' }
-          ]
-        },
         {
           id: 'settings',
           label: 'Settings',

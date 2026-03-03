@@ -4,7 +4,11 @@ import './ProjectPhases.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-function ProjectPhases({ projectId, onClose }) {
+function ProjectPhases({ projectId: propProjectId, onClose }) {
+  // Project selection state (for standalone page mode)
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(propProjectId || null);
+
   const [phases, setPhases] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,6 +17,9 @@ function ProjectPhases({ projectId, onClose }) {
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [editingPhase, setEditingPhase] = useState(null);
   const [editingMilestone, setEditingMilestone] = useState(null);
+
+  // Use either the prop projectId or the selected one
+  const projectId = propProjectId || selectedProjectId;
 
   // Phase form state
   const [phaseForm, setPhaseForm] = useState({
@@ -35,10 +42,37 @@ function ProjectPhases({ projectId, onClose }) {
     is_critical_path: false
   });
 
+  // Fetch projects list if in standalone mode
   useEffect(() => {
-    fetchPhases();
-    fetchMilestones();
+    if (!propProjectId) {
+      fetchProjects();
+    }
+  }, [propProjectId]);
+
+  // Fetch phases and milestones when project is selected
+  useEffect(() => {
+    if (projectId) {
+      fetchPhases();
+      fetchMilestones();
+    } else {
+      setLoading(false);
+    }
   }, [projectId]);
+
+  const fetchProjects = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/projects`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setProjects(Array.isArray(response.data) ? response.data : []);
+      setLoading(false);
+    } catch (err) {
+      console.error('Failed to fetch projects:', err);
+      setProjects([]);
+      setLoading(false);
+    }
+  };
 
   const fetchPhases = async () => {
     try {
