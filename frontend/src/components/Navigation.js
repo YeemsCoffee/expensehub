@@ -30,13 +30,10 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           label: 'Project Mgmt',
           roles: ['developer'],
           hasDropdown: true,
-          description: 'Phase 2: SAP-Like Project Controls',
+          description: 'Project Management Tools',
           subItems: [
-            { id: 'project-phases', label: 'Phases & Gates' },
-            { id: 'change-requests', label: 'Change Control' },
             { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' },
-            { id: 'audit-trail', label: 'Audit Trail' }
+            { id: 'project-documents', label: 'Documents' }
           ]
         },
         {
@@ -90,11 +87,8 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           roles: ['manager'],
           hasDropdown: true,
           subItems: [
-            { id: 'project-phases', label: 'Phases & Gates' },
-            { id: 'change-requests', label: 'Change Control' },
             { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' },
-            { id: 'audit-trail', label: 'Audit Trail' }
+            { id: 'project-documents', label: 'Documents' }
           ]
         },
         {
@@ -131,11 +125,8 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           roles: ['admin'],
           hasDropdown: true,
           subItems: [
-            { id: 'project-phases', label: 'Phases & Gates' },
-            { id: 'change-requests', label: 'Change Control' },
             { id: 'project-templates', label: 'Templates' },
-            { id: 'project-documents', label: 'Documents' },
-            { id: 'audit-trail', label: 'Audit Trail' }
+            { id: 'project-documents', label: 'Documents' }
           ]
         },
         {
