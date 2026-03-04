@@ -309,7 +309,7 @@
 
 .vendor-browse-button {
   width: 100%;
-  background: var(--primary-color);
+  background: #2B4628;
   color: white !important;
   border: none;
   padding: 0.875rem 1.5rem;
@@ -326,7 +326,7 @@
 }
 
 .vendor-browse-button:hover {
-  background: var(--primary-dark);
+  background: #1f3420;
   transform: translateY(-2px);
   color: white !important;
 }
