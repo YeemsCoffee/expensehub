@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Calendar, DollarSign, User, Clock, CheckCircle,
   XCircle, Trash2, FileText, TrendingUp, TrendingDown, Plus,
-  Eye, Download, X, Filter
+  Eye, Download, X, Filter, Upload, Paperclip
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
@@ -39,6 +39,14 @@ const ProjectDetails = () => {
   const [budgetIncreaseReason, setBudgetIncreaseReason] = useState('');
   const [selectedWbsForBudget, setSelectedWbsForBudget] = useState(null);
 
+  // Documents state
+  const [documents, setDocuments] = useState([]);
+  const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [documentName, setDocumentName] = useState('');
+  const [documentDescription, setDocumentDescription] = useState('');
+
   // Listen for hash changes to update project ID
   useEffect(() => {
     const handleHashChange = () => {
@@ -62,6 +70,7 @@ const ProjectDetails = () => {
       fetchProjectStats();
       fetchWbsElements();
       fetchPhases();
+      fetchDocuments();
       checkUserRole();
     }
   }, [id]);
@@ -163,6 +172,80 @@ const ProjectDetails = () => {
     } catch (err) {
       console.error('Error increasing budget:', err);
       toast.error(err.response?.data?.error || 'Failed to increase budget');
+    }
+  };
+
+  // Document Management Functions
+  const fetchDocuments = async () => {
+    try {
+      const response = await api.get(`/project-documents/project/${id}`);
+      setDocuments(response.data || []);
+    } catch (err) {
+      console.error('Error fetching documents:', err);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!documentName) {
+        setDocumentName(file.name);
+      }
+    }
+  };
+
+  const handleDocumentUpload = async () => {
+    if (!selectedFile) {
+      toast.error('Please select a file');
+      return;
+    }
+    if (!documentName.trim()) {
+      toast.error('Please enter a document name');
+      return;
+    }
+
+    setUploadingDocument(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('project_id', id);
+      formData.append('document_name', documentName);
+      formData.append('document_type', 'general');
+      formData.append('document_category', 'Planning');
+      formData.append('version', '1.0');
+      formData.append('description', documentDescription);
+
+      await api.post('/project-documents/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      toast.success('Document uploaded successfully');
+      setShowDocumentUpload(false);
+      setSelectedFile(null);
+      setDocumentName('');
+      setDocumentDescription('');
+      fetchDocuments();
+    } catch (err) {
+      console.error('Error uploading document:', err);
+      toast.error(err.response?.data?.error || 'Failed to upload document');
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const handleDocumentDelete = async (docId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/project-documents/${docId}`);
+      toast.success('Document deleted successfully');
+      fetchDocuments();
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      toast.error('Failed to delete document');
     }
   };
 
@@ -823,6 +906,254 @@ const ProjectDetails = () => {
           )}
         </div>
       </div>
+
+      {/* Project Documents */}
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h3 style={{ margin: 0 }}>Project Documents</h3>
+          <button
+            onClick={() => setShowDocumentUpload(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              border: 'none',
+              borderRadius: '0.5rem',
+              background: '#2B4628',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}
+          >
+            <Upload size={16} />
+            Upload Document
+          </button>
+        </div>
+
+        {documents.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '3rem',
+            color: '#6b7280',
+            background: '#f9fafb',
+            borderRadius: '0.5rem'
+          }}>
+            <Paperclip size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+            <p style={{ margin: 0, fontSize: '0.875rem' }}>No documents uploaded yet</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '0.75rem' }}>
+            {documents.map(doc => (
+              <div
+                key={doc.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.5rem',
+                  background: 'white'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                  <FileText size={20} color="#2B4628" />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>{doc.document_name}</div>
+                    {doc.description && (
+                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>{doc.description}</div>
+                    )}
+                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+                      Uploaded {new Date(doc.created_at).toLocaleDateString()} by {doc.uploaded_by_name || 'Unknown'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <a
+                    href={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/uploads/documents/${doc.file_path}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #2B4628',
+                      borderRadius: '0.375rem',
+                      background: 'white',
+                      color: '#2B4628',
+                      textDecoration: 'none',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    <Download size={14} />
+                    Download
+                  </a>
+                  {(isManager || isAdminOrDeveloper) && (
+                    <button
+                      onClick={() => handleDocumentDelete(doc.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        border: '1px solid #ef4444',
+                        borderRadius: '0.375rem',
+                        background: 'white',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '500'
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Document Upload Modal */}
+      {showDocumentUpload && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '0.5rem',
+            padding: '2rem',
+            width: '90%',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            overflow: 'auto'
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem' }}>Upload Document</h3>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Select File *
+              </label>
+              <input
+                type="file"
+                onChange={handleFileSelect}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.375rem'
+                }}
+              />
+              {selectedFile && (
+                <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                  Selected: {selectedFile.name}
+                </p>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Document Name *
+              </label>
+              <input
+                type="text"
+                value={documentName}
+                onChange={(e) => setDocumentName(e.target.value)}
+                placeholder="Enter document name"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.375rem'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Description
+              </label>
+              <textarea
+                value={documentDescription}
+                onChange={(e) => setDocumentDescription(e.target.value)}
+                placeholder="Enter description (optional)"
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.375rem',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowDocumentUpload(false);
+                  setSelectedFile(null);
+                  setDocumentName('');
+                  setDocumentDescription('');
+                }}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '0.375rem',
+                  background: 'white',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDocumentUpload}
+                disabled={uploadingDocument || !selectedFile || !documentName.trim()}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  background: uploadingDocument || !selectedFile || !documentName.trim() ? '#d1d5db' : '#2B4628',
+                  color: 'white',
+                  cursor: uploadingDocument || !selectedFile || !documentName.trim() ? 'not-allowed' : 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                {uploadingDocument ? (
+                  <>Uploading...</>
+                ) : (
+                  <>
+                    <Upload size={14} />
+                    Upload
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expense Modal */}
       {showExpenseModal && selectedWbs && (
