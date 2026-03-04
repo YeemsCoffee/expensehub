@@ -49,12 +49,18 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Check if this request has skipAutoLogout flag
+      const skipAutoLogout = error.config?.skipAutoLogout;
+
       // Check if we're in the middle of an OAuth flow (Xero callback)
       const isOAuthCallback = window.location.hash.includes('connected=true') ||
                                window.location.hash.includes('connected=false');
 
-      // Don't log out if we're handling an OAuth callback - the auth will be restored
-      if (!isOAuthCallback) {
+      // Check if we're on the Xero settings page (where auth issues are expected)
+      const isXeroPage = window.location.hash.includes('xero-settings');
+
+      // Don't log out in these cases
+      if (!skipAutoLogout && !isOAuthCallback && !isXeroPage) {
         // Token expired or invalid
         localStorage.removeItem('token');
         localStorage.removeItem('user');
