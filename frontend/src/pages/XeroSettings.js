@@ -58,7 +58,17 @@ const XeroSettings = () => {
       window.location.href = response.data.authUrl;
     } catch (error) {
       console.error('Error connecting to Xero:', error);
-      setMessage({ type: 'error', text: 'Failed to initiate Xero connection' });
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        setMessage({
+          type: 'error',
+          text: 'Access denied. Only admin or developer users can connect to Xero.'
+        });
+      } else {
+        setMessage({
+          type: 'error',
+          text: 'Failed to initiate Xero connection. Please try again.'
+        });
+      }
     }
   };
 
@@ -91,7 +101,17 @@ const XeroSettings = () => {
       setAccounts(expenseAccounts);
     } catch (error) {
       console.error('Error loading accounts:', error);
-      setMessage({ type: 'error', text: 'Failed to load Xero accounts' });
+      if (error.response?.status === 401) {
+        setMessage({
+          type: 'error',
+          text: 'Authentication required. You need admin or developer privileges to access Xero settings.'
+        });
+      } else {
+        setMessage({
+          type: 'error',
+          text: 'Failed to load Xero accounts. Try disconnecting and reconnecting to Xero.'
+        });
+      }
     }
   }, [selectedTenant]);
 
