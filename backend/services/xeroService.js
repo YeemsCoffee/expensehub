@@ -422,6 +422,17 @@ class XeroService {
       return mapping.categoryMapping[category];
     }
 
+    // Try normalized key (e.g. "Meals & Entertainment" -> "meals_entertainment")
+    const normalizedKey = category.toLowerCase().replace(/[&\s]+/g, '_').replace(/_+/g, '_');
+    if (mapping.categoryMapping && mapping.categoryMapping[normalizedKey]) {
+      return mapping.categoryMapping[normalizedKey];
+    }
+
+    // Check database category mappings if loaded
+    if (mapping.dbCategoryMappings && mapping.dbCategoryMappings[category]) {
+      return mapping.dbCategoryMappings[category];
+    }
+
     // Default account codes (customize based on your chart of accounts)
     const defaultMapping = {
       'meals': '420',
@@ -439,7 +450,7 @@ class XeroService {
       'other': '404'
     };
 
-    return defaultMapping[category] || mapping.defaultExpenseAccount || '400';
+    return defaultMapping[category] || defaultMapping[normalizedKey] || mapping.defaultExpenseAccount || '400';
   }
 
   /**

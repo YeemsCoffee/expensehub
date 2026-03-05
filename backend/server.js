@@ -134,6 +134,7 @@ app.use('/api/expense-approvals', require('./routes/expenseApprovals')); // Expe
 app.use('/api/amazon-punchout', require('./routes/amazonPunchout')); // Amazon Business Punchout
 app.use('/api/receipts', require('./routes/receipts')); // Receipt OCR with Veryfi
 app.use('/api/xero', require('./routes/xero')); // Xero accounting integration
+app.use('/api/expense-categories', require('./routes/expenseCategories')); // Expense category management
 
 // Phase 2: SAP-like Project Management Features
 app.use('/api/project-phases', require('./routes/projectPhases')); // Project phases & milestones

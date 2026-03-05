@@ -31,7 +31,7 @@ const XeroSettings = () => {
     }
   }, []);
 
-  const categories = [
+  const [categories, setCategories] = useState([
     { id: 'meals', label: 'Meals' },
     { id: 'meals_entertainment', label: 'Meals & Entertainment' },
     { id: 'travel', label: 'Travel' },
@@ -45,7 +45,27 @@ const XeroSettings = () => {
     { id: 'internet', label: 'Internet' },
     { id: 'utilities', label: 'Utilities' },
     { id: 'other', label: 'Other' }
-  ];
+  ]);
+
+  // Fetch categories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get('/expense-categories');
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          setCategories(response.data.map(c => ({
+            id: c.name.toLowerCase().replace(/[&\s]+/g, '_'),
+            label: c.name
+          })));
+        }
+      } catch (err) {
+        console.error('Error fetching categories, using defaults:', err);
+      }
+    };
+    if (hasPermission) {
+      fetchCategories();
+    }
+  }, [hasPermission]);
 
   const checkStatus = async () => {
     try {

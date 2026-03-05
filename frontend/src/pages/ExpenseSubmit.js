@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, CheckCircle, Camera, AlertTriangle, DollarSign, FileText, MapPin } from 'lucide-react';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
+
 import { useToast } from '../components/Toast';
 import ReceiptUpload from '../components/ReceiptUpload';
 import '../styles/expense-submit.css';
@@ -10,6 +11,7 @@ const ExpenseSubmit = () => {
   const toast = useToast();
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [categories, setCategories] = useState(EXPENSE_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
@@ -103,14 +105,18 @@ const ExpenseSubmit = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [ccResponse, locResponse] = await Promise.all([
+      const [ccResponse, locResponse, catResponse] = await Promise.all([
         api.get('/cost-centers'),
-        api.get('/locations')
+        api.get('/locations'),
+        api.get('/expense-categories').catch(() => null)
       ]);
 
       // Defensive checks for array responses
       setCostCenters(Array.isArray(ccResponse.data) ? ccResponse.data : []);
       setLocations(Array.isArray(locResponse.data) ? locResponse.data : []);
+      if (catResponse && Array.isArray(catResponse.data) && catResponse.data.length > 0) {
+        setCategories(catResponse.data.map(c => c.name));
+      }
 
       setLoading(false);
     } catch (err) {
@@ -395,7 +401,7 @@ const ExpenseSubmit = () => {
               required
             >
               <option value="">Select a category</option>
-              {EXPENSE_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>

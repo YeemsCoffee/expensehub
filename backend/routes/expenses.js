@@ -602,6 +602,7 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
 
         const mapping = {
           categoryMapping: {},
+          dbCategoryMappings: {},
           defaultExpenseAccount: '400',
           defaultTaxType: 'NONE'
         };
@@ -609,6 +610,18 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
         mappingsResult.rows.forEach(row => {
           mapping.categoryMapping[row.category] = row.xero_account_code;
         });
+
+        // Load category-level Xero mappings from expense_categories table
+        try {
+          const dbCategories = await db.query(
+            'SELECT name, xero_account_code FROM expense_categories WHERE is_active = true AND xero_account_code IS NOT NULL'
+          );
+          dbCategories.rows.forEach(row => {
+            mapping.dbCategoryMappings[row.name] = row.xero_account_code;
+          });
+        } catch (catErr) {
+          console.log('Note: expense_categories table not available, using defaults');
+        }
 
         // Sync to Xero (bills payable to employee for reimbursable, vendor for non-reimbursable)
         const syncResult = await xeroService.syncExpense(

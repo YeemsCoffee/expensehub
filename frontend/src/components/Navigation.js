@@ -33,6 +33,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           subItems: [
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
+            { id: 'expense-categories', label: 'Expense Categories' },
             { id: 'approval-rules', label: 'Approval Rules' },
             { id: 'users', label: 'Users' },
             { id: 'xero-settings', label: 'Xero Integration' }
@@ -106,6 +107,7 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
           subItems: [
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
+            { id: 'expense-categories', label: 'Expense Categories' },
             { id: 'approval-rules', label: 'Approval Rules' },
             { id: 'users', label: 'Users' },
             { id: 'xero-settings', label: 'Xero Integration' }
