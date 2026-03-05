@@ -222,6 +222,7 @@ const XeroSettings = () => {
       )}
 
       {!hasPermission && !loading ? null : (
+      <>
       <div className="card">
         <h3>Connection Status</h3>
 
@@ -362,6 +363,7 @@ const XeroSettings = () => {
           </ul>
         </div>
       </div>
+      </>
       )}
     </div>
   );
