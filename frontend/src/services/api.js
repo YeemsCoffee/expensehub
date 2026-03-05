@@ -64,9 +64,13 @@ api.interceptors.response.use(
         // Token expired or invalid
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Redirect to login
-        window.location.hash = '';
-        window.location.reload();
+        localStorage.removeItem('role');
+        // Redirect to login without reload to prevent page hang
+        window.location.hash = '#login';
+        // Only reload after a short delay to allow hash change to process
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
       }
     }
     return Promise.reject(error);

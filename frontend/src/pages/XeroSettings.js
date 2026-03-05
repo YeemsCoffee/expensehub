@@ -11,6 +11,25 @@ const XeroSettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+  const [hasPermission, setHasPermission] = useState(false);
+
+  // Check user role on mount
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const role = user?.role || localStorage.getItem('role');
+
+    if (role === 'admin' || role === 'developer') {
+      setHasPermission(true);
+    } else {
+      setHasPermission(false);
+      setLoading(false);
+      setMessage({
+        type: 'error',
+        text: `Access denied. Only admin or developer users can access Xero settings. Your current role: ${role || 'unknown'}`
+      });
+    }
+  }, []);
 
   const categories = [
     { id: 'meals', label: 'Meals' },
@@ -132,15 +151,17 @@ const XeroSettings = () => {
   }, [selectedTenant]);
 
   useEffect(() => {
-    checkStatus();
-  }, []);
+    if (hasPermission) {
+      checkStatus();
+    }
+  }, [hasPermission]);
 
   useEffect(() => {
-    if (selectedTenant) {
+    if (selectedTenant && hasPermission) {
       loadAccounts();
       loadMappings();
     }
-  }, [selectedTenant, loadAccounts, loadMappings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedTenant, hasPermission, loadAccounts, loadMappings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveMappings = async () => {
     setSaving(true);
@@ -200,6 +221,7 @@ const XeroSettings = () => {
         </div>
       )}
 
+      {!hasPermission && !loading ? null : (
       <div className="card">
         <h3>Connection Status</h3>
 
@@ -340,6 +362,7 @@ const XeroSettings = () => {
           </ul>
         </div>
       </div>
+      )}
     </div>
   );
 };
