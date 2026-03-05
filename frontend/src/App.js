@@ -153,9 +153,12 @@ const App = () => {
         setCurrentView('reset-password');
       } else if (hash === '') {
         // Empty hash - set default based on role
-        if (user?.role === 'employee' || user?.role === 'developer') {
+        // Use localStorage to avoid stale closure
+        const savedUser = localStorage.getItem('user');
+        const userData = savedUser ? JSON.parse(savedUser) : null;
+        if (userData?.role === 'employee' || userData?.role === 'developer') {
           setActiveTab('home');
-        } else if (user) {
+        } else if (userData) {
           setActiveTab('dashboard');
         }
       }
