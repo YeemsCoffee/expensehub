@@ -123,7 +123,7 @@ router.get('/callback', async (req, res) => {
 });
 
 // GET /api/xero/status - Check Xero connection status (organization-wide)
-router.get('/status', authMiddleware, async (req, res) => {
+router.get('/status', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT tenant_id, tenant_name, is_active, is_organization_wide,
@@ -166,7 +166,7 @@ router.post('/disconnect', authMiddleware, isAdminOrDeveloper, async (req, res) 
 });
 
 // GET /api/xero/accounts - Get Xero chart of accounts
-router.get('/accounts', authMiddleware, async (req, res) => {
+router.get('/accounts', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.query;
 
@@ -199,7 +199,7 @@ router.get('/accounts', authMiddleware, async (req, res) => {
 });
 
 // GET /api/xero/mappings - Get account mappings (organization-wide)
-router.get('/mappings', authMiddleware, async (req, res) => {
+router.get('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.query;
 
@@ -410,7 +410,7 @@ router.post('/sync-bulk', authMiddleware, async (req, res) => {
 });
 
 // GET /api/xero/organization - Get Xero organization info
-router.get('/organization', authMiddleware, async (req, res) => {
+router.get('/organization', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.query;
 
