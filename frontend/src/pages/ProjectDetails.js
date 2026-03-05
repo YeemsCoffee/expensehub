@@ -47,6 +47,9 @@ const ProjectDetails = () => {
   const [documentName, setDocumentName] = useState('');
   const [documentDescription, setDocumentDescription] = useState('');
 
+  // Phase change state
+  const [changingPhase, setChangingPhase] = useState(false);
+
   // Listen for hash changes to update project ID
   useEffect(() => {
     const handleHashChange = () => {
@@ -320,6 +323,25 @@ const ProjectDetails = () => {
     }
   };
 
+  const handlePhaseChange = async (newPhaseId) => {
+    if (!window.confirm('Are you sure you want to change the current project phase?')) {
+      return;
+    }
+
+    setChangingPhase(true);
+    try {
+      await api.post(`/project-phases/${id}/set-current/${newPhaseId}`);
+      toast.success('Project phase updated successfully');
+      fetchProjectDetails();
+      fetchPhases();
+    } catch (err) {
+      console.error('Error changing phase:', err);
+      toast.error(err.response?.data?.error || 'Failed to change project phase');
+    } finally {
+      setChangingPhase(false);
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -505,8 +527,9 @@ const ProjectDetails = () => {
           <h3 style={{ marginBottom: '1rem' }}>Project Phases & Gates</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
             {phases.map((phase, index) => {
-              const isActive = phase.status === 'active';
+              const isCurrent = project.current_phase_id && phase.id === project.current_phase_id;
               const isCompleted = phase.status === 'completed';
+              const isActive = phase.status === 'active';
               const isPending = phase.status === 'not_started';
 
               return (
@@ -514,13 +537,13 @@ const ProjectDetails = () => {
                   key={phase.id}
                   style={{
                     padding: '1rem',
-                    border: `2px solid ${isCompleted ? '#10b981' : isActive ? '#3b82f6' : '#e5e7eb'}`,
+                    border: `2px solid ${isCurrent ? '#2B4628' : isCompleted ? '#10b981' : isActive ? '#3b82f6' : '#e5e7eb'}`,
                     borderRadius: '0.5rem',
-                    background: isCompleted ? '#f0fdf4' : isActive ? '#eff6ff' : 'white',
+                    background: isCurrent ? '#F2ECD4' : isCompleted ? '#f0fdf4' : isActive ? '#eff6ff' : 'white',
                     position: 'relative'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                     <span style={{
                       fontSize: '0.75rem',
                       fontWeight: '600',
@@ -531,6 +554,19 @@ const ProjectDetails = () => {
                     }}>
                       Phase {phase.sequence_order}
                     </span>
+                    {isCurrent && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: '700',
+                        color: '#2B4628',
+                        background: 'white',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.25rem',
+                        border: '1px solid #2B4628'
+                      }}>
+                        CURRENT
+                      </span>
+                    )}
                     {isCompleted && <CheckCircle size={16} color="#10b981" />}
                     {isActive && <Clock size={16} color="#3b82f6" />}
                   </div>
@@ -564,6 +600,48 @@ const ProjectDetails = () => {
               );
             })}
           </div>
+
+          {/* Phase Selector - Manager/Admin Only */}
+          {isManager && project.status === 'approved' && phases.length > 0 && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '0.5rem'
+              }}>
+                Change Current Phase:
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <select
+                  value={project.current_phase_id || ''}
+                  onChange={(e) => handlePhaseChange(parseInt(e.target.value))}
+                  disabled={changingPhase}
+                  style={{
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    minWidth: '200px',
+                    cursor: changingPhase ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <option value="">Select phase...</option>
+                  {phases.map(phase => (
+                    <option key={phase.id} value={phase.id}>
+                      Phase {phase.sequence_order}: {phase.name}
+                      {phase.gate_approval_required && !phase.gate_decision ? ' (Gate Pending)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {changingPhase && <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>Updating...</span>}
+              </div>
+              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                Current: {project.current_phase_name || 'None'}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
