@@ -26,7 +26,9 @@
       "Bash(timeout /t 8)",
       "Bash(npm run build)",
       "Bash(git checkout -b claude/fix-developer-order-approval-XrPE4)",
-      "Bash(git checkout claude/fix-developer-order-approval-XrPE4)"
+      "Bash(git checkout claude/fix-developer-order-approval-XrPE4)",
+      "Bash(grep -r \"xero_account_mappings\\\\|xero_connections\\\\|CREATE TABLE\" /home/user/expensehub/backend/database/*.sql)",
+      "Bash(grep -r \"categories\\\\|CATEGORIES\" /home/user/expensehub/backend/routes/*.js)"
     ],
     "deny": [],
     "ask": []
