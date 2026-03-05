@@ -16,6 +16,7 @@ import Users from './pages/Users';
 import ApprovalRules from './pages/ApprovalRules';
 import Approvals from './pages/Approvals';
 import XeroSettings from './pages/XeroSettings';
+import ExpenseCategories from './pages/ExpenseCategories';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -128,6 +129,7 @@ const App = () => {
         'approval-rules',
         'users',
         'xero-settings',
+        'expense-categories',
         'cart',
         // Phase 2: SAP-Like Project Management Routes
         'project-phases',
@@ -398,6 +400,8 @@ const App = () => {
         return <Approvals />;
       case 'xero-settings':
         return <XeroSettings />;
+      case 'expense-categories':
+        return <ExpenseCategories />;
       case 'cart':
         return (
           <Cart

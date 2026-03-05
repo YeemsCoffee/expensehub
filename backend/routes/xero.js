@@ -324,6 +324,19 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
       mapping.categoryMapping[row.category] = row.xero_account_code;
     });
 
+    // Load database category mappings
+    mapping.dbCategoryMappings = {};
+    try {
+      const dbCategories = await db.query(
+        'SELECT name, xero_account_code FROM expense_categories WHERE is_active = true AND xero_account_code IS NOT NULL'
+      );
+      dbCategories.rows.forEach(row => {
+        mapping.dbCategoryMappings[row.name] = row.xero_account_code;
+      });
+    } catch (catErr) {
+      console.log('Note: expense_categories table not available, using defaults');
+    }
+
     // Sync to Xero
     const result = await xeroService.syncExpenseToXero(tenantId, expense, mapping);
 
@@ -392,6 +405,19 @@ router.post('/sync-bulk', authMiddleware, async (req, res) => {
     mappingsResult.rows.forEach(row => {
       mapping.categoryMapping[row.category] = row.xero_account_code;
     });
+
+    // Load database category mappings
+    mapping.dbCategoryMappings = {};
+    try {
+      const dbCategories = await db.query(
+        'SELECT name, xero_account_code FROM expense_categories WHERE is_active = true AND xero_account_code IS NOT NULL'
+      );
+      dbCategories.rows.forEach(row => {
+        mapping.dbCategoryMappings[row.name] = row.xero_account_code;
+      });
+    } catch (catErr) {
+      console.log('Note: expense_categories table not available, using defaults');
+    }
 
     // Bulk sync
     const result = await xeroService.bulkSyncExpenses(tenantId, expensesResult.rows, mapping);

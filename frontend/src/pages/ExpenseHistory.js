@@ -11,6 +11,7 @@ const ExpenseHistory = () => {
   const [expenses, setExpenses] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [categories, setCategories] = useState(EXPENSE_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [successBanner, setSuccessBanner] = useState(null);
@@ -51,13 +52,17 @@ const ExpenseHistory = () => {
       const expensesResponse = await api.get('/expenses', { params: filters });
       setExpenses(expensesResponse.data);
 
-      const [ccResponse, locResponse] = await Promise.all([
+      const [ccResponse, locResponse, catResponse] = await Promise.all([
         api.get('/cost-centers'),
-        api.get('/locations')
+        api.get('/locations'),
+        api.get('/expense-categories').catch(() => null)
       ]);
 
       setCostCenters(ccResponse.data);
       setLocations(locResponse.data);
+      if (catResponse && Array.isArray(catResponse.data) && catResponse.data.length > 0) {
+        setCategories(catResponse.data.map(c => c.name));
+      }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -262,7 +267,7 @@ const ExpenseHistory = () => {
               <label className="form-label">Category</label>
               <select value={filters.category} onChange={(e) => handleFilterChange('category', e.target.value)} className="form-select">
                 <option value="">All Categories</option>
-                {EXPENSE_CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>

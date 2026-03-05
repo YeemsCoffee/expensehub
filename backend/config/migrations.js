@@ -176,6 +176,37 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] Seed data already exists - skipping seed migration');
     }
 
+    // 5. Check and apply Expense Categories migration
+    console.log('[MIGRATION] Checking if expense_categories table exists...');
+    const checkExpenseCategories = await db.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_name = 'expense_categories'
+      AND table_schema = 'public'
+    `);
+
+    if (checkExpenseCategories.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying expense categories migration...');
+
+      const categoriesMigrationPath = path.join(__dirname, '../database/create_expense_categories.sql');
+
+      if (fs.existsSync(categoriesMigrationPath)) {
+        const categoriesMigrationSQL = fs.readFileSync(categoriesMigrationPath, 'utf8');
+        await Promise.race([
+          db.query(categoriesMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Expense categories migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Expense categories migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] expense_categories table already exists - skipping');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)

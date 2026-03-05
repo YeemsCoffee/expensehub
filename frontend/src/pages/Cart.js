@@ -7,6 +7,7 @@ import api from '../services/api';
 const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) => {
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [categories, setCategories] = useState(EXPENSE_CATEGORIES);
   const [selectedCostCenter, setSelectedCostCenter] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Office Supplies');
@@ -18,12 +19,16 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ccResponse, locResponse] = await Promise.all([
+        const [ccResponse, locResponse, catResponse] = await Promise.all([
           api.get('/cost-centers'),
-          api.get('/locations')
+          api.get('/locations'),
+          api.get('/expense-categories').catch(() => null)
         ]);
         setCostCenters(ccResponse.data);
         setLocations(locResponse.data);
+        if (catResponse && Array.isArray(catResponse.data) && catResponse.data.length > 0) {
+          setCategories(catResponse.data.map(c => c.name));
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error);
       }
@@ -148,7 +153,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 required
               >
-                {EXPENSE_CATEGORIES.map((category) => (
+                {categories.map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
