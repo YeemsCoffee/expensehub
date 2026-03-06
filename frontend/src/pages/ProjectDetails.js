@@ -574,10 +574,9 @@ const ProjectDetails = () => {
                     {phase.name}
                   </h4>
                   <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                    {phase.gate_approval_required && (
+                    {phase.gate_approval_required && phase.gate_decision && (
                       <div style={{ marginTop: '0.5rem' }}>
-                        {phase.gate_decision ? (
-                          <span style={{
+                        <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.25rem',
@@ -588,11 +587,6 @@ const ProjectDetails = () => {
                             {phase.gate_decision === 'approved' ? <CheckCircle size={12} /> : <XCircle size={12} />}
                             Gate {phase.gate_decision}
                           </span>
-                        ) : (
-                          <span style={{ color: '#f59e0b', fontSize: '0.75rem', fontWeight: '600' }}>
-                            Gate Pending
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
@@ -631,7 +625,6 @@ const ProjectDetails = () => {
                   {phases.map(phase => (
                     <option key={phase.id} value={phase.id}>
                       Phase {phase.sequence_order}: {phase.name}
-                      {phase.gate_approval_required && !phase.gate_decision ? ' (Gate Pending)' : ''}
                     </option>
                   ))}
                 </select>
@@ -907,13 +900,12 @@ const ProjectDetails = () => {
                 </div>
               </div>
 
-              {project.current_phase_gate_required && (
+              {project.current_phase_gate_required && project.current_phase_gate_decision && (
                 <div>
                   <label style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem', display: 'block' }}>
                     Gate Status
                   </label>
-                  {project.current_phase_gate_decision ? (
-                    <span style={{
+                  <span style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.25rem',
@@ -927,22 +919,6 @@ const ProjectDetails = () => {
                       {project.current_phase_gate_decision === 'approved' ? <CheckCircle size={14} /> : <XCircle size={14} />}
                       Gate {project.current_phase_gate_decision}
                     </span>
-                  ) : (
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.875rem',
-                      fontWeight: '600',
-                      background: '#fef3c7',
-                      color: '#f59e0b'
-                    }}>
-                      <Clock size={14} />
-                      Gate Pending Approval
-                    </span>
-                  )}
                 </div>
               )}
             </>
