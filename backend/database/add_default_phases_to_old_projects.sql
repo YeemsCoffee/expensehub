@@ -5,26 +5,41 @@
 CREATE OR REPLACE FUNCTION add_default_phases_to_project(project_id_param INTEGER)
 RETURNS VOID AS $$
 DECLARE
-    phase_planning_id INTEGER;
+    phase_conceptual_id INTEGER;
 BEGIN
     -- Insert default phases for the project
-    -- Phase 1: Planning
+    -- Phase 1: Conceptual
     INSERT INTO project_phases (
         project_id, name, description, sequence_order, status,
         gate_approval_required, is_active
     )
     VALUES (
         project_id_param,
-        'Planning',
-        'Initial project planning and requirements gathering',
+        'Conceptual',
+        'Initial concept development and ideation',
         1,
         'in_progress',
         true,
         true
     )
-    RETURNING id INTO phase_planning_id;
+    RETURNING id INTO phase_conceptual_id;
 
-    -- Phase 2: Execution
+    -- Phase 2: Feasibility
+    INSERT INTO project_phases (
+        project_id, name, description, sequence_order, status,
+        gate_approval_required, is_active
+    )
+    VALUES (
+        project_id_param,
+        'Feasibility',
+        'Feasibility study and requirements gathering',
+        2,
+        'not_started',
+        true,
+        true
+    );
+
+    -- Phase 3: Execution
     INSERT INTO project_phases (
         project_id, name, description, sequence_order, status,
         gate_approval_required, is_active
@@ -33,35 +48,20 @@ BEGIN
         project_id_param,
         'Execution',
         'Project implementation and development',
-        2,
+        3,
         'not_started',
         true,
         true
     );
 
-    -- Phase 3: Monitoring
+    -- Phase 4: Closeout
     INSERT INTO project_phases (
         project_id, name, description, sequence_order, status,
         gate_approval_required, is_active
     )
     VALUES (
         project_id_param,
-        'Monitoring',
-        'Project monitoring and control',
-        3,
-        'not_started',
-        false,
-        true
-    );
-
-    -- Phase 4: Closure
-    INSERT INTO project_phases (
-        project_id, name, description, sequence_order, status,
-        gate_approval_required, is_active
-    )
-    VALUES (
-        project_id_param,
-        'Closure',
+        'Closeout',
         'Project closure and final deliverables',
         4,
         'not_started',
@@ -69,9 +69,9 @@ BEGIN
         true
     );
 
-    -- Set the current phase to Planning (the first phase)
+    -- Set the current phase to Conceptual (the first phase)
     UPDATE projects
-    SET current_phase_id = phase_planning_id
+    SET current_phase_id = phase_conceptual_id
     WHERE id = project_id_param;
 
 END;
