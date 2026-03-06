@@ -468,6 +468,27 @@ router.get('/organization', authMiddleware, isAdminOrDeveloper, async (req, res)
   }
 });
 
+// GET /api/xero/expenses - Get approved expenses with Xero sync status
+router.get('/expenses', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT e.id, e.description, e.amount, e.category, e.date, e.vendor_name,
+              e.status, e.xero_invoice_id, e.xero_synced_at, e.xero_sync_error,
+              u.first_name || ' ' || u.last_name as submitted_by
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.status = 'approved'
+       ORDER BY e.date DESC
+       LIMIT 100`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get Xero expenses error:', error);
+    res.status(500).json({ error: 'Failed to fetch expenses' });
+  }
+});
+
 // Helper function to get active organization-wide connection and refresh if needed
 async function getActiveConnection(tenantId) {
   const result = await db.query(
