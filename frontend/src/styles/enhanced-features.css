@@ -557,20 +557,3 @@ datalist {
   }
 }
 
-/* Dark Mode Support (Future) */
-@media (prefers-color-scheme: dark) {
-  .receipt-option-btn {
-    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-    border-color: #374151;
-    color: #f9fafb;
-  }
-
-  .receipt-option-btn:hover {
-    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
-  }
-
-  .receipt-preview-container {
-    background: #1f2937;
-    border-color: #374151;
-  }
-}

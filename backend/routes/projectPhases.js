@@ -467,10 +467,10 @@ router.post('/admin/initialize-phases', authMiddleware, async (req, res) => {
     for (const project of projectsToInitialize) {
       // Create default phases for this project
       const phases = [
-        { name: 'Planning', description: 'Initial project planning and requirements gathering', sequence: 1, status: 'in_progress', gate: true },
-        { name: 'Execution', description: 'Project implementation and development', sequence: 2, status: 'not_started', gate: true },
-        { name: 'Monitoring', description: 'Project monitoring and control', sequence: 3, status: 'not_started', gate: false },
-        { name: 'Closure', description: 'Project closure and final deliverables', sequence: 4, status: 'not_started', gate: true }
+        { name: 'Conceptual', description: 'Initial concept development and ideation', sequence: 1, status: 'in_progress', gate: true },
+        { name: 'Feasibility', description: 'Feasibility study and requirements gathering', sequence: 2, status: 'not_started', gate: true },
+        { name: 'Execution', description: 'Project implementation and development', sequence: 3, status: 'not_started', gate: true },
+        { name: 'Closeout', description: 'Project closure and final deliverables', sequence: 4, status: 'not_started', gate: true }
       ];
 
       let planningPhaseId = null;
@@ -490,7 +490,7 @@ router.post('/admin/initialize-phases', authMiddleware, async (req, res) => {
         }
       }
 
-      // Set the current phase to Planning
+      // Set the current phase to Conceptual
       await client.query(
         'UPDATE projects SET current_phase_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
         [planningPhaseId, project.id]

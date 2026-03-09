@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, XCircle, ExternalLink, RefreshCw, Save } from 'lucide-react';
+import { CheckCircle, XCircle, ExternalLink, RefreshCw, Save, AlertTriangle, Upload } from 'lucide-react';
+import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
 
 const XeroSettings = () => {
@@ -12,6 +13,10 @@ const XeroSettings = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
+  const [expenses, setExpenses] = useState([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [syncingIds, setSyncingIds] = useState(new Set());
+  const [bulkSyncing, setBulkSyncing] = useState(false);
 
   // Check user role on mount
   useEffect(() => {
@@ -205,6 +210,68 @@ const XeroSettings = () => {
     }
   };
 
+  const loadExpenses = useCallback(async () => {
+    setLoadingExpenses(true);
+    try {
+      const response = await api.get('/xero/expenses');
+      setExpenses(response.data);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+    } finally {
+      setLoadingExpenses(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (connected && selectedTenant && hasPermission) {
+      loadExpenses();
+    }
+  }, [connected, selectedTenant, hasPermission, loadExpenses]);
+
+  const handleSyncExpense = async (expenseId) => {
+    setSyncingIds(prev => new Set(prev).add(expenseId));
+    try {
+      await api.post(`/xero/sync/${expenseId}`, { tenantId: selectedTenant });
+      setMessage({ type: 'success', text: `Expense #${expenseId} synced to Xero successfully` });
+      loadExpenses();
+    } catch (error) {
+      const errMsg = error.response?.data?.error || 'Failed to sync expense';
+      setMessage({ type: 'error', text: errMsg });
+    } finally {
+      setSyncingIds(prev => {
+        const next = new Set(prev);
+        next.delete(expenseId);
+        return next;
+      });
+    }
+  };
+
+  const handleBulkSync = async () => {
+    const unsyncedIds = expenses
+      .filter(e => !e.xero_invoice_id)
+      .map(e => e.id);
+
+    if (unsyncedIds.length === 0) {
+      setMessage({ type: 'error', text: 'No unsynced expenses to send' });
+      return;
+    }
+
+    setBulkSyncing(true);
+    try {
+      const result = await api.post('/xero/sync-bulk', {
+        tenantId: selectedTenant,
+        expenseIds: unsyncedIds
+      });
+      setMessage({ type: 'success', text: result.data.message });
+      loadExpenses();
+    } catch (error) {
+      const errMsg = error.response?.data?.error || 'Bulk sync failed';
+      setMessage({ type: 'error', text: errMsg });
+    } finally {
+      setBulkSyncing(false);
+    }
+  };
+
   const handleMappingChange = (category, accountCode) => {
     const account = accounts.find(a => a.code === accountCode);
     setMappings({
@@ -359,6 +426,137 @@ const XeroSettings = () => {
             <RefreshCw className="spinner" size={20} />
             <span>Loading Xero chart of accounts...</span>
           </div>
+        </div>
+      )}
+
+      {connected && selectedTenant && (
+        <div className="card mt-4">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Expense Sync Status</h3>
+              <p className="text-gray" style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem' }}>
+                Approved expenses and their Xero sync status
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {expenses.some(e => !e.xero_invoice_id) && (
+                <button
+                  onClick={handleBulkSync}
+                  className="btn btn-primary"
+                  disabled={bulkSyncing}
+                >
+                  {bulkSyncing ? (
+                    <><RefreshCw className="spinner" size={16} /> Syncing...</>
+                  ) : (
+                    <><Upload size={16} /> Sync All Unsynced</>
+                  )}
+                </button>
+              )}
+              <button onClick={loadExpenses} className="btn btn-secondary" disabled={loadingExpenses}>
+                <RefreshCw size={16} className={loadingExpenses ? 'spinner' : ''} />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {loadingExpenses ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <RefreshCw className="spinner" size={24} />
+              <p className="text-gray">Loading expenses...</p>
+            </div>
+          ) : expenses.length === 0 ? (
+            <p className="text-gray" style={{ textAlign: 'center', padding: '2rem' }}>
+              No approved expenses found.
+            </p>
+          ) : (
+            <div className="table-wrapper">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Submitted By</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Xero Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map(expense => (
+                    <tr key={expense.id}>
+                      <td>{new Date(expense.date).toLocaleDateString()}</td>
+                      <td>
+                        <div>
+                          <div>{expense.description}</div>
+                          {expense.vendor_name && (
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{expense.vendor_name}</div>
+                          )}
+                        </div>
+                      </td>
+                      <td>{expense.submitted_by}</td>
+                      <td>{expense.category}</td>
+                      <td>{formatCurrency(parseFloat(expense.amount))}</td>
+                      <td>
+                        {expense.xero_invoice_id ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                            background: '#f0fdf4', color: '#16a34a', padding: '0.25rem 0.5rem',
+                            borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '600'
+                          }}>
+                            <CheckCircle size={12} />
+                            Synced
+                          </span>
+                        ) : expense.xero_sync_error ? (
+                          <span
+                            title={expense.xero_sync_error}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                              background: '#fef2f2', color: '#dc2626', padding: '0.25rem 0.5rem',
+                              borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '600',
+                              cursor: 'help'
+                            }}
+                          >
+                            <AlertTriangle size={12} />
+                            Failed
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                            background: '#fef3c7', color: '#d97706', padding: '0.25rem 0.5rem',
+                            borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: '600'
+                          }}>
+                            Not Synced
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {!expense.xero_invoice_id && (
+                          <button
+                            onClick={() => handleSyncExpense(expense.id)}
+                            className="btn btn-secondary"
+                            disabled={syncingIds.has(expense.id)}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          >
+                            {syncingIds.has(expense.id) ? (
+                              <><RefreshCw className="spinner" size={12} /> Syncing</>
+                            ) : (
+                              <><Upload size={12} /> Sync</>
+                            )}
+                          </button>
+                        )}
+                        {expense.xero_invoice_id && (
+                          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                            {expense.xero_invoice_id.substring(0, 8)}...
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
