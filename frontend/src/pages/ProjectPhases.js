@@ -293,7 +293,7 @@ function ProjectPhases({ projectId: propProjectId, onClose }) {
                   value={phaseForm.name}
                   onChange={(e) => setPhaseForm({ ...phaseForm, name: e.target.value })}
                   required
-                  placeholder="e.g., Planning, Execution, Closure"
+                  placeholder="e.g., Conceptual, Feasibility, Execution, Closeout"
                 />
               </div>
 

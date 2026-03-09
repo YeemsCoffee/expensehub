@@ -811,43 +811,6 @@
 }
 
 /* ========================================
-   DARK MODE ADJUSTMENTS
-   ======================================== */
-
-@media (prefers-color-scheme: dark) {
-  .modal-overlay {
-    background-color: rgba(0, 0, 0, 0.8);
-  }
-
-  .modal-danger .modal-header {
-    background: var(--color-error-900);
-    border-bottom-color: var(--color-error-800);
-  }
-
-  .modal-danger .modal-title {
-    color: var(--color-error-200);
-  }
-
-  .modal-success .modal-header {
-    background: var(--color-success-900);
-    border-bottom-color: var(--color-success-800);
-  }
-
-  .modal-success .modal-title {
-    color: var(--color-success-200);
-  }
-
-  .modal-warning .modal-header {
-    background: var(--color-warning-900);
-    border-bottom-color: var(--color-warning-800);
-  }
-
-  .modal-warning .modal-title {
-    color: var(--color-warning-200);
-  }
-}
-
-/* ========================================
    ACCESSIBILITY
    ======================================== */
 
