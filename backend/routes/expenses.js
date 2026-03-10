@@ -689,16 +689,20 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
               [orderResult.poNumber, approvedExpense.id]
             );
           } else {
-            console.error(`✗ [Amazon Order] Failed to place order for expense ${approvedExpense.id}:`, orderResult.error);
+            const errorMsg = orderResult.error || orderResult.orderMessage || 'Unknown error';
+            console.error(`✗ [Amazon Order] Failed to place order for expense ${approvedExpense.id}:`, errorMsg);
+            console.error(`Amazon status code: ${orderResult.orderStatus}`);
+            console.error(`Full error:`, orderResult);
 
-            // Mark order as failed
+            // Mark order as failed with error details
             await db.query(
               `UPDATE expenses
                SET amazon_order_status = 'failed',
                    amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   amazon_po_number = $1,
                    updated_at = CURRENT_TIMESTAMP
                WHERE id = $2`,
-              [approvedExpense.id]
+              [`ERROR: ${errorMsg} (Status: ${orderResult.orderStatus || 'N/A'})`, approvedExpense.id]
             );
           }
         } catch (orderError) {
