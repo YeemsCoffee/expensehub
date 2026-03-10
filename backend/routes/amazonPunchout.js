@@ -528,14 +528,14 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
       </OrderRequestHeader>
       <ItemOut quantity="${expense.quantity || 1}" lineNumber="1">
         <ItemID>
-          <SupplierPartID>${expense.description}</SupplierPartID>
+          <SupplierPartID>${expense.amazon_product_sku || expense.description}</SupplierPartID>
           <SupplierPartAuxiliaryID>${amazonSpaid}</SupplierPartAuxiliaryID>
         </ItemID>
         <ItemDetail>
           <UnitPrice>
             <Money currency="USD">${expense.amount}</Money>
           </UnitPrice>
-          <Description xml:lang="en">${expense.description}|${amazonSpaid}</Description>
+          <Description xml:lang="en">${expense.description}|SPAID:${amazonSpaid}</Description>
         </ItemDetail>
       </ItemOut>
     </OrderRequest>
@@ -567,6 +567,11 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('=== AMAZON ORDER REQUEST DEBUG ===');
     console.log('Expense ID:', expense.id);
     console.log('Amazon SPAID:', expense.amazon_spaid);
+    console.log('Amazon Product SKU:', expense.amazon_product_sku || 'MISSING - using description instead');
+    if (!expense.amazon_product_sku) {
+      console.log('⚠️  WARNING: No product SKU stored! Amazon may reject this order.');
+      console.log('⚠️  Make sure the database migration add_amazon_product_sku.sql has been applied.');
+    }
     console.log('PO Number:', poNumber);
     console.log('User Email:', userInfo.email);
     console.log('User Name:', userInfo.name);
