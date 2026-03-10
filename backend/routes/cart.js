@@ -177,9 +177,9 @@ router.post('/checkout', authMiddleware, [
 
     const { costCenterId, locationId, category } = req.body;
 
-    // Get cart items including Amazon SPAID for order placement
+    // Get cart items including Amazon SPAID and SKU for order placement
     const cartResult = await db.query(
-      `SELECT ci.quantity, ci.amazon_spaid, p.id as product_id, p.name, p.price, v.name as vendor_name, v.id as vendor_id
+      `SELECT ci.quantity, ci.amazon_spaid, p.id as product_id, p.name, p.price, p.sku, v.name as vendor_name, v.id as vendor_id
        FROM cart_items ci
        JOIN products p ON ci.product_id = p.id
        JOIN vendors v ON p.vendor_id = v.id
@@ -257,15 +257,16 @@ router.post('/checkout', authMiddleware, [
       const amount = item.price * item.quantity;
       const description = `${item.name} (Qty: ${item.quantity})`;
 
-      // Store Amazon SPAID if present (needed for order placement)
+      // Store Amazon SPAID and SKU if present (needed for order placement)
       const amazonSpaid = item.amazon_spaid || null;
       const amazonOrderStatus = amazonSpaid ? 'pending' : null;
+      const amazonProductSku = (amazonSpaid && item.sku) ? item.sku : null;
 
       const expenseResult = await db.query(
-        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, approval_rule_id, approval_chain, current_approval_level)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14)
+        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, amazon_product_sku, approval_rule_id, approval_chain, current_approval_level)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING *`,
-        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
+        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, amazonProductSku, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
       );
 
       expenses.push(expenseResult.rows[0]);

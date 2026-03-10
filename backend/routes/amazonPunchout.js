@@ -528,14 +528,14 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
       </OrderRequestHeader>
       <ItemOut quantity="${expense.quantity || 1}" lineNumber="1">
         <ItemID>
-          <SupplierPartID>${expense.description}</SupplierPartID>
+          <SupplierPartID>${expense.amazon_product_sku || expense.description}</SupplierPartID>
           <SupplierPartAuxiliaryID>${amazonSpaid}</SupplierPartAuxiliaryID>
         </ItemID>
         <ItemDetail>
           <UnitPrice>
             <Money currency="USD">${expense.amount}</Money>
           </UnitPrice>
-          <Description xml:lang="en">${expense.description}|${amazonSpaid}</Description>
+          <Description xml:lang="en">${expense.description}|SPAID:${amazonSpaid}</Description>
         </ItemDetail>
       </ItemOut>
     </OrderRequest>
@@ -567,12 +567,19 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('=== AMAZON ORDER REQUEST DEBUG ===');
     console.log('Expense ID:', expense.id);
     console.log('Amazon SPAID:', expense.amazon_spaid);
+    console.log('Amazon Product SKU:', expense.amazon_product_sku || 'MISSING - using description instead');
+    if (!expense.amazon_product_sku) {
+      console.log('⚠️  WARNING: No product SKU stored! Amazon may reject this order.');
+      console.log('⚠️  Make sure the database migration add_amazon_product_sku.sql has been applied.');
+    }
     console.log('PO Number:', poNumber);
     console.log('User Email:', userInfo.email);
     console.log('User Name:', userInfo.name);
     console.log('Location:', JSON.stringify(userInfo.location));
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
     console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
+    console.log('⚠️  WARNING: If deployment mode is "test" but you\'re using a production Amazon account, orders will be cancelled!');
+    console.log('⚠️  Set AMAZON_PUNCHOUT_USE_PROD=true in .env for production orders');
     console.log('Full Order Request XML:');
     console.log(orderRequest);
     console.log('=== END DEBUG ===');
@@ -603,6 +610,16 @@ async function sendOrderToAmazon(expense, userInfo) {
     // Extract order confirmation number if available
     const orderStatus = parsed?.cXML?.Response?.Status?.['@_code'];
     const orderMessage = parsed?.cXML?.Response?.Status?.['@_text'];
+
+    console.log('Amazon order status code:', orderStatus);
+    console.log('Amazon order status message:', orderMessage);
+
+    if (orderStatus !== '200') {
+      console.error('❌ Amazon rejected the order!');
+      console.error('Status code:', orderStatus);
+      console.error('Status message:', orderMessage);
+      console.error('Full response:', response.data);
+    }
 
     return {
       success: orderStatus === '200',
