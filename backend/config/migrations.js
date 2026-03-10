@@ -207,6 +207,41 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] expense_categories table already exists - skipping');
     }
 
+    // 6. Check and apply Amazon Product SKU migration
+    console.log('[MIGRATION] Checking if amazon_product_sku column exists...');
+    const checkAmazonSkuColumn = await db.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'expenses'
+      AND column_name = 'amazon_product_sku'
+      AND table_schema = 'public'
+    `);
+
+    console.log(`[MIGRATION] amazon_product_sku column exists: ${checkAmazonSkuColumn.rows.length > 0}`);
+
+    if (checkAmazonSkuColumn.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying Amazon product SKU migration...');
+
+      const amazonSkuMigrationPath = path.join(__dirname, '../database/add_amazon_product_sku.sql');
+
+      if (fs.existsSync(amazonSkuMigrationPath)) {
+        const amazonSkuMigrationSQL = fs.readFileSync(amazonSkuMigrationPath, 'utf8');
+
+        await Promise.race([
+          db.query(amazonSkuMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Amazon product SKU migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Amazon product SKU migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] amazon_product_sku column already exists - skipping');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)
