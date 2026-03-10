@@ -13,8 +13,19 @@ const AMAZON_CONFIG = {
   punchoutUrl: process.env.AMAZON_PUNCHOUT_URL || 'https://abintegrations.amazon.com/punchout',
   testUrl: process.env.AMAZON_PUNCHOUT_TEST_URL || 'https://abintegrations.amazon.com/punchout/test',
   poUrl: process.env.AMAZON_PO_URL || 'https://https-ats.amazonsedi.com/2e947cf5-c06d-4411-bffd-57839c057856',
-  useProd: process.env.AMAZON_PUNCHOUT_USE_PROD === 'true'
+  useProd: process.env.AMAZON_PUNCHOUT_USE_PROD === 'true',
+  // AMAZON_PUNCHOUT_RETURN_URL must be publicly reachable by Amazon's servers.
+  // Falls back to BACKEND_URL, then localhost (which will break PunchOut in production!).
+  returnUrl: process.env.AMAZON_PUNCHOUT_RETURN_URL || process.env.BACKEND_URL
 };
+
+// Warn at startup if the return URL will be unreachable by Amazon
+if (!AMAZON_CONFIG.returnUrl) {
+  console.warn('⚠️  WARNING: AMAZON_PUNCHOUT_RETURN_URL and BACKEND_URL are not set!');
+  console.warn('⚠️  BrowserFormPost will use http://localhost:5000 which Amazon cannot reach.');
+  console.warn('⚠️  Set AMAZON_PUNCHOUT_RETURN_URL=https://your-backend.onrender.com in Render env vars.');
+  console.warn('⚠️  Without this, Amazon PunchOut sessions will fail and users will be prompted to log in.');
+}
 
 function ensureAmazonConfig() {
   if (!AMAZON_CONFIG.identity || !AMAZON_CONFIG.sharedSecret) {
@@ -53,7 +64,7 @@ function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
     <PunchOutSetupRequest operation="create">
       <BuyerCookie>${buyerCookie}</BuyerCookie>
       <BrowserFormPost>
-        <URL>${process.env.BACKEND_URL || 'http://localhost:5000'}/api/amazon-punchout/return</URL>
+        <URL>${AMAZON_CONFIG.returnUrl || 'http://localhost:5000'}/api/amazon-punchout/return</URL>
       </BrowserFormPost>
       <SupplierSetup>
         <URL>${AMAZON_CONFIG.useProd ? AMAZON_CONFIG.punchoutUrl : AMAZON_CONFIG.testUrl}</URL>
@@ -157,6 +168,10 @@ router.post('/setup', authMiddleware, async (req, res) => {
     console.log('=== AMAZON PUNCHOUT REQUEST DEBUG ===');
     console.log('Environment Mode:', AMAZON_CONFIG.useProd ? 'PRODUCTION' : 'TEST');
     console.log('Target URL:', targetUrl);
+    console.log('BrowserFormPost return URL:', `${AMAZON_CONFIG.returnUrl || 'http://localhost:5000'}/api/amazon-punchout/return`);
+    if (!AMAZON_CONFIG.returnUrl) {
+      console.error('❌ CRITICAL: BrowserFormPost URL is localhost - Amazon cannot POST the cart back! Set AMAZON_PUNCHOUT_RETURN_URL in Render env vars.');
+    }
     console.log('cXML Request (first 1000 chars):', cxmlRequest.substring(0, 1000));
     console.log('Content-Type:', 'text/xml; charset=UTF-8');
     console.log('=== END REQUEST DEBUG ===');
