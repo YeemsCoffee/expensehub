@@ -349,7 +349,7 @@ const ExpenseHistory = () => {
                 <th>Location</th>
                 <th>Amount</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style={{ minWidth: '120px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -380,7 +380,7 @@ const ExpenseHistory = () => {
                       <StatusBadge status={expense.status} />
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
                         {canRescind(expense) && (
                           <button
                             onClick={() => handleRescind(expense.id)}
@@ -393,7 +393,7 @@ const ExpenseHistory = () => {
                         )}
                         {canModifyExpense(expense) && (
                           <button
-                            onClick={() => window.location.href = `/expenses-submit?edit=${expense.id}`}
+                            onClick={() => window.location.hash = `#expenses-submit?edit=${expense.id}`}
                             className="btn-icon"
                             title="Edit expense"
                             style={{ color: '#2B4628' }}
