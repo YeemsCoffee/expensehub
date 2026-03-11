@@ -10,6 +10,7 @@ const Projects = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [isManager, setIsManager] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [formData, setFormData] = useState({
     costCenterId: '',
     name: '',
@@ -28,7 +29,8 @@ const Projects = () => {
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
       const userRole = user?.role || 'employee';
-      setIsManager(userRole === 'manager' || userRole === 'admin');
+      setIsManager(['manager', 'admin', 'developer'].includes(userRole));
+      setIsAdmin(['admin', 'developer'].includes(userRole));
 
       // Fetch cost centers for project submission
       const ccResponse = await api.get('/cost-centers');
@@ -38,11 +40,9 @@ const Projects = () => {
       const myResponse = await api.get('/projects/my-submissions');
       setMyProjects(myResponse.data);
 
-      // If manager/admin, also fetch all pending projects
-      if (userRole === 'manager' || userRole === 'admin') {
-        const allResponse = await api.get('/projects/pending');
-        setAllProjects(allResponse.data);
-      }
+      // Fetch all projects (visible to everyone)
+      const allResponse = await api.get('/projects/all');
+      setAllProjects(allResponse.data);
 
       setLoading(false);
     } catch (err) {
@@ -525,57 +525,68 @@ const Projects = () => {
         )}
       </div>
 
-      {/* Pending Projects (Manager/Admin Only) */}
-      {isManager && (
-        <div className="card">
-          <h3 className="card-title">Pending Approvals ({allProjects.length})</h3>
+      {/* All Projects (Visible to Everyone) */}
+      <div className="card">
+        <h3 className="card-title">All Projects ({allProjects.length})</h3>
 
-          {allProjects.length === 0 ? (
-            <p className="text-gray-500" style={{ padding: '20px' }}>No projects pending approval</p>
-          ) : (
-            <div className="cost-center-grid">
-              {allProjects.map((project) => (
-                <div
-                  key={project.id}
-                  className="cost-center-card"
-                  onClick={() => window.location.hash = `#project-details/${project.id}`}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="cost-center-header">
-                    <div>
-                      <h4 className="cost-center-code">{project.code}</h4>
-                      <p className="cost-center-name">{project.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        By: {project.submitted_by_name}
-                      </p>
+        {allProjects.length === 0 ? (
+          <p className="text-gray-500" style={{ padding: '20px' }}>No projects found</p>
+        ) : (
+          <div className="cost-center-grid">
+            {allProjects.map((project) => (
+              <div
+                key={project.id}
+                className="cost-center-card"
+                onClick={() => window.location.hash = `#project-details/${project.id}`}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="cost-center-header">
+                  <div>
+                    <h4 className="cost-center-code">{project.code}</h4>
+                    <p className="cost-center-name">{project.name}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      By: {project.submitted_by_name}
+                    </p>
+                  </div>
+                  <span className={`badge ${getStatusBadgeClass(project.status)}`}>
+                    {getStatusIcon(project.status)}
+                    <span className="ml-1">{project.status}</span>
+                  </span>
+                </div>
+
+                {project.description && (
+                  <p className="text-sm text-gray-600 mb-3">{project.description}</p>
+                )}
+
+                <div className="cost-center-details">
+                  {project.start_date && (
+                    <div className="cost-center-detail">
+                      <Calendar size={16} className="detail-icon" />
+                      <span>{formatDate(project.start_date)} - {formatDate(project.end_date)}</span>
                     </div>
-                  </div>
-
-                  {project.description && (
-                    <p className="text-sm text-gray-600 mb-3">{project.description}</p>
                   )}
+                  {project.project_manager && (
+                    <div className="cost-center-detail">
+                      <User size={16} className="detail-icon" />
+                      <span>{project.project_manager}</span>
+                    </div>
+                  )}
+                  {project.budget && (
+                    <div className="cost-center-detail">
+                      <DollarSign size={16} className="detail-icon" />
+                      <span>Budget: {formatCurrency(project.budget)}</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="cost-center-details">
-                    {project.start_date && (
-                      <div className="cost-center-detail">
-                        <Calendar size={16} className="detail-icon" />
-                        <span>{formatDate(project.start_date)} - {formatDate(project.end_date)}</span>
-                      </div>
-                    )}
-                    {project.project_manager && (
-                      <div className="cost-center-detail">
-                        <User size={16} className="detail-icon" />
-                        <span>{project.project_manager}</span>
-                      </div>
-                    )}
-                    {project.budget && (
-                      <div className="cost-center-detail">
-                        <DollarSign size={16} className="detail-icon" />
-                        <span>Budget: {formatCurrency(project.budget)}</span>
-                      </div>
-                    )}
+                {project.rejection_reason && (
+                  <div className="rejection-reason">
+                    <strong>Rejection Reason:</strong> {project.rejection_reason}
                   </div>
+                )}
 
+                {/* Approve/Reject buttons for admin users on pending projects */}
+                {isAdmin && project.status === 'pending' && (
                   <div className="approval-actions">
                     <button
                       onClick={(e) => {
@@ -598,12 +609,12 @@ const Projects = () => {
                       Reject
                     </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
