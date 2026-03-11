@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Filter, X, Download, Edit2, Trash2, XCircle } from 'lucide-react';
+import { Filter, X, Download, Edit2, Trash2, XCircle, RefreshCw } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import { formatCurrency } from '../utils/helpers';
@@ -15,6 +15,8 @@ const ExpenseHistory = () => {
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [successBanner, setSuccessBanner] = useState(null);
+
+  const [retryingId, setRetryingId] = useState(null);
 
   // Check if current user is admin or developer
   const userStr = localStorage.getItem('user');
@@ -123,6 +125,19 @@ const ExpenseHistory = () => {
     } catch (err) {
       console.error('Error deleting expense:', err);
       toast.error(err.response?.data?.error || 'Failed to delete expense');
+    }
+  };
+
+  const handleRetryAmazonOrder = async (expenseId) => {
+    setRetryingId(expenseId);
+    try {
+      const res = await api.post(`/amazon-punchout/admin/retry-order/${expenseId}`);
+      toast.success(`Order placed successfully! PO: ${res.data.poNumber}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to retry Amazon order');
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -334,7 +349,7 @@ const ExpenseHistory = () => {
                 <th>Location</th>
                 <th>Amount</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style={{ minWidth: '120px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -365,7 +380,7 @@ const ExpenseHistory = () => {
                       <StatusBadge status={expense.status} />
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
                         {canRescind(expense) && (
                           <button
                             onClick={() => handleRescind(expense.id)}
@@ -378,7 +393,7 @@ const ExpenseHistory = () => {
                         )}
                         {canModifyExpense(expense) && (
                           <button
-                            onClick={() => window.location.href = `/expenses-submit?edit=${expense.id}`}
+                            onClick={() => window.location.hash = `#expenses-submit?edit=${expense.id}`}
                             className="btn-icon"
                             title="Edit expense"
                             style={{ color: '#2B4628' }}
@@ -396,10 +411,21 @@ const ExpenseHistory = () => {
                             <Trash2 size={18} />
                           </button>
                         )}
-                        {!canModifyExpense(expense) && expense.status === 'approved' && (
+                        {!canModifyExpense(expense) && expense.status === 'approved' && !expense.amazon_spaid && (
                           <span className="text-xs text-gray-500" style={{ padding: '4px' }}>
                             Approved
                           </span>
+                        )}
+                        {isPrivileged && expense.amazon_spaid && expense.amazon_order_status !== 'confirmed' && (
+                          <button
+                            onClick={() => handleRetryAmazonOrder(expense.id)}
+                            className="btn-icon"
+                            title={`Retry Amazon order (status: ${expense.amazon_order_status || 'pending'})`}
+                            style={{ color: '#f97316' }}
+                            disabled={retryingId === expense.id}
+                          >
+                            <RefreshCw size={18} style={retryingId === expense.id ? { animation: 'spin 1s linear infinite' } : {}} />
+                          </button>
                         )}
                       </div>
                     </td>

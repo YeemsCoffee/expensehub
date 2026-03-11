@@ -552,17 +552,22 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
 
     const expense = expenseQuery.rows[0];
 
-    // Approve the expense
+    // Approve the expense (atomic update with status check to prevent race conditions)
     const result = await db.query(
       `UPDATE expenses
        SET status = 'approved',
            approved_by = $1,
            approved_at = CURRENT_TIMESTAMP,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
+       WHERE id = $2 AND status = 'pending'
        RETURNING *`,
       [req.user.id, req.params.id]
     );
+
+    // If no rows updated, another request already approved it
+    if (result.rows.length === 0) {
+      return res.status(409).json({ error: 'Expense already approved by another request' });
+    }
 
     const approvedExpense = { ...expense, ...result.rows[0] };
 
@@ -699,6 +704,22 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
       setImmediate(async () => {
         try {
           console.log(`🛒 [Amazon Order] Placing order for expense ${approvedExpense.id} with SPAID:`, approvedExpense.amazon_spaid);
+
+          // Atomic check: Mark as processing to prevent duplicate orders (race condition protection)
+          const lockResult = await db.query(
+            `UPDATE expenses
+             SET amazon_order_status = 'processing',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND amazon_order_status = 'pending'
+             RETURNING id`,
+            [approvedExpense.id]
+          );
+
+          // If no rows updated, another request is already processing this order
+          if (lockResult.rows.length === 0) {
+            console.log(`⚠️  [Amazon Order] Expense ${approvedExpense.id} already being processed by another request. Skipping.`);
+            return;
+          }
 
           // Get location if expense has one
           let location = null;
@@ -947,22 +968,54 @@ router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isManag
       try {
         console.log(`📦 Processing expense ${expense.id} - User: ${expense.first_name} ${expense.last_name} (${expense.role})`);
 
-        // Update expense to approved status
-        await db.query(
+        // Update expense to approved status (with status check to prevent race conditions)
+        const approveResult = await db.query(
           `UPDATE expenses
            SET status = 'approved',
                approved_by = $1,
                approved_at = CURRENT_TIMESTAMP,
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
+           WHERE id = $2 AND status = 'pending'
+           RETURNING id`,
           [req.user.id, expense.id]
         );
+
+        // If no rows updated, already approved by another request
+        if (approveResult.rows.length === 0) {
+          console.log(`⚠️  Expense ${expense.id} already approved. Skipping.`);
+          processed.push({
+            expenseId: expense.id,
+            status: 'skipped',
+            message: 'Already approved by another request'
+          });
+          continue;
+        }
 
         console.log(`✓ Expense ${expense.id} approved`);
 
         // If it has Amazon SPAID and order is pending, send to Amazon
         if (expense.amazon_spaid && (!expense.amazon_order_status || expense.amazon_order_status === 'pending')) {
           console.log(`🛒 Sending order to Amazon for expense ${expense.id}...`);
+
+          // Atomic lock to prevent duplicate orders
+          const lockResult = await db.query(
+            `UPDATE expenses
+             SET amazon_order_status = 'processing',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND (amazon_order_status = 'pending' OR amazon_order_status IS NULL)
+             RETURNING id`,
+            [expense.id]
+          );
+
+          if (lockResult.rows.length === 0) {
+            console.log(`⚠️  Expense ${expense.id} order already being processed. Skipping.`);
+            processed.push({
+              expenseId: expense.id,
+              status: 'skipped',
+              message: 'Order already being processed'
+            });
+            continue;
+          }
 
           // Get location if expense has one
           let location = null;

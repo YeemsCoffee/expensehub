@@ -491,6 +491,13 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const shipState = location?.state || process.env.COMPANY_SHIP_STATE || 'WA';
   const shipZip = location?.zip_code || process.env.COMPANY_SHIP_ZIP || '98101';
 
+  // Billing address (required by Amazon for automatic approval)
+  const billStreet = process.env.COMPANY_BILL_STREET || shipStreet;
+  const billCity = process.env.COMPANY_BILL_CITY || shipCity;
+  const billState = process.env.COMPANY_BILL_STATE || shipState;
+  const billZip = process.env.COMPANY_BILL_ZIP || shipZip;
+  const billName = process.env.COMPANY_BILL_NAME || 'ExpenseHub';
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
@@ -533,7 +540,14 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
         </ShipTo>
         <BillTo>
           <Address addressID="${AMAZON_CONFIG.identity}">
-            <Name xml:lang="en">ExpenseHub</Name>
+            <Name xml:lang="en">${billName}</Name>
+            <PostalAddress>
+              <Street>${billStreet}</Street>
+              <City>${billCity}</City>
+              <State>${billState}</State>
+              <PostalCode>${billZip}</PostalCode>
+              <Country isoCountryCode="US">United States</Country>
+            </PostalAddress>
           </Address>
         </BillTo>
         <Contact role="buyer">
@@ -593,8 +607,15 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('Location:', JSON.stringify(userInfo.location));
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
     console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
-    console.log('⚠️  WARNING: If deployment mode is "test" but you\'re using a production Amazon account, orders will be cancelled!');
-    console.log('⚠️  Set AMAZON_PUNCHOUT_USE_PROD=true in .env for production orders');
+
+    // Check if billing address is configured
+    if (!process.env.COMPANY_BILL_STREET || !process.env.COMPANY_BILL_CITY) {
+      console.log('⚠️  WARNING: Billing address not configured in environment variables!');
+      console.log('⚠️  Orders will be stuck in Amazon approval queue without a complete billing address.');
+      console.log('⚠️  Set COMPANY_BILL_STREET, COMPANY_BILL_CITY, COMPANY_BILL_STATE, COMPANY_BILL_ZIP in Render env vars.');
+      console.log('⚠️  Falling back to shipping address for billing.');
+    }
+
     console.log('Full Order Request XML:');
     console.log(orderRequest);
     console.log('=== END DEBUG ===');
@@ -749,6 +770,93 @@ router.get('/admin/user-cart/:userId', authMiddleware, isManagerOrAdmin, async (
   } catch (error) {
     console.error('Admin get user cart error:', error);
     res.status(500).json({ error: 'Failed to get user cart' });
+  }
+});
+
+// Admin endpoint to retry a stuck Amazon order by expense ID
+router.post('/admin/retry-order/:expenseId', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+
+    // Fetch the expense with user info
+    const expenseResult = await db.query(
+      `SELECT e.*, u.email, u.first_name, u.last_name
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.id = $1 AND e.amazon_spaid IS NOT NULL`,
+      [expenseId]
+    );
+
+    if (expenseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or has no Amazon SPAID' });
+    }
+
+    const expense = expenseResult.rows[0];
+
+    // Atomically lock the order for processing
+    const lockResult = await db.query(
+      `UPDATE expenses
+       SET amazon_order_status = 'processing',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND (amazon_order_status != 'confirmed')
+       RETURNING id`,
+      [expenseId]
+    );
+
+    if (lockResult.rows.length === 0) {
+      return res.status(409).json({ error: 'Order is already confirmed or being processed' });
+    }
+
+    // Get location if expense has one
+    let location = null;
+    if (expense.location_id) {
+      const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [expense.location_id]);
+      location = locResult.rows[0];
+    }
+
+    console.log(`🔄 [Retry Order] Admin ${req.user.id} retrying Amazon order for expense ${expenseId}`);
+
+    const orderResult = await sendOrderToAmazon(expense, {
+      email: expense.email,
+      name: `${expense.first_name} ${expense.last_name}`,
+      location
+    });
+
+    if (orderResult.success) {
+      await db.query(
+        `UPDATE expenses
+         SET amazon_po_number = $1,
+             amazon_order_status = 'confirmed',
+             amazon_order_sent_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [orderResult.poNumber, expenseId]
+      );
+
+      console.log(`✓ [Retry Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+      return res.json({
+        success: true,
+        message: 'Order placed successfully',
+        poNumber: orderResult.poNumber
+      });
+    } else {
+      const errorMsg = orderResult.error || orderResult.orderMessage || 'Unknown error';
+      await db.query(
+        `UPDATE expenses
+         SET amazon_order_status = 'failed',
+             amazon_order_sent_at = CURRENT_TIMESTAMP,
+             amazon_po_number = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [`ERROR: ${errorMsg}`, expenseId]
+      );
+
+      console.error(`✗ [Retry Order] Failed: ${errorMsg}`);
+      return res.status(502).json({ error: `Amazon rejected the order: ${errorMsg}` });
+    }
+  } catch (error) {
+    console.error('Retry Amazon order error:', error);
+    res.status(500).json({ error: 'Server error retrying Amazon order' });
   }
 });
 
