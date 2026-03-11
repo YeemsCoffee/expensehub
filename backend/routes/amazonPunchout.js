@@ -491,6 +491,13 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const shipState = location?.state || process.env.COMPANY_SHIP_STATE || 'WA';
   const shipZip = location?.zip_code || process.env.COMPANY_SHIP_ZIP || '98101';
 
+  // Billing address (required by Amazon for automatic approval)
+  const billStreet = process.env.COMPANY_BILL_STREET || shipStreet;
+  const billCity = process.env.COMPANY_BILL_CITY || shipCity;
+  const billState = process.env.COMPANY_BILL_STATE || shipState;
+  const billZip = process.env.COMPANY_BILL_ZIP || shipZip;
+  const billName = process.env.COMPANY_BILL_NAME || 'ExpenseHub';
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
@@ -533,7 +540,14 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
         </ShipTo>
         <BillTo>
           <Address addressID="${AMAZON_CONFIG.identity}">
-            <Name xml:lang="en">ExpenseHub</Name>
+            <Name xml:lang="en">${billName}</Name>
+            <PostalAddress>
+              <Street>${billStreet}</Street>
+              <City>${billCity}</City>
+              <State>${billState}</State>
+              <PostalCode>${billZip}</PostalCode>
+              <Country isoCountryCode="US">United States</Country>
+            </PostalAddress>
           </Address>
         </BillTo>
         <Contact role="buyer">
@@ -593,8 +607,15 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('Location:', JSON.stringify(userInfo.location));
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
     console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
-    console.log('⚠️  WARNING: If deployment mode is "test" but you\'re using a production Amazon account, orders will be cancelled!');
-    console.log('⚠️  Set AMAZON_PUNCHOUT_USE_PROD=true in .env for production orders');
+
+    // Check if billing address is configured
+    if (!process.env.COMPANY_BILL_STREET || !process.env.COMPANY_BILL_CITY) {
+      console.log('⚠️  WARNING: Billing address not configured in environment variables!');
+      console.log('⚠️  Orders will be stuck in Amazon approval queue without a complete billing address.');
+      console.log('⚠️  Set COMPANY_BILL_STREET, COMPANY_BILL_CITY, COMPANY_BILL_STATE, COMPANY_BILL_ZIP in Render env vars.');
+      console.log('⚠️  Falling back to shipping address for billing.');
+    }
+
     console.log('Full Order Request XML:');
     console.log(orderRequest);
     console.log('=== END DEBUG ===');
