@@ -81,6 +81,27 @@ router.get('/my-submissions', authMiddleware, async (req, res) => {
   }
 });
 
+// Get all submitted projects (visible to all authenticated users)
+router.get('/all', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT p.id, p.code, p.name, p.description, p.start_date, p.end_date,
+              p.budget, p.status, p.project_manager, p.created_at, p.updated_at,
+              p.approved_at, p.rejection_reason,
+              u.first_name || ' ' || u.last_name as submitted_by_name,
+              u.email as submitted_by_email
+       FROM projects p
+       JOIN users u ON p.submitted_by = u.id
+       ORDER BY p.created_at DESC`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch all projects error:', error);
+    res.status(500).json({ error: 'Server error fetching projects' });
+  }
+});
+
 // Get pending projects (manager/admin only)
 router.get('/pending', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {

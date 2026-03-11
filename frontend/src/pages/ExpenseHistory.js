@@ -16,6 +16,11 @@ const ExpenseHistory = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [successBanner, setSuccessBanner] = useState(null);
 
+  // Check if current user is admin or developer
+  const userStr = localStorage.getItem('user');
+  const currentUser = userStr ? JSON.parse(userStr) : null;
+  const isPrivileged = ['admin', 'developer'].includes(currentUser?.role);
+
   const [filters, setFilters] = useState({
     status: '',
     category: '',
@@ -122,7 +127,9 @@ const ExpenseHistory = () => {
   };
 
   const canModifyExpense = (expense) => {
-    // Can only modify pending or rejected expenses
+    // Admin/developer can modify any expense
+    if (isPrivileged) return true;
+    // Regular users can only modify pending or rejected expenses
     return expense.status === 'pending' || expense.status === 'rejected';
   };
 
@@ -228,7 +235,7 @@ const ExpenseHistory = () => {
       <div className="card mb-4">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 className="card-title">
-            All Expenses
+            {isPrivileged ? 'All Expenses (All Users)' : 'My Expenses'}
             {activeFilterCount > 0 && (
               <span className="badge badge-info ml-2">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}</span>
             )}
@@ -322,6 +329,7 @@ const ExpenseHistory = () => {
                 <th>Date</th>
                 <th>Description</th>
                 <th>Category</th>
+                {isPrivileged && <th>Submitted By</th>}
                 <th>Cost Center</th>
                 <th>Location</th>
                 <th>Amount</th>
@@ -332,7 +340,7 @@ const ExpenseHistory = () => {
             <tbody>
               {expenses.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
+                  <td colSpan={isPrivileged ? 9 : 8} style={{ textAlign: 'center', padding: '40px' }}>
                     <p className="text-gray-500">No expenses found</p>
                   </td>
                 </tr>
@@ -349,6 +357,7 @@ const ExpenseHistory = () => {
                       </div>
                     </td>
                     <td>{expense.category}</td>
+                    {isPrivileged && <td>{expense.submitted_by_name || '-'}</td>}
                     <td>{expense.cost_center_code}</td>
                     <td>{expense.location_code || '-'}</td>
                     <td>{formatCurrency(parseFloat(expense.amount))}</td>

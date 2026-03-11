@@ -22,15 +22,15 @@ const determineCostType = (category, amount) => {
   return 'OPEX';
 };
 
-// Get all expenses for current user with advanced filtering
+// Get all expenses for current user (or all expenses for admin/developer)
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { 
-      status, 
-      category, 
-      costType, 
-      locationId, 
-      projectId, 
+    const {
+      status,
+      category,
+      costType,
+      locationId,
+      projectId,
       costCenterId,
       startDate,
       endDate,
@@ -38,22 +38,34 @@ router.get('/', authMiddleware, async (req, res) => {
       maxAmount
     } = req.query;
 
+    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+
     let query = `
-      SELECT e.*, 
+      SELECT e.*,
              cc.code as cost_center_code, cc.name as cost_center_name,
              l.code as location_code, l.name as location_name,
              p.code as project_code, p.name as project_name,
-             u.first_name || ' ' || u.last_name as approved_by_name
+             u.first_name || ' ' || u.last_name as approved_by_name,
+             submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
+             submitter.email as submitted_by_email
       FROM expenses e
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
       LEFT JOIN users u ON e.approved_by = u.id
-      WHERE e.user_id = $1
+      LEFT JOIN users submitter ON e.user_id = submitter.id
+      WHERE 1=1
     `;
 
-    const params = [req.user.id];
-    let paramIndex = 2;
+    const params = [];
+    let paramIndex = 1;
+
+    // Admin/developer see all expenses; others see only their own
+    if (!isPrivileged) {
+      query += ` AND e.user_id = $${paramIndex}`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     if (status) {
       query += ` AND e.status = $${paramIndex}`;
@@ -128,20 +140,33 @@ router.get('/', authMiddleware, async (req, res) => {
 // Get single expense
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT e.*, 
-              cc.code as cost_center_code, cc.name as cost_center_name,
-              l.code as location_code, l.name as location_name,
-              p.code as project_code, p.name as project_name,
-              u.first_name || ' ' || u.last_name as approved_by_name
-       FROM expenses e
-       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
-       LEFT JOIN locations l ON e.location_id = l.id
-       LEFT JOIN projects p ON e.project_id = p.id
-       LEFT JOIN users u ON e.approved_by = u.id
-       WHERE e.id = $1 AND e.user_id = $2`,
-      [req.params.id, req.user.id]
-    );
+    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+
+    let query = `
+      SELECT e.*,
+             cc.code as cost_center_code, cc.name as cost_center_name,
+             l.code as location_code, l.name as location_name,
+             p.code as project_code, p.name as project_name,
+             u.first_name || ' ' || u.last_name as approved_by_name,
+             submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
+             submitter.email as submitted_by_email
+      FROM expenses e
+      LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
+      LEFT JOIN locations l ON e.location_id = l.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      LEFT JOIN users u ON e.approved_by = u.id
+      LEFT JOIN users submitter ON e.user_id = submitter.id
+      WHERE e.id = $1`;
+
+    const params = [req.params.id];
+
+    // Non-privileged users can only see their own expenses
+    if (!isPrivileged) {
+      query += ` AND e.user_id = $2`;
+      params.push(req.user.id);
+    }
+
+    const result = await db.query(query, params);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Expense not found' });
@@ -318,29 +343,37 @@ router.put('/:id', authMiddleware, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // Check if expense exists and belongs to user
-    const checkResult = await db.query(
-      'SELECT status FROM expenses WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
+    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+
+    // Check if expense exists (admin/developer can edit any expense)
+    let checkQuery, checkParams;
+    if (isPrivileged) {
+      checkQuery = 'SELECT status, user_id FROM expenses WHERE id = $1';
+      checkParams = [req.params.id];
+    } else {
+      checkQuery = 'SELECT status, user_id FROM expenses WHERE id = $1 AND user_id = $2';
+      checkParams = [req.params.id, req.user.id];
+    }
+
+    const checkResult = await db.query(checkQuery, checkParams);
 
     if (checkResult.rows.length === 0) {
       return res.status(404).json({ error: 'Expense not found' });
     }
 
-    // Don't allow updates to approved/rejected expenses
-    if (checkResult.rows[0].status !== 'pending') {
+    // Regular users can only update pending expenses; admin/developer can update any status
+    if (!isPrivileged && checkResult.rows[0].status !== 'pending') {
       return res.status(400).json({ error: 'Cannot update expense that has been approved or rejected' });
     }
 
-    const { 
+    const {
       date, description, category, amount, costCenterId,
       locationId, projectId, costType, paymentMethod,
       vendorName, glAccount, notes, isReimbursable
     } = req.body;
 
     const result = await db.query(
-      `UPDATE expenses 
+      `UPDATE expenses
        SET date = COALESCE($1, date),
            description = COALESCE($2, description),
            category = COALESCE($3, category),
@@ -355,13 +388,13 @@ router.put('/:id', authMiddleware, [
            notes = COALESCE($12, notes),
            is_reimbursable = COALESCE($13, is_reimbursable),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $14 AND user_id = $15
+       WHERE id = $14
        RETURNING *`,
       [
         date, description, category, amount, costCenterId,
         locationId, projectId, costType, paymentMethod,
         vendorName, glAccount, notes, isReimbursable,
-        req.params.id, req.user.id
+        req.params.id
       ]
     );
 
@@ -412,25 +445,30 @@ router.post('/:id/rescind', authMiddleware, async (req, res) => {
 // Delete expense
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    // Check if expense exists and belongs to user
-    const checkResult = await db.query(
-      'SELECT status FROM expenses WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
+    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+
+    // Check if expense exists (admin/developer can delete any expense)
+    let checkQuery, checkParams;
+    if (isPrivileged) {
+      checkQuery = 'SELECT status FROM expenses WHERE id = $1';
+      checkParams = [req.params.id];
+    } else {
+      checkQuery = 'SELECT status FROM expenses WHERE id = $1 AND user_id = $2';
+      checkParams = [req.params.id, req.user.id];
+    }
+
+    const checkResult = await db.query(checkQuery, checkParams);
 
     if (checkResult.rows.length === 0) {
       return res.status(404).json({ error: 'Expense not found' });
     }
 
-    // Don't allow deletion of approved expenses
-    if (checkResult.rows[0].status === 'approved') {
+    // Regular users can't delete approved expenses; admin/developer can
+    if (!isPrivileged && checkResult.rows[0].status === 'approved') {
       return res.status(400).json({ error: 'Cannot delete approved expense' });
     }
 
-    await db.query(
-      'DELETE FROM expenses WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
+    await db.query('DELETE FROM expenses WHERE id = $1', [req.params.id]);
 
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {
