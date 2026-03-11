@@ -18,6 +18,7 @@ const ExpenseSubmit = () => {
   const [receiptId, setReceiptId] = useState(null);
   const [showReimbursableConfirm, setShowReimbursableConfirm] = useState(false);
   const [reimbursableConfirmed, setReimbursableConfirmed] = useState(false);
+  const [editExpenseId, setEditExpenseId] = useState(null);
 
   // Smart defaults - load from localStorage
   const [recentVendors, setRecentVendors] = useState([]);
@@ -131,6 +132,56 @@ const ExpenseSubmit = () => {
     fetchData();
   }, [fetchData]);
 
+  // Check for edit mode from URL hash
+  useEffect(() => {
+    const checkEditMode = async () => {
+      const hash = window.location.hash;
+      const match = hash.match(/[?&]edit=(\d+)/);
+
+      if (match) {
+        const expenseId = match[1];
+        setEditExpenseId(expenseId);
+        setLoading(true);
+
+        try {
+          const response = await api.get(`/expenses/${expenseId}`);
+          const expense = response.data;
+
+          // Pre-populate form
+          setNewExpense({
+            date: expense.date?.split('T')[0] || new Date().toISOString().split('T')[0],
+            description: expense.description || '',
+            category: expense.category || '',
+            amount: expense.amount?.toString() || '',
+            subtotal: expense.subtotal?.toString() || '',
+            tax: expense.tax?.toString() || '',
+            tip: expense.tip?.toString() || '',
+            costCenterId: expense.cost_center_id?.toString() || '',
+            locationId: expense.location_id?.toString() || '',
+            vendorName: expense.vendor_name || '',
+            notes: expense.notes || '',
+            isReimbursable: expense.is_reimbursable || false
+          });
+
+          // Load receipt if exists
+          if (expense.receipt_id) {
+            setReceiptId(expense.receipt_id);
+          }
+
+          toast.success('Loaded expense for editing');
+        } catch (err) {
+          console.error('Error loading expense:', err);
+          toast.error('Failed to load expense for editing');
+          window.location.hash = '#expenses-submit'; // Clear edit param
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    checkEditMode();
+  }, [toast]);
+
   const handleInputChange = (field, value) => {
     setNewExpense({ ...newExpense, [field]: value });
     saveSmartDefaults(field, value);
@@ -215,7 +266,7 @@ const ExpenseSubmit = () => {
     setIsSubmitting(true);
 
     // Show immediate success feedback
-    toast.success('Expense submitted! Syncing...', { duration: 2000 });
+    toast.success(editExpenseId ? 'Updating expense...' : 'Expense submitted! Syncing...', { duration: 2000 });
 
     try {
       // Auto-calculate cost type
@@ -224,7 +275,7 @@ const ExpenseSubmit = () => {
       // Simulate network delay for demo
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      const response = await api.post('/expenses', {
+      const expenseData = {
         date: newExpense.date,
         description: newExpense.description,
         category: newExpense.category,
@@ -235,37 +286,52 @@ const ExpenseSubmit = () => {
         vendorName: newExpense.vendorName,
         notes: newExpense.notes,
         isReimbursable: newExpense.isReimbursable
-      });
+      };
 
-      // Save to recent expenses
-      addToRecentExpenses(newExpense);
+      const response = editExpenseId
+        ? await api.put(`/expenses/${editExpenseId}`, expenseData)
+        : await api.post('/expenses', expenseData);
+
+      // Save to recent expenses (only for new expenses)
+      if (!editExpenseId) {
+        addToRecentExpenses(newExpense);
+      }
 
       // Check if expense was auto-approved (no manager)
       const expense = response.data.expense;
-      if (expense.status === 'approved') {
-        toast.success('Expense automatically approved! ✓');
+
+      if (editExpenseId) {
+        toast.success('Expense updated successfully! ✓');
+        // Navigate back to history after updating
+        setTimeout(() => {
+          window.location.hash = '#expenses-history';
+        }, 1000);
       } else {
-        toast.success('Expense report submitted successfully! ✓');
+        if (expense.status === 'approved') {
+          toast.success('Expense automatically approved! ✓');
+        } else {
+          toast.success('Expense report submitted successfully! ✓');
+        }
+
+        // Reset form but keep smart defaults
+        setNewExpense({
+          date: new Date().toISOString().split('T')[0],
+          description: '',
+          category: '',
+          amount: '',
+          subtotal: '',
+          tax: '',
+          tip: '',
+          costCenterId: newExpense.costCenterId, // Keep last used
+          locationId: newExpense.locationId, // Keep last used
+          vendorName: '',
+          notes: '',
+          isReimbursable: newExpense.isReimbursable // Keep last used
+        });
+
+        setReceiptId(null);
+        setReimbursableConfirmed(false); // Reset confirmation flag
       }
-
-      // Reset form but keep smart defaults
-      setNewExpense({
-        date: new Date().toISOString().split('T')[0],
-        description: '',
-        category: '',
-        amount: '',
-        subtotal: '',
-        tax: '',
-        tip: '',
-        costCenterId: newExpense.costCenterId, // Keep last used
-        locationId: newExpense.locationId, // Keep last used
-        vendorName: '',
-        notes: '',
-        isReimbursable: newExpense.isReimbursable // Keep last used
-      });
-
-      setReceiptId(null);
-      setReimbursableConfirmed(false); // Reset confirmation flag
 
     } catch (err) {
       console.error('Submission error:', err);
@@ -288,8 +354,8 @@ const ExpenseSubmit = () => {
   return (
     <div className="expense-submit-container">
       <div className="expense-submit-header">
-        <h2 className="expense-submit-title">Submit New Expense</h2>
-        <p className="expense-submit-subtitle">Create an expense report for approval</p>
+        <h2 className="expense-submit-title">{editExpenseId ? 'Edit Expense' : 'Submit New Expense'}</h2>
+        <p className="expense-submit-subtitle">{editExpenseId ? 'Update your expense details' : 'Create an expense report for approval'}</p>
       </div>
 
       {/* Smart suggestions banner */}
@@ -560,10 +626,10 @@ const ExpenseSubmit = () => {
           {isSubmitting ? (
             <>
               <span className="btn-spinner"></span>
-              Submitting...
+              {editExpenseId ? 'Updating...' : 'Submitting...'}
             </>
           ) : (
-            'Submit Expense Report'
+            editExpenseId ? 'Update Expense' : 'Submit Expense Report'
           )}
         </button>
       </div>

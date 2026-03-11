@@ -379,7 +379,7 @@ const ExpenseHistory = () => {
                     <td>
                       <StatusBadge status={expense.status} />
                     </td>
-                    <td>
+                    <td style={{ minWidth: '120px' }}>
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
                         {canRescind(expense) && (
                           <button
