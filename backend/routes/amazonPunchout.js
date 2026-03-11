@@ -773,6 +773,93 @@ router.get('/admin/user-cart/:userId', authMiddleware, isManagerOrAdmin, async (
   }
 });
 
+// Admin endpoint to retry a stuck Amazon order by expense ID
+router.post('/admin/retry-order/:expenseId', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    const { expenseId } = req.params;
+
+    // Fetch the expense with user info
+    const expenseResult = await db.query(
+      `SELECT e.*, u.email, u.first_name, u.last_name
+       FROM expenses e
+       JOIN users u ON e.user_id = u.id
+       WHERE e.id = $1 AND e.amazon_spaid IS NOT NULL`,
+      [expenseId]
+    );
+
+    if (expenseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found or has no Amazon SPAID' });
+    }
+
+    const expense = expenseResult.rows[0];
+
+    // Atomically lock the order for processing
+    const lockResult = await db.query(
+      `UPDATE expenses
+       SET amazon_order_status = 'processing',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND (amazon_order_status != 'confirmed')
+       RETURNING id`,
+      [expenseId]
+    );
+
+    if (lockResult.rows.length === 0) {
+      return res.status(409).json({ error: 'Order is already confirmed or being processed' });
+    }
+
+    // Get location if expense has one
+    let location = null;
+    if (expense.location_id) {
+      const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [expense.location_id]);
+      location = locResult.rows[0];
+    }
+
+    console.log(`🔄 [Retry Order] Admin ${req.user.id} retrying Amazon order for expense ${expenseId}`);
+
+    const orderResult = await sendOrderToAmazon(expense, {
+      email: expense.email,
+      name: `${expense.first_name} ${expense.last_name}`,
+      location
+    });
+
+    if (orderResult.success) {
+      await db.query(
+        `UPDATE expenses
+         SET amazon_po_number = $1,
+             amazon_order_status = 'confirmed',
+             amazon_order_sent_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [orderResult.poNumber, expenseId]
+      );
+
+      console.log(`✓ [Retry Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+      return res.json({
+        success: true,
+        message: 'Order placed successfully',
+        poNumber: orderResult.poNumber
+      });
+    } else {
+      const errorMsg = orderResult.error || orderResult.orderMessage || 'Unknown error';
+      await db.query(
+        `UPDATE expenses
+         SET amazon_order_status = 'failed',
+             amazon_order_sent_at = CURRENT_TIMESTAMP,
+             amazon_po_number = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [`ERROR: ${errorMsg}`, expenseId]
+      );
+
+      console.error(`✗ [Retry Order] Failed: ${errorMsg}`);
+      return res.status(502).json({ error: `Amazon rejected the order: ${errorMsg}` });
+    }
+  } catch (error) {
+    console.error('Retry Amazon order error:', error);
+    res.status(500).json({ error: 'Server error retrying Amazon order' });
+  }
+});
+
 // Export the sendOrderToAmazon function for use in expense approval
 module.exports = router;
 module.exports.sendOrderToAmazon = sendOrderToAmazon;
