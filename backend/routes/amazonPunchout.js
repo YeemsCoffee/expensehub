@@ -793,10 +793,10 @@ router.post('/admin/retry-order/:expenseId', authMiddleware, isManagerOrAdmin, a
 
     const expense = expenseResult.rows[0];
 
-    // Atomically lock the order for processing
+    // Atomically lock the order for retry (set to 'sent' to prevent duplicate retries)
     const lockResult = await db.query(
       `UPDATE expenses
-       SET amazon_order_status = 'processing',
+       SET amazon_order_status = 'sent',
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND (amazon_order_status != 'confirmed')
        RETURNING id`,
@@ -804,7 +804,7 @@ router.post('/admin/retry-order/:expenseId', authMiddleware, isManagerOrAdmin, a
     );
 
     if (lockResult.rows.length === 0) {
-      return res.status(409).json({ error: 'Order is already confirmed or being processed' });
+      return res.status(409).json({ error: 'Order is already confirmed' });
     }
 
     // Get location if expense has one
