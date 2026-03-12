@@ -39,8 +39,9 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
 
       const { startUrl } = response.data;
 
-      // Redirect to Amazon's StartPage URL
-      window.location.href = startUrl;
+      // Open Amazon's StartPage URL in a new tab
+      window.open(startUrl, '_blank');
+      setLoading(false);
 
     } catch (error) {
       console.error('Failed to initiate Amazon punchout:', error);
