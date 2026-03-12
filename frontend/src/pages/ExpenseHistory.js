@@ -338,11 +338,11 @@ const ExpenseHistory = () => {
         )}
 
         <div className="table-wrapper">
-          <table className="table" style={{ tableLayout: 'fixed', width: '100%' }}>
+          <table className="table" style={{ width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ width: '90px' }}>Date</th>
-                <th>Description</th>
+                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Date</th>
+                <th style={{ minWidth: '200px' }}>Description</th>
                 <th style={{ width: '140px' }}>Category</th>
                 {isPrivileged && <th style={{ width: '120px' }}>Submitted By</th>}
                 <th style={{ width: '100px' }}>Cost Center</th>
@@ -362,8 +362,8 @@ const ExpenseHistory = () => {
               ) : (
                 expenses.map((expense) => (
                   <tr key={expense.id}>
-                    <td style={{ width: '90px' }}>{new Date(expense.date).toLocaleDateString()}</td>
-                    <td>
+                    <td style={{ width: '90px', whiteSpace: 'nowrap' }}>{new Date(expense.date).toLocaleDateString()}</td>
+                    <td style={{ minWidth: '200px' }}>
                       <div>
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.description}>
                           {expense.description}
