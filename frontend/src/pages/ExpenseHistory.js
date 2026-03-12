@@ -342,8 +342,8 @@ const ExpenseHistory = () => {
             <thead>
               <tr>
                 <th style={{ width: '90px' }}>Date</th>
-                <th style={{ maxWidth: '250px' }}>Description</th>
-                <th style={{ width: '130px' }}>Category</th>
+                <th>Description</th>
+                <th style={{ width: '140px' }}>Category</th>
                 {isPrivileged && <th style={{ width: '120px' }}>Submitted By</th>}
                 <th style={{ width: '100px' }}>Cost Center</th>
                 <th style={{ width: '90px' }}>Location</th>
@@ -363,15 +363,19 @@ const ExpenseHistory = () => {
                 expenses.map((expense) => (
                   <tr key={expense.id}>
                     <td style={{ width: '90px' }}>{new Date(expense.date).toLocaleDateString()}</td>
-                    <td style={{ maxWidth: '250px' }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <div title={expense.description}>{expense.description}</div>
+                    <td>
+                      <div>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.description}>
+                          {expense.description}
+                        </div>
                         {expense.vendor_name && (
-                          <div className="text-xs text-gray-500">{expense.vendor_name}</div>
+                          <div className="text-xs text-gray-500" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {expense.vendor_name}
+                          </div>
                         )}
                       </div>
                     </td>
-                    <td style={{ width: '130px' }}>{expense.category}</td>
+                    <td style={{ width: '140px' }}>{expense.category}</td>
                     {isPrivileged && <td style={{ width: '120px' }}>{expense.submitted_by_name || '-'}</td>}
                     <td style={{ width: '100px' }}>{expense.cost_center_code}</td>
                     <td style={{ width: '90px' }}>{expense.location_code || '-'}</td>
