@@ -338,18 +338,18 @@ const ExpenseHistory = () => {
         )}
 
         <div className="table-wrapper">
-          <table className="table">
+          <table className="table" style={{ tableLayout: 'fixed', width: '100%' }}>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th>Category</th>
-                {isPrivileged && <th>Submitted By</th>}
-                <th>Cost Center</th>
-                <th>Location</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th style={{ minWidth: '120px' }}>Actions</th>
+                <th style={{ width: '90px' }}>Date</th>
+                <th style={{ maxWidth: '250px' }}>Description</th>
+                <th style={{ width: '130px' }}>Category</th>
+                {isPrivileged && <th style={{ width: '120px' }}>Submitted By</th>}
+                <th style={{ width: '100px' }}>Cost Center</th>
+                <th style={{ width: '90px' }}>Location</th>
+                <th style={{ width: '90px', textAlign: 'right' }}>Amount</th>
+                <th style={{ width: '100px' }}>Status</th>
+                <th style={{ width: '140px', minWidth: '140px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -362,24 +362,24 @@ const ExpenseHistory = () => {
               ) : (
                 expenses.map((expense) => (
                   <tr key={expense.id}>
-                    <td>{new Date(expense.date).toLocaleDateString()}</td>
-                    <td>
-                      <div>
-                        <div>{expense.description}</div>
+                    <td style={{ width: '90px' }}>{new Date(expense.date).toLocaleDateString()}</td>
+                    <td style={{ maxWidth: '250px' }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div title={expense.description}>{expense.description}</div>
                         {expense.vendor_name && (
                           <div className="text-xs text-gray-500">{expense.vendor_name}</div>
                         )}
                       </div>
                     </td>
-                    <td>{expense.category}</td>
-                    {isPrivileged && <td>{expense.submitted_by_name || '-'}</td>}
-                    <td>{expense.cost_center_code}</td>
-                    <td>{expense.location_code || '-'}</td>
-                    <td>{formatCurrency(parseFloat(expense.amount))}</td>
-                    <td>
+                    <td style={{ width: '130px' }}>{expense.category}</td>
+                    {isPrivileged && <td style={{ width: '120px' }}>{expense.submitted_by_name || '-'}</td>}
+                    <td style={{ width: '100px' }}>{expense.cost_center_code}</td>
+                    <td style={{ width: '90px' }}>{expense.location_code || '-'}</td>
+                    <td style={{ width: '90px', textAlign: 'right' }}>{formatCurrency(parseFloat(expense.amount))}</td>
+                    <td style={{ width: '100px' }}>
                       <StatusBadge status={expense.status} />
                     </td>
-                    <td style={{ minWidth: '120px' }}>
+                    <td style={{ width: '140px', minWidth: '140px' }}>
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
                         {canRescind(expense) && (
                           <button
