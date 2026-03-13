@@ -338,18 +338,18 @@ const ExpenseHistory = () => {
         )}
 
         <div className="table-wrapper">
-          <table className="table" style={{ width: '100%' }}>
+          <table className="table" style={{ width: '100%', tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Date</th>
-                <th style={{ minWidth: '200px' }}>Description</th>
-                <th style={{ width: '140px' }}>Category</th>
-                {isPrivileged && <th style={{ width: '120px' }}>Submitted By</th>}
-                <th style={{ width: '100px' }}>Cost Center</th>
-                <th style={{ width: '90px' }}>Location</th>
-                <th style={{ width: '90px', textAlign: 'right' }}>Amount</th>
-                <th style={{ width: '100px' }}>Status</th>
-                <th style={{ width: '140px', minWidth: '140px' }}>Actions</th>
+                <th style={{ width: '85px' }}>Date</th>
+                <th>Description</th>
+                <th style={{ width: '100px' }}>Category</th>
+                {isPrivileged && <th style={{ width: '100px' }}>Submitted By</th>}
+                <th style={{ width: '75px' }}>Cost Ctr</th>
+                <th style={{ width: '70px' }}>Location</th>
+                <th style={{ width: '80px', textAlign: 'right' }}>Amount</th>
+                <th style={{ width: '90px' }}>Status</th>
+                <th style={{ width: '100px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -362,10 +362,10 @@ const ExpenseHistory = () => {
               ) : (
                 expenses.map((expense) => (
                   <tr key={expense.id}>
-                    <td style={{ width: '90px', whiteSpace: 'nowrap' }}>{new Date(expense.date).toLocaleDateString()}</td>
-                    <td style={{ minWidth: '200px' }}>
-                      <div>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.description}>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.875rem' }}>{new Date(expense.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' })}</td>
+                    <td>
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ wordWrap: 'break-word', fontSize: '0.875rem', lineHeight: '1.3' }} title={expense.description}>
                           {expense.description}
                         </div>
                         {expense.vendor_name && (
@@ -375,16 +375,16 @@ const ExpenseHistory = () => {
                         )}
                       </div>
                     </td>
-                    <td style={{ width: '140px' }}>{expense.category}</td>
-                    {isPrivileged && <td style={{ width: '120px' }}>{expense.submitted_by_name || '-'}</td>}
-                    <td style={{ width: '100px' }}>{expense.cost_center_code}</td>
-                    <td style={{ width: '90px' }}>{expense.location_code || '-'}</td>
-                    <td style={{ width: '90px', textAlign: 'right' }}>{formatCurrency(parseFloat(expense.amount))}</td>
-                    <td style={{ width: '100px' }}>
+                    <td style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.category}>{expense.category}</td>
+                    {isPrivileged && <td style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.submitted_by_name}>{expense.submitted_by_name || '-'}</td>}
+                    <td style={{ fontSize: '0.875rem' }}>{expense.cost_center_code}</td>
+                    <td style={{ fontSize: '0.875rem' }}>{expense.location_code || '-'}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>{formatCurrency(parseFloat(expense.amount))}</td>
+                    <td>
                       <StatusBadge status={expense.status} />
                     </td>
-                    <td style={{ width: '140px', minWidth: '140px' }}>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
+                    <td>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap', justifyContent: 'center' }}>
                         {canRescind(expense) && (
                           <button
                             onClick={() => handleRescind(expense.id)}
