@@ -337,19 +337,19 @@ const ExpenseHistory = () => {
           </div>
         )}
 
-        <div className="table-wrapper">
-          <table className="table" style={{ width: '100%' }}>
+        <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ width: '100%', tableLayout: 'auto' }}>
             <thead>
               <tr>
-                <th style={{ width: '90px', whiteSpace: 'nowrap' }}>Date</th>
-                <th style={{ minWidth: '200px' }}>Description</th>
-                <th style={{ width: '140px' }}>Category</th>
-                {isPrivileged && <th style={{ width: '120px' }}>Submitted By</th>}
-                <th style={{ width: '100px' }}>Cost Center</th>
-                <th style={{ width: '90px' }}>Location</th>
+                <th style={{ width: '100px', whiteSpace: 'nowrap' }}>Date</th>
+                <th>Description</th>
+                <th style={{ width: '120px' }}>Category</th>
+                {isPrivileged && <th style={{ width: '110px' }}>Submitted By</th>}
+                <th style={{ width: '90px' }}>Cost Center</th>
+                <th style={{ width: '80px' }}>Location</th>
                 <th style={{ width: '90px', textAlign: 'right' }}>Amount</th>
                 <th style={{ width: '100px' }}>Status</th>
-                <th style={{ width: '140px', minWidth: '140px' }}>Actions</th>
+                <th style={{ width: '120px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -362,28 +362,28 @@ const ExpenseHistory = () => {
               ) : (
                 expenses.map((expense) => (
                   <tr key={expense.id}>
-                    <td style={{ width: '90px', whiteSpace: 'nowrap' }}>{new Date(expense.date).toLocaleDateString()}</td>
-                    <td style={{ minWidth: '200px' }}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(expense.date).toLocaleDateString()}</td>
+                    <td>
                       <div>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.description}>
+                        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
                           {expense.description}
                         </div>
                         {expense.vendor_name && (
-                          <div className="text-xs text-gray-500" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div className="text-xs text-gray-500" style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
                             {expense.vendor_name}
                           </div>
                         )}
                       </div>
                     </td>
-                    <td style={{ width: '140px' }}>{expense.category}</td>
-                    {isPrivileged && <td style={{ width: '120px' }}>{expense.submitted_by_name || '-'}</td>}
-                    <td style={{ width: '100px' }}>{expense.cost_center_code}</td>
-                    <td style={{ width: '90px' }}>{expense.location_code || '-'}</td>
-                    <td style={{ width: '90px', textAlign: 'right' }}>{formatCurrency(parseFloat(expense.amount))}</td>
-                    <td style={{ width: '100px' }}>
+                    <td>{expense.category}</td>
+                    {isPrivileged && <td>{expense.submitted_by_name || '-'}</td>}
+                    <td>{expense.cost_center_code}</td>
+                    <td>{expense.location_code || '-'}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(parseFloat(expense.amount))}</td>
+                    <td>
                       <StatusBadge status={expense.status} />
                     </td>
-                    <td style={{ width: '140px', minWidth: '140px' }}>
+                    <td>
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
                         {canRescind(expense) && (
                           <button
