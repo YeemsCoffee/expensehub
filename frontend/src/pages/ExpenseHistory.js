@@ -337,19 +337,19 @@ const ExpenseHistory = () => {
           </div>
         )}
 
-        <div className="table-wrapper">
-          <table className="table" style={{ width: '100%', tableLayout: 'fixed' }}>
+        <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ width: '100%', tableLayout: 'auto' }}>
             <thead>
               <tr>
-                <th style={{ width: '85px' }}>Date</th>
+                <th style={{ width: '100px', whiteSpace: 'nowrap' }}>Date</th>
                 <th>Description</th>
-                <th style={{ width: '100px' }}>Category</th>
-                {isPrivileged && <th style={{ width: '100px' }}>Submitted By</th>}
-                <th style={{ width: '75px' }}>Cost Ctr</th>
-                <th style={{ width: '70px' }}>Location</th>
-                <th style={{ width: '80px', textAlign: 'right' }}>Amount</th>
-                <th style={{ width: '90px' }}>Status</th>
-                <th style={{ width: '100px' }}>Actions</th>
+                <th style={{ width: '120px' }}>Category</th>
+                {isPrivileged && <th style={{ width: '110px' }}>Submitted By</th>}
+                <th style={{ width: '90px' }}>Cost Center</th>
+                <th style={{ width: '80px' }}>Location</th>
+                <th style={{ width: '90px', textAlign: 'right' }}>Amount</th>
+                <th style={{ width: '100px' }}>Status</th>
+                <th style={{ width: '120px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -362,29 +362,29 @@ const ExpenseHistory = () => {
               ) : (
                 expenses.map((expense) => (
                   <tr key={expense.id}>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.875rem' }}>{new Date(expense.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' })}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(expense.date).toLocaleDateString()}</td>
                     <td>
-                      <div style={{ overflow: 'hidden' }}>
-                        <div style={{ wordWrap: 'break-word', fontSize: '0.875rem', lineHeight: '1.3' }} title={expense.description}>
+                      <div>
+                        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
                           {expense.description}
                         </div>
                         {expense.vendor_name && (
-                          <div className="text-xs text-gray-500" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div className="text-xs text-gray-500" style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
                             {expense.vendor_name}
                           </div>
                         )}
                       </div>
                     </td>
-                    <td style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.category}>{expense.category}</td>
-                    {isPrivileged && <td style={{ fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={expense.submitted_by_name}>{expense.submitted_by_name || '-'}</td>}
-                    <td style={{ fontSize: '0.875rem' }}>{expense.cost_center_code}</td>
-                    <td style={{ fontSize: '0.875rem' }}>{expense.location_code || '-'}</td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>{formatCurrency(parseFloat(expense.amount))}</td>
+                    <td>{expense.category}</td>
+                    {isPrivileged && <td>{expense.submitted_by_name || '-'}</td>}
+                    <td>{expense.cost_center_code}</td>
+                    <td>{expense.location_code || '-'}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(parseFloat(expense.amount))}</td>
                     <td>
                       <StatusBadge status={expense.status} />
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
                         {canRescind(expense) && (
                           <button
                             onClick={() => handleRescind(expense.id)}
