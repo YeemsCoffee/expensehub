@@ -198,24 +198,17 @@ router.post('/checkout', authMiddleware, [
 
     console.log(`Cart checkout for user ${req.user.id}: ${cartResult.rows.length} items, total amount: $${totalAmount}`);
 
-    // Auto-approve for admins and developers - they don't need approval for their own orders
-    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+    // Find applicable approval rule based on total amount
+    const ruleResult = await db.query(
+      'SELECT * FROM find_approval_rule($1, $2)',
+      [totalAmount, costCenterId]
+    );
 
     let approvalChain = null;
     let approvalRuleId = null;
     let currentApprovalLevel = 1;
 
-    if (isPrivileged) {
-      console.log(`User ${req.user.id} is ${req.user.role} - auto-approving order`);
-      // Leave approvalChain as null to auto-approve
-    } else {
-      // Find applicable approval rule based on total amount
-      const ruleResult = await db.query(
-        'SELECT * FROM find_approval_rule($1, $2)',
-        [totalAmount, costCenterId]
-      );
-
-      if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
+    if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
       approvalRuleId = ruleResult.rows[0].find_approval_rule;
 
       // Get the rule details
@@ -250,10 +243,9 @@ router.post('/checkout', authMiddleware, [
           approvalChain = null;
         }
       }
-      } else {
-        // No approval rule found - auto-approve
-        console.log(`No approval rule found for amount $${totalAmount}. Status: approved (auto)`);
-      }
+    } else {
+      // No approval rule found - auto-approve
+      console.log(`No approval rule found for amount $${totalAmount}. Status: approved (auto)`);
     }
 
     const status = approvalChain ? 'pending' : 'approved';
