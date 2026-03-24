@@ -498,6 +498,11 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const billZip = process.env.COMPANY_BILL_ZIP || shipZip;
   const billName = process.env.COMPANY_BILL_NAME || 'ExpenseHub';
 
+  // Format date as YYYY-MM-DD for cXML (expense.date is a Date object from database)
+  const orderDate = expense.date instanceof Date
+    ? expense.date.toISOString().split('T')[0]
+    : new Date(expense.date).toISOString().split('T')[0];
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
@@ -522,7 +527,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   </Header>
   <Request deploymentMode="${AMAZON_CONFIG.useProd ? 'production' : 'test'}">
     <OrderRequest>
-      <OrderRequestHeader orderID="${poNumber}" orderDate="${expense.date}" type="new">
+      <OrderRequestHeader orderID="${poNumber}" orderDate="${orderDate}" type="new">
         <Total>
           <Money currency="USD">${expense.amount}</Money>
         </Total>
