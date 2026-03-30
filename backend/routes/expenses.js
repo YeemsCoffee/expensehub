@@ -1106,4 +1106,181 @@ router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isManag
   }
 });
 
+// Fix stuck admin/developer Amazon orders
+// POST /api/expenses/fix-admin-dev-orders
+router.post('/fix-admin-dev-orders', authMiddleware, isManagerOrAdmin, async (req, res) => {
+  try {
+    console.log(`🔧 Fixing stuck admin/developer Amazon orders...`);
+
+    // Find pending Amazon orders from admin/developer users only
+    const query = `
+      SELECT e.*, u.email, u.first_name, u.last_name, u.role
+      FROM expenses e
+      JOIN users u ON e.user_id = u.id
+      WHERE e.status = 'pending'
+        AND e.amazon_spaid IS NOT NULL
+        AND u.role IN ('admin', 'developer')
+      ORDER BY e.created_at DESC
+    `;
+
+    const result = await db.query(query);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No stuck admin/developer Amazon orders found',
+        processed: []
+      });
+    }
+
+    console.log(`Found ${result.rows.length} stuck admin/developer order(s)`);
+
+    const processed = [];
+
+    for (const expense of result.rows) {
+      try {
+        console.log(`📦 Processing expense ${expense.id} - ${expense.role}: ${expense.first_name} ${expense.last_name}`);
+
+        // Auto-approve (admin/developer bypass approval rules)
+        const approveResult = await db.query(
+          `UPDATE expenses
+           SET status = 'approved',
+               approved_by = $1,
+               approved_at = CURRENT_TIMESTAMP,
+               approval_chain = NULL,
+               approval_rule_id = NULL,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND status = 'pending'
+           RETURNING id`,
+          [req.user.id, expense.id]
+        );
+
+        if (approveResult.rows.length === 0) {
+          console.log(`⚠️  Expense ${expense.id} already approved`);
+          processed.push({
+            expenseId: expense.id,
+            status: 'skipped',
+            message: 'Already approved'
+          });
+          continue;
+        }
+
+        console.log(`✓ Expense ${expense.id} auto-approved (${expense.role})`);
+
+        // Send to Amazon if order is pending
+        if (expense.amazon_order_status === 'pending' || !expense.amazon_order_status) {
+          console.log(`🛒 Sending to Amazon...`);
+
+          // Atomic lock
+          const lockResult = await db.query(
+            `UPDATE expenses
+             SET amazon_order_status = 'processing',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1 AND (amazon_order_status = 'pending' OR amazon_order_status IS NULL)
+             RETURNING id`,
+            [expense.id]
+          );
+
+          if (lockResult.rows.length === 0) {
+            console.log(`⚠️  Order already being processed`);
+            processed.push({
+              expenseId: expense.id,
+              status: 'skipped',
+              message: 'Order already processing'
+            });
+            continue;
+          }
+
+          // Get location
+          let location = null;
+          if (expense.location_id) {
+            const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [expense.location_id]);
+            location = locResult.rows[0];
+          }
+
+          const orderResult = await sendOrderToAmazon(expense, {
+            email: expense.email,
+            name: `${expense.first_name} ${expense.last_name}`,
+            location: location
+          });
+
+          if (orderResult.success) {
+            console.log(`✓ Amazon order placed! PO: ${orderResult.poNumber}`);
+
+            await db.query(
+              `UPDATE expenses
+               SET amazon_po_number = $1,
+                   amazon_order_status = 'confirmed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [orderResult.poNumber, expense.id]
+            );
+
+            processed.push({
+              expenseId: expense.id,
+              user: `${expense.first_name} ${expense.last_name}`,
+              role: expense.role,
+              status: 'success',
+              poNumber: orderResult.poNumber
+            });
+          } else {
+            console.error(`✗ Amazon order failed:`, orderResult.error);
+
+            await db.query(
+              `UPDATE expenses
+               SET amazon_order_status = 'failed',
+                   amazon_order_sent_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [expense.id]
+            );
+
+            processed.push({
+              expenseId: expense.id,
+              user: `${expense.first_name} ${expense.last_name}`,
+              role: expense.role,
+              status: 'failed',
+              error: orderResult.error
+            });
+          }
+        } else {
+          processed.push({
+            expenseId: expense.id,
+            user: `${expense.first_name} ${expense.last_name}`,
+            role: expense.role,
+            status: 'approved_only',
+            message: `Order already ${expense.amazon_order_status || 'processed'}`
+          });
+        }
+      } catch (error) {
+        console.error(`Error processing expense ${expense.id}:`, error);
+        processed.push({
+          expenseId: expense.id,
+          status: 'error',
+          error: error.message
+        });
+      }
+    }
+
+    const successCount = processed.filter(p => p.status === 'success').length;
+    const failCount = processed.filter(p => p.status === 'failed').length;
+
+    res.json({
+      success: true,
+      message: `Fixed ${successCount} admin/developer orders (${failCount} failed)`,
+      summary: {
+        total: result.rows.length,
+        success: successCount,
+        failed: failCount,
+        skipped: processed.filter(p => p.status === 'skipped').length
+      },
+      processed
+    });
+  } catch (error) {
+    console.error('Fix admin/dev orders error:', error);
+    res.status(500).json({ error: 'Server error fixing admin/developer orders' });
+  }
+});
+
 module.exports = router;
