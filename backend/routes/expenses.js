@@ -215,49 +215,57 @@ router.post('/', authMiddleware, [
     // Project expenses default to CAPEX
     const finalCostType = costType || (projectId ? 'CAPEX' : determineCostType(category, amount));
 
-    // Find applicable approval rule based on amount
-    const ruleResult = await db.query(
-      'SELECT * FROM find_approval_rule($1, $2)',
-      [amount, costCenterId]
-    );
+    // Auto-approve for admins and developers - they don't need approval for their own expenses
+    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
 
     let approvalChain = null;
     let approvalRuleId = null;
     let currentApprovalLevel = 1;
 
-    if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
-      approvalRuleId = ruleResult.rows[0].find_approval_rule;
-
-      // Get the rule details
-      const rule = await db.query(
-        'SELECT * FROM approval_rules WHERE id = $1',
-        [approvalRuleId]
+    if (isPrivileged) {
+      console.log(`User ${req.user.id} is ${req.user.role} - auto-approving expense`);
+      // Leave approvalChain as null to auto-approve
+    } else {
+      // Find applicable approval rule based on amount
+      const ruleResult = await db.query(
+        'SELECT * FROM find_approval_rule($1, $2)',
+        [amount, costCenterId]
       );
 
-      if (rule.rows.length > 0) {
-        const levelsRequired = rule.rows[0].levels_required;
+      if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
+        approvalRuleId = ruleResult.rows[0].find_approval_rule;
 
-        // Get manager chain from org chart
-        const chainResult = await db.query(
-          'SELECT * FROM get_manager_chain($1, $2)',
-          [req.user.id, levelsRequired]
+        // Get the rule details
+        const rule = await db.query(
+          'SELECT * FROM approval_rules WHERE id = $1',
+          [approvalRuleId]
         );
 
-        if (chainResult.rows.length > 0) {
-          // Build approval chain
-          approvalChain = chainResult.rows.map(row => ({
-            level: row.level,
-            user_id: row.manager_id,
-            user_name: row.manager_name,
-            user_email: row.manager_email,
-            status: 'pending'
-          }));
-        } else {
-          // No manager chain found - allow submission without approval
-          // This allows employees without managers to still log expenses
-          console.log(`No manager chain found for user ${req.user.id}. Expense will be submitted without approval requirements.`);
-          approvalRuleId = null;
-          approvalChain = null;
+        if (rule.rows.length > 0) {
+          const levelsRequired = rule.rows[0].levels_required;
+
+          // Get manager chain from org chart
+          const chainResult = await db.query(
+            'SELECT * FROM get_manager_chain($1, $2)',
+            [req.user.id, levelsRequired]
+          );
+
+          if (chainResult.rows.length > 0) {
+            // Build approval chain
+            approvalChain = chainResult.rows.map(row => ({
+              level: row.level,
+              user_id: row.manager_id,
+              user_name: row.manager_name,
+              user_email: row.manager_email,
+              status: 'pending'
+            }));
+          } else {
+            // No manager chain found - allow submission without approval
+            // This allows employees without managers to still log expenses
+            console.log(`No manager chain found for user ${req.user.id}. Expense will be submitted without approval requirements.`);
+            approvalRuleId = null;
+            approvalChain = null;
+          }
         }
       }
     }
