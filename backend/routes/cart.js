@@ -265,16 +265,18 @@ router.post('/checkout', authMiddleware, [
       const amount = item.price * item.quantity;
       const description = `${item.name} (Qty: ${item.quantity})`;
 
-      // Store Amazon SPAID and SKU if present (needed for order placement)
+      // Store Amazon order details if present (needed for order placement)
       const amazonSpaid = item.amazon_spaid || null;
       const amazonOrderStatus = amazonSpaid ? 'pending' : null;
       const amazonProductSku = (amazonSpaid && item.sku) ? item.sku : null;
+      const amazonQuantity = amazonSpaid ? item.quantity : null;
+      const amazonUnitPrice = amazonSpaid ? item.price : null;
 
       const expenseResult = await db.query(
-        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, amazon_product_sku, approval_rule_id, approval_chain, current_approval_level)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14, $15)
+        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, amazon_product_sku, amazon_quantity, amazon_unit_price, approval_rule_id, approval_chain, current_approval_level)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          RETURNING *`,
-        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, amazonProductSku, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
+        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, amazonProductSku, amazonQuantity, amazonUnitPrice, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
       );
 
       expenses.push(expenseResult.rows[0]);
@@ -337,6 +339,20 @@ router.post('/checkout', authMiddleware, [
           setImmediate(async () => {
             try {
               console.log(`🛒 [Amazon Order] Auto-approved - placing order for expense ${expense.id} with SPAID:`, expense.amazon_spaid);
+
+              const lockResult = await db.query(
+                `UPDATE expenses
+                 SET amazon_order_status = 'processing',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND amazon_order_status = 'pending'
+                 RETURNING id`,
+                [expense.id]
+              );
+
+              if (lockResult.rows.length === 0) {
+                console.log(`⚠️  [Amazon Order] Expense ${expense.id} is already being processed. Skipping.`);
+                return;
+              }
 
               // Get user and location info for order
               const [userResult, locationResult] = await Promise.all([
