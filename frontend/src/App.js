@@ -410,6 +410,7 @@ const App = () => {
             onRemoveItem={handleRemoveFromCart}
             onCheckout={handleCheckout}
             onNavigate={handleNavigate}
+            user={user}
           />
         );
       // Phase 2: SAP-Like Project Management Routes
