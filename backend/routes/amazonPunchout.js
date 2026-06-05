@@ -477,6 +477,47 @@ router.get('/debug/cxml', authMiddleware, async (req, res) => {
   }
 });
 
+function getAmazonOrderQuantity(expense) {
+  const storedQuantity = parseInt(expense.amazon_quantity ?? expense.quantity, 10);
+  if (Number.isInteger(storedQuantity) && storedQuantity > 0) {
+    return storedQuantity;
+  }
+
+  // Backward compatibility for Amazon expenses created before amazon_quantity existed.
+  const descriptionQuantity = String(expense.description || '').match(/\(Qty:\s*(\d+)\)/i);
+  if (descriptionQuantity) {
+    const parsedQuantity = parseInt(descriptionQuantity[1], 10);
+    if (Number.isInteger(parsedQuantity) && parsedQuantity > 0) {
+      return parsedQuantity;
+    }
+  }
+
+  return 1;
+}
+
+function getAmazonUnitPrice(expense, quantity) {
+  const storedUnitPrice = parseFloat(expense.amazon_unit_price);
+  if (Number.isFinite(storedUnitPrice) && storedUnitPrice >= 0) {
+    return storedUnitPrice;
+  }
+
+  const totalAmount = parseFloat(expense.amount);
+  if (Number.isFinite(totalAmount) && quantity > 0) {
+    return totalAmount / quantity;
+  }
+
+  return 0;
+}
+
+function formatMoney(amount) {
+  return Number(amount).toFixed(2);
+}
+
+function getMissingAmazonBillingFields() {
+  return ['COMPANY_BILL_STREET', 'COMPANY_BILL_CITY', 'COMPANY_BILL_STATE', 'COMPANY_BILL_ZIP']
+    .filter(field => !process.env[field]);
+}
+
 // Helper function to build cXML OrderRequest for Amazon
 function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const timestamp = new Date().toISOString();
@@ -484,6 +525,8 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
 
   // Extract Amazon SPAID (format: "session-id,line-number")
   const amazonSpaid = expense.amazon_spaid;
+  const amazonQuantity = getAmazonOrderQuantity(expense);
+  const amazonUnitPrice = getAmazonUnitPrice(expense, amazonQuantity);
 
   // Use location address if provided, otherwise fall back to env defaults
   const shipStreet = location?.address || process.env.COMPANY_SHIP_STREET || '123 Main Street';
@@ -497,6 +540,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const billState = process.env.COMPANY_BILL_STATE || shipState;
   const billZip = process.env.COMPANY_BILL_ZIP || shipZip;
   const billName = process.env.COMPANY_BILL_NAME || 'ExpenseHub';
+  const billAddressId = process.env.COMPANY_BILL_ADDRESS_ID || AMAZON_CONFIG.identity;
 
   // Format date as YYYY-MM-DD for cXML (expense.date is a Date object from database)
   const orderDate = expense.date instanceof Date
@@ -529,7 +573,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
     <OrderRequest>
       <OrderRequestHeader orderID="${poNumber}" orderDate="${orderDate}" type="new">
         <Total>
-          <Money currency="USD">${expense.amount}</Money>
+          <Money currency="USD">${formatMoney(expense.amount)}</Money>
         </Total>
         <ShipTo>
           <Address>
@@ -544,7 +588,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
           </Address>
         </ShipTo>
         <BillTo>
-          <Address addressID="${AMAZON_CONFIG.identity}">
+          <Address addressID="${billAddressId}">
             <Name xml:lang="en">${billName}</Name>
             <PostalAddress>
               <Street>${billStreet}</Street>
@@ -560,14 +604,14 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
           <Email>${userEmail}</Email>
         </Contact>
       </OrderRequestHeader>
-      <ItemOut quantity="${expense.quantity || 1}" lineNumber="1">
+      <ItemOut quantity="${amazonQuantity}" lineNumber="1">
         <ItemID>
           <SupplierPartID>${expense.amazon_product_sku || expense.description}</SupplierPartID>
           <SupplierPartAuxiliaryID>${amazonSpaid}</SupplierPartAuxiliaryID>
         </ItemID>
         <ItemDetail>
           <UnitPrice>
-            <Money currency="USD">${expense.amount}</Money>
+            <Money currency="USD">${formatMoney(amazonUnitPrice)}</Money>
           </UnitPrice>
           <Description xml:lang="en">${expense.description}|SPAID:${amazonSpaid}</Description>
         </ItemDetail>
@@ -581,6 +625,13 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
 async function sendOrderToAmazon(expense, userInfo) {
   try {
     ensureAmazonConfig();
+
+    const missingBillingFields = getMissingAmazonBillingFields();
+    if (missingBillingFields.length > 0) {
+      throw new Error(
+        `Amazon billing address is incomplete. Set ${missingBillingFields.join(', ')} before sending orders to Amazon.`
+      );
+    }
 
     if (!expense.amazon_spaid) {
       throw new Error('Missing Amazon SPAID - cannot place order');
@@ -606,20 +657,14 @@ async function sendOrderToAmazon(expense, userInfo) {
       console.log('⚠️  WARNING: No product SKU stored! Amazon may reject this order.');
       console.log('⚠️  Make sure the database migration add_amazon_product_sku.sql has been applied.');
     }
+    console.log('Amazon Quantity:', getAmazonOrderQuantity(expense));
+    console.log('Amazon Unit Price:', formatMoney(getAmazonUnitPrice(expense, getAmazonOrderQuantity(expense))));
     console.log('PO Number:', poNumber);
     console.log('User Email:', userInfo.email);
     console.log('User Name:', userInfo.name);
     console.log('Location:', JSON.stringify(userInfo.location));
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
     console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
-
-    // Check if billing address is configured
-    if (!process.env.COMPANY_BILL_STREET || !process.env.COMPANY_BILL_CITY) {
-      console.log('⚠️  WARNING: Billing address not configured in environment variables!');
-      console.log('⚠️  Orders will be stuck in Amazon approval queue without a complete billing address.');
-      console.log('⚠️  Set COMPANY_BILL_STREET, COMPANY_BILL_CITY, COMPANY_BILL_STATE, COMPANY_BILL_ZIP in Render env vars.');
-      console.log('⚠️  Falling back to shipping address for billing.');
-    }
 
     console.log('Full Order Request XML:');
     console.log(orderRequest);

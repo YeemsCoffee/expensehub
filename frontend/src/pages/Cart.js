@@ -4,7 +4,7 @@ import { calculateCartTotal, calculateTax, formatCurrency } from '../utils/helpe
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import api from '../services/api';
 
-const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) => {
+const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate, user }) => {
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
   const [categories, setCategories] = useState(EXPENSE_CATEGORIES);
@@ -15,6 +15,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
   const subtotal = calculateCartTotal(cart);
   const tax = calculateTax(subtotal);
   const total = subtotal + tax;
+  const isPrivileged = ['admin', 'developer'].includes(user?.role);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -178,10 +179,12 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate }) 
               onClick={handleCheckout}
               className="btn btn-primary btn-full btn-lg"
             >
-              Submit for Approval
+              {isPrivileged ? 'Place Order' : 'Submit for Approval'}
             </button>
             <p className="order-summary-note">
-              Items will be submitted as expense reports for manager approval
+              {isPrivileged
+                ? 'Items will be automatically approved and sent for processing'
+                : 'Items will be submitted as expense reports for manager approval'}
             </p>
           </div>
         </div>
