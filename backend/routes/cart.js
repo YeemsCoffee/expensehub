@@ -274,10 +274,10 @@ router.post('/checkout', authMiddleware, [
       const amazonUnitPrice = amazonSpaid ? item.price : null;
 
       const expenseResult = await db.query(
-        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, approved_by, amazon_spaid, amazon_order_status, amazon_product_sku, amazon_quantity, amazon_unit_price, approval_rule_id, approval_chain, current_approval_level)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, amazon_product_sku, amazon_quantity, amazon_unit_price, approval_rule_id, approval_chain, current_approval_level)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          RETURNING *`,
-        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, approvedBy, amazonSpaid, amazonOrderStatus, amazonProductSku, amazonQuantity, amazonUnitPrice, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
+        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, amazonProductSku, amazonQuantity, amazonUnitPrice, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
       );
 
       expenses.push(expenseResult.rows[0]);
@@ -407,6 +407,86 @@ router.post('/checkout', authMiddleware, [
           console.error('Error sending approval notifications:', err);
         }
       });
+    }
+
+    // If auto-approved and has Amazon items, send orders to Amazon
+    if (!approvalChain) {
+      const { sendOrderToAmazon } = require('./amazonPunchout');
+
+      for (const expense of expenses) {
+        if (expense.amazon_spaid && expense.amazon_order_status === 'pending') {
+          // Send order asynchronously (non-blocking)
+          setImmediate(async () => {
+            try {
+              console.log(`🛒 [Amazon Order] Auto-approved - placing order for expense ${expense.id} with SPAID:`, expense.amazon_spaid);
+
+              const lockResult = await db.query(
+                `UPDATE expenses
+                 SET amazon_order_status = 'processing',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1 AND amazon_order_status = 'pending'
+                 RETURNING id`,
+                [expense.id]
+              );
+
+              if (lockResult.rows.length === 0) {
+                console.log(`⚠️  [Amazon Order] Expense ${expense.id} is already being processed. Skipping.`);
+                return;
+              }
+
+              // Get user and location info for order
+              const [userResult, locationResult] = await Promise.all([
+                db.query('SELECT email, first_name, last_name FROM users WHERE id = $1', [req.user.id]),
+                db.query('SELECT * FROM locations WHERE id = $1', [expense.location_id])
+              ]);
+              const user = userResult.rows[0];
+              const location = locationResult.rows[0];
+
+              const orderResult = await sendOrderToAmazon(expense, {
+                email: user.email,
+                name: `${user.first_name} ${user.last_name}`,
+                location: location
+              });
+
+              if (orderResult.success) {
+                console.log(`✓ [Amazon Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+
+                await db.query(
+                  `UPDATE expenses
+                   SET amazon_po_number = $1,
+                       amazon_order_status = 'confirmed',
+                       amazon_order_sent_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = $2`,
+                  [orderResult.poNumber, expense.id]
+                );
+              } else {
+                console.error(`✗ [Amazon Order] Failed to place order for expense ${expense.id}:`, orderResult.error);
+
+                await db.query(
+                  `UPDATE expenses
+                   SET amazon_order_status = 'failed',
+                       amazon_order_sent_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE id = $1`,
+                  [expense.id]
+                );
+              }
+            } catch (orderError) {
+              console.error(`Error placing Amazon order for expense ${expense.id}:`, orderError);
+
+              await db.query(
+                `UPDATE expenses
+                 SET amazon_order_status = 'failed',
+                     amazon_order_sent_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1`,
+                [expense.id]
+              );
+            }
+          });
+        }
+      }
     }
 
     res.json({
