@@ -535,6 +535,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const billState = process.env.COMPANY_BILL_STATE || shipState;
   const billZip = process.env.COMPANY_BILL_ZIP || shipZip;
   const billName = process.env.COMPANY_BILL_NAME || 'ExpenseHub';
+  const billAddressId = process.env.COMPANY_BILL_ADDRESS_ID || AMAZON_CONFIG.identity;
 
   // Format date as YYYY-MM-DD for cXML (expense.date is a Date object from database)
   const orderDate = expense.date instanceof Date
@@ -582,7 +583,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
           </Address>
         </ShipTo>
         <BillTo>
-          <Address addressID="${AMAZON_CONFIG.identity}">
+          <Address addressID="${billAddressId}">
             <Name xml:lang="en">${billName}</Name>
             <PostalAddress>
               <Street>${billStreet}</Street>
@@ -618,7 +619,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
 // Function to send OrderRequest to Amazon PO URL
 async function sendOrderToAmazon(expense, userInfo) {
   try {
-    ensureAmazonConfig();
+    ensureAmazonOrderConfig();
 
     if (!expense.amazon_spaid) {
       throw new Error('Missing Amazon SPAID - cannot place order');
@@ -652,14 +653,6 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('Location:', JSON.stringify(userInfo.location));
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
     console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
-
-    // Check if billing address is configured
-    if (!process.env.COMPANY_BILL_STREET || !process.env.COMPANY_BILL_CITY) {
-      console.log('⚠️  WARNING: Billing address not configured in environment variables!');
-      console.log('⚠️  Orders will be stuck in Amazon approval queue without a complete billing address.');
-      console.log('⚠️  Set COMPANY_BILL_STREET, COMPANY_BILL_CITY, COMPANY_BILL_STATE, COMPANY_BILL_ZIP in Render env vars.');
-      console.log('⚠️  Falling back to shipping address for billing.');
-    }
 
     console.log('Full Order Request XML:');
     console.log(orderRequest);

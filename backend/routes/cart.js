@@ -258,6 +258,7 @@ router.post('/checkout', authMiddleware, [
 
     const status = approvalChain ? 'pending' : 'approved';
     const approvedAt = approvalChain ? null : new Date();
+    const approvedBy = approvalChain ? null : req.user.id;
 
     // Create expenses for each cart item
     const expenses = [];
@@ -286,6 +287,85 @@ router.post('/checkout', authMiddleware, [
     await db.query('DELETE FROM cart_items WHERE user_id = $1', [req.user.id]);
 
     console.log(`Cart checkout: Created ${expenses.length} expense(s) for user ${req.user.id}, status: ${status}`);
+
+    const amazonOrderResults = [];
+
+    // Auto-approved Amazon orders should be sent before returning the checkout
+    // response. If this stays non-blocking, failures can leave admins thinking
+    // the order was approved while the row remains pending in ExpenseHub/Amazon.
+    if (!approvalChain) {
+      const { sendOrderToAmazon } = require('./amazonPunchout');
+      const [userResult, locationResult] = await Promise.all([
+        db.query('SELECT email, first_name, last_name FROM users WHERE id = $1', [req.user.id]),
+        locationId ? db.query('SELECT * FROM locations WHERE id = $1', [locationId]) : Promise.resolve({ rows: [] })
+      ]);
+      const user = userResult.rows[0];
+      const location = locationResult.rows[0] || null;
+
+      for (const expense of expenses) {
+        if (!expense.amazon_spaid || expense.amazon_order_status !== 'pending') {
+          continue;
+        }
+
+        console.log(`🛒 [Amazon Order] Auto-approved - placing order for expense ${expense.id} with SPAID:`, expense.amazon_spaid);
+
+        const lockResult = await db.query(
+          `UPDATE expenses
+           SET amazon_order_status = 'processing',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND amazon_order_status = 'pending'
+           RETURNING id`,
+          [expense.id]
+        );
+
+        if (lockResult.rows.length === 0) {
+          console.log(`⚠️  [Amazon Order] Expense ${expense.id} is already being processed. Skipping.`);
+          amazonOrderResults.push({ expenseId: expense.id, status: 'skipped', message: 'Order already processing' });
+          continue;
+        }
+
+        const orderResult = await sendOrderToAmazon(expense, {
+          email: user.email,
+          name: `${user.first_name} ${user.last_name}`,
+          location
+        });
+
+        if (orderResult.success) {
+          console.log(`✓ [Amazon Order] Order placed successfully! PO Number: ${orderResult.poNumber}`);
+
+          await db.query(
+            `UPDATE expenses
+             SET amazon_po_number = $1,
+                 amazon_order_status = 'confirmed',
+                 amazon_order_sent_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [orderResult.poNumber, expense.id]
+          );
+
+          expense.amazon_po_number = orderResult.poNumber;
+          expense.amazon_order_status = 'confirmed';
+          amazonOrderResults.push({ expenseId: expense.id, status: 'confirmed', poNumber: orderResult.poNumber });
+        } else {
+          const errorMsg = orderResult.error || orderResult.orderMessage || 'Unknown Amazon order error';
+          console.error(`✗ [Amazon Order] Failed to place order for expense ${expense.id}:`, errorMsg);
+
+          await db.query(
+            `UPDATE expenses
+             SET amazon_order_status = 'failed',
+                 amazon_order_sent_at = CURRENT_TIMESTAMP,
+                 amazon_po_number = $1,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [`ERROR: ${errorMsg}`, expense.id]
+          );
+
+          expense.amazon_order_status = 'failed';
+          expense.amazon_po_number = `ERROR: ${errorMsg}`;
+          amazonOrderResults.push({ expenseId: expense.id, status: 'failed', error: errorMsg });
+        }
+      }
+    }
 
     // Send email notification to the first approver in the chain (non-blocking)
     if (approvalChain && approvalChain.length > 0) {
@@ -413,7 +493,8 @@ router.post('/checkout', authMiddleware, [
       message: approvalChain ? 'Expense reports submitted for approval' : 'Expense reports automatically approved',
       expenses,
       count: expenses.length,
-      autoApproved: !approvalChain
+      autoApproved: !approvalChain,
+      amazonOrderResults
     });
   } catch (error) {
     console.error('Checkout error:', error);
