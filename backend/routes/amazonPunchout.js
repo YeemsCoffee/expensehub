@@ -513,11 +513,6 @@ function formatMoney(amount) {
   return Number(amount).toFixed(2);
 }
 
-function getMissingAmazonBillingFields() {
-  return ['COMPANY_BILL_STREET', 'COMPANY_BILL_CITY', 'COMPANY_BILL_STATE', 'COMPANY_BILL_ZIP']
-    .filter(field => !process.env[field]);
-}
-
 // Helper function to build cXML OrderRequest for Amazon
 function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const timestamp = new Date().toISOString();
@@ -624,7 +619,7 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
 // Function to send OrderRequest to Amazon PO URL
 async function sendOrderToAmazon(expense, userInfo) {
   try {
-    ensureAmazonConfig();
+    ensureAmazonOrderConfig();
 
     const missingBillingFields = getMissingAmazonBillingFields();
     if (missingBillingFields.length > 0) {
