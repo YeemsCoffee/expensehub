@@ -513,6 +513,22 @@ function formatMoney(amount) {
   return Number(amount).toFixed(2);
 }
 
+function getMissingAmazonBillingFields() {
+  return ['COMPANY_BILL_STREET', 'COMPANY_BILL_CITY', 'COMPANY_BILL_STATE', 'COMPANY_BILL_ZIP']
+    .filter(field => !process.env[field]);
+}
+
+function ensureAmazonOrderConfig() {
+  ensureAmazonConfig();
+
+  const missingBillingFields = getMissingAmazonBillingFields();
+  if (missingBillingFields.length > 0) {
+    throw new Error(
+      `Amazon billing address is incomplete. Set ${missingBillingFields.join(', ')} before sending orders to Amazon.`
+    );
+  }
+}
+
 // Helper function to build cXML OrderRequest for Amazon
 function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
   const timestamp = new Date().toISOString();
