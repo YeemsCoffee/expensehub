@@ -310,10 +310,20 @@ const App = () => {
       const autoApproved = response.data.autoApproved;
 
       if (autoApproved) {
+        const amazonResults = response.data.amazonOrderResults || [];
+        const failedAmazonOrders = amazonResults.filter(result => result.status === 'failed');
+        const confirmedAmazonOrders = amazonResults.filter(result => result.status === 'confirmed');
+        const amazonSummary = amazonResults.length > 0
+          ? `\nAmazon orders confirmed: ${confirmedAmazonOrders.length}/${amazonResults.length}` +
+            (failedAmazonOrders.length > 0
+              ? `\nAmazon order errors: ${failedAmazonOrders.map(result => result.error).join('; ')}`
+              : '')
+          : '';
+
         alert(
           `Expenses automatically approved!\n\n` +
           `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created and approved\n` +
-          `Total: $${totalAmount.toFixed(2)}\n\n` +
+          `Total: $${totalAmount.toFixed(2)}${amazonSummary}\n\n` +
           `Your expenses are ready for processing.`
         );
       } else {
@@ -410,6 +420,7 @@ const App = () => {
             onRemoveItem={handleRemoveFromCart}
             onCheckout={handleCheckout}
             onNavigate={handleNavigate}
+            user={user}
           />
         );
       // Phase 2: SAP-Like Project Management Routes
