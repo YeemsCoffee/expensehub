@@ -621,6 +621,13 @@ async function sendOrderToAmazon(expense, userInfo) {
   try {
     ensureAmazonOrderConfig();
 
+    const missingBillingFields = getMissingAmazonBillingFields();
+    if (missingBillingFields.length > 0) {
+      throw new Error(
+        `Amazon billing address is incomplete. Set ${missingBillingFields.join(', ')} before sending orders to Amazon.`
+      );
+    }
+
     if (!expense.amazon_spaid) {
       throw new Error('Missing Amazon SPAID - cannot place order');
     }
