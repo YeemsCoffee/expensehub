@@ -242,39 +242,48 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] amazon_product_sku column already exists - skipping');
     }
 
-    // 7. Check and apply Expense Quantity migration
-    console.log('[MIGRATION] Checking if expenses.quantity column exists...');
-    const checkExpenseQuantity = await db.query(`
+    // 7. Check and apply Amazon quantity/unit-price migration
+    console.log('[MIGRATION] Checking if amazon_quantity and amazon_unit_price columns exist...');
+    const checkAmazonQuantityColumns = await db.query(`
       SELECT column_name
       FROM information_schema.columns
       WHERE table_name = 'expenses'
-      AND column_name = 'quantity'
+      AND column_name IN ('amazon_quantity', 'amazon_unit_price')
       AND table_schema = 'public'
     `);
 
-    console.log(`[MIGRATION] expenses.quantity column exists: ${checkExpenseQuantity.rows.length > 0}`);
+    const checkAmazonStatusConstraint = await db.query(`
+      SELECT pg_get_constraintdef(oid) AS definition
+      FROM pg_constraint
+      WHERE conname = 'check_amazon_order_status'
+    `);
+    const amazonStatusConstraint = checkAmazonStatusConstraint.rows[0]?.definition || '';
+    const amazonStatusAllowsProcessing = amazonStatusConstraint.includes('processing');
 
-    if (checkExpenseQuantity.rows.length === 0) {
-      console.log('📝 [MIGRATION] Applying expense quantity migration...');
+    console.log(`[MIGRATION] Found ${checkAmazonQuantityColumns.rows.length} Amazon quantity columns`);
+    console.log(`[MIGRATION] Amazon status constraint allows processing: ${amazonStatusAllowsProcessing}`);
 
-      const quantityMigrationPath = path.join(__dirname, '../database/add_expense_quantity.sql');
+    if (checkAmazonQuantityColumns.rows.length < 2 || !amazonStatusAllowsProcessing) {
+      console.log('📝 [MIGRATION] Applying Amazon quantity/unit-price migration...');
 
-      if (fs.existsSync(quantityMigrationPath)) {
-        const quantityMigrationSQL = fs.readFileSync(quantityMigrationPath, 'utf8');
+      const amazonQuantityMigrationPath = path.join(__dirname, '../database/amazon_order_quantity_migration.sql');
+
+      if (fs.existsSync(amazonQuantityMigrationPath)) {
+        const amazonQuantityMigrationSQL = fs.readFileSync(amazonQuantityMigrationPath, 'utf8');
 
         await Promise.race([
-          db.query(quantityMigrationSQL),
+          db.query(amazonQuantityMigrationSQL),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Migration timeout')), 10000)
           )
         ]);
 
-        console.log('✅ [MIGRATION] Expense quantity migration applied successfully!');
+        console.log('✅ [MIGRATION] Amazon quantity/unit-price migration applied successfully!');
       } else {
-        console.warn('⚠️  [MIGRATION] Expense quantity migration file not found, skipping...');
+        console.warn('⚠️  [MIGRATION] Amazon quantity/unit-price migration file not found, skipping...');
       }
     } else {
-      console.log('✅ [MIGRATION] expenses.quantity column already exists - skipping');
+      console.log('✅ [MIGRATION] Amazon quantity columns and status constraint already exist - skipping');
     }
 
   } catch (error) {

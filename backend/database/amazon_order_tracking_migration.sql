@@ -18,7 +18,7 @@ ADD COLUMN IF NOT EXISTS amazon_order_sent_at TIMESTAMP;
 
 COMMENT ON COLUMN expenses.amazon_spaid IS 'Amazon SupplierPartAuxiliaryID for placing orders';
 COMMENT ON COLUMN expenses.amazon_po_number IS 'Amazon Purchase Order confirmation number';
-COMMENT ON COLUMN expenses.amazon_order_status IS 'Status of order sent to Amazon (pending, sent, confirmed, failed)';
+COMMENT ON COLUMN expenses.amazon_order_status IS 'Status of order sent to Amazon (pending, processing, sent, confirmed, failed)';
 COMMENT ON COLUMN expenses.amazon_order_sent_at IS 'Timestamp when order was sent to Amazon PO URL';
 
 -- 3. Create index for querying Amazon orders
@@ -31,4 +31,4 @@ DROP CONSTRAINT IF EXISTS check_amazon_order_status;
 
 ALTER TABLE expenses
 ADD CONSTRAINT check_amazon_order_status
-CHECK (amazon_order_status IS NULL OR amazon_order_status IN ('pending', 'sent', 'confirmed', 'failed'));
+CHECK (amazon_order_status IS NULL OR amazon_order_status IN ('pending', 'processing', 'sent', 'confirmed', 'failed'));

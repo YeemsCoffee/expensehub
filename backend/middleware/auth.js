@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
+const db = require('../config/database');
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     // Get token from header
     const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -9,9 +10,35 @@ const authMiddleware = (req, res, next) => {
       return res.status(401).json({ error: 'No authentication token, access denied' });
     }
 
-    // Verify token
+    // Verify token, then refresh mutable user attributes from the database.
+    // Roles can change after a token is issued; using the token role alone can
+    // incorrectly route admins/developers through approval workflows until logout.
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    const userResult = await db.query(
+      `SELECT id, email, first_name, last_name, role, is_active
+       FROM users
+       WHERE id = $1`,
+      [decoded.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User no longer exists' });
+    }
+
+    const user = userResult.rows[0];
+    if (!user.is_active) {
+      return res.status(401).json({ error: 'Account is inactive. Please contact administrator.' });
+    }
+
+    req.user = {
+      ...decoded,
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      name: `${user.first_name} ${user.last_name}`
+    };
     next();
   } catch (error) {
     console.error('Authentication error:', error.message);

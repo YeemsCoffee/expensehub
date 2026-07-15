@@ -162,6 +162,20 @@ router.post('/:expenseId/approve', authMiddleware, isManagerOrAdmin, [
           try {
             console.log(`🛒 [Amazon Order] Placing order for expense ${approvedExpense.id} after final approval`);
 
+            const lockResult = await db.query(
+              `UPDATE expenses
+               SET amazon_order_status = 'processing',
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1 AND amazon_order_status = 'pending'
+               RETURNING id`,
+              [approvedExpense.id]
+            );
+
+            if (lockResult.rows.length === 0) {
+              console.log(`⚠️  [Amazon Order] Expense ${approvedExpense.id} is already being processed. Skipping.`);
+              return;
+            }
+
             let location = null;
             if (approvedExpense.location_id) {
               const locResult = await db.query('SELECT * FROM locations WHERE id = $1', [approvedExpense.location_id]);
