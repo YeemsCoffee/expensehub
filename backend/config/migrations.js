@@ -242,6 +242,41 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] amazon_product_sku column already exists - skipping');
     }
 
+    // 7. Check and apply Expense Quantity migration
+    console.log('[MIGRATION] Checking if expenses.quantity column exists...');
+    const checkExpenseQuantity = await db.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'expenses'
+      AND column_name = 'quantity'
+      AND table_schema = 'public'
+    `);
+
+    console.log(`[MIGRATION] expenses.quantity column exists: ${checkExpenseQuantity.rows.length > 0}`);
+
+    if (checkExpenseQuantity.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying expense quantity migration...');
+
+      const quantityMigrationPath = path.join(__dirname, '../database/add_expense_quantity.sql');
+
+      if (fs.existsSync(quantityMigrationPath)) {
+        const quantityMigrationSQL = fs.readFileSync(quantityMigrationPath, 'utf8');
+
+        await Promise.race([
+          db.query(quantityMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Expense quantity migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Expense quantity migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] expenses.quantity column already exists - skipping');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)

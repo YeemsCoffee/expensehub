@@ -271,10 +271,10 @@ router.post('/checkout', authMiddleware, [
       const amazonProductSku = (amazonSpaid && item.sku) ? item.sku : null;
 
       const expenseResult = await db.query(
-        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, amazon_product_sku, approval_rule_id, approval_chain, current_approval_level)
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, 'OPEX', $8, $9, $10, $11, $12, $13, $14, $15)
+        `INSERT INTO expenses (user_id, cost_center_id, location_id, date, description, category, amount, quantity, unit_price, vendor_name, cost_type, status, approved_at, amazon_spaid, amazon_order_status, amazon_product_sku, approval_rule_id, approval_chain, current_approval_level)
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, $7, $8, $9, 'OPEX', $10, $11, $12, $13, $14, $15, $16, $17)
          RETURNING *`,
-        [req.user.id, costCenterId, locationId, description, category, amount, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, amazonProductSku, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
+        [req.user.id, costCenterId, locationId, description, category, amount, item.quantity || 1, item.price, item.vendor_name, status, approvedAt, amazonSpaid, amazonOrderStatus, amazonProductSku, approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel]
       );
 
       expenses.push(expenseResult.rows[0]);
