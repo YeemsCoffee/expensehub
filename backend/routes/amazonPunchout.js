@@ -558,6 +558,17 @@ function buildOrderRequest(expense, userEmail, userName, poNumber, location) {
     ? expense.date.toISOString().split('T')[0]
     : new Date(expense.date).toISOString().split('T')[0];
 
+  // expense.amount is the LINE TOTAL (unit price * quantity from cart checkout).
+  // Amazon validates the OrderRequest against the punchout cart, so UnitPrice
+  // must be per-unit — sending the total as UnitPrice with quantity=1 mismatches
+  // the cart and Amazon holds the order in its approval queue.
+  // Prefer the persisted unit_price (exact cart value); dividing amount/quantity
+  // can drift by a cent for non-divisible totals.
+  const quantity = parseInt(expense.quantity, 10) || 1;
+  const unitPrice = expense.unit_price != null
+    ? parseFloat(expense.unit_price).toFixed(2)
+    : (parseFloat(expense.amount) / quantity).toFixed(2);
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE cXML SYSTEM "http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd">
 <cXML payloadID="${payloadId}" timestamp="${timestamp}" xml:lang="en-US">
