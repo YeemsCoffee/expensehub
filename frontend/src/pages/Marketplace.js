@@ -31,11 +31,9 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
     try {
       setLoading(true);
 
-      // Get the user's default cost center or let them select one
-      const costCenterId = 1; // You might want to let the user select this
-
-      // Request punchout session setup (server-side POST to Amazon)
-      const response = await api.post('/amazon-punchout/setup', { costCenterId });
+      // The cost center is chosen at checkout (Cart page), so none is sent here.
+      // Sending a hardcoded id 404s for any org whose cost centers don't start at 1.
+      const response = await api.post('/amazon-punchout/setup', {});
 
       const { startUrl } = response.data;
 

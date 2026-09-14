@@ -18,9 +18,12 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename: timestamp-originalname
+    // Generate unique filename: timestamp-originalname.
+    // originalname is client-controlled: strip any path and unsafe characters
+    // so it cannot escape the upload directory.
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    const safeName = path.basename(file.originalname).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 150);
+    cb(null, uniqueSuffix + '-' + safeName);
   }
 });
 

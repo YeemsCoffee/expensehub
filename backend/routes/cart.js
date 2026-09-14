@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authMiddleware } = require('../middleware/auth');
+const { buildApprovalChain, approverRecipients } = require('../services/approvalService');
 
 // Get user's cart
 router.get('/', authMiddleware, async (req, res) => {
@@ -198,63 +199,18 @@ router.post('/checkout', authMiddleware, [
 
     console.log(`Cart checkout for user ${req.user.id}: ${cartResult.rows.length} items, total amount: $${totalAmount}`);
 
-    // Auto-approve for admins and developers - they don't need approval for their own orders
-    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+    // Routing is shared with direct expense submission (services/approvalService).
+    // An employee with no usable manager is routed to administrators rather
+    // than being silently auto-approved.
+    const { approvalChain, approvalRuleId, reason: approvalReason } = await buildApprovalChain(db, {
+      user: req.user,
+      amount: totalAmount,
+      costCenterId
+    });
+    const currentApprovalLevel = 1;
 
-    let approvalChain = null;
-    let approvalRuleId = null;
-    let currentApprovalLevel = 1;
-
-    if (isPrivileged) {
-      console.log(`User ${req.user.id} is ${req.user.role} - auto-approving order`);
-      // Leave approvalChain as null to auto-approve
-    } else {
-      // Find applicable approval rule based on total amount
-      const ruleResult = await db.query(
-        'SELECT * FROM find_approval_rule($1, $2)',
-        [totalAmount, costCenterId]
-      );
-
-      if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
-        approvalRuleId = ruleResult.rows[0].find_approval_rule;
-
-        // Get the rule details
-        const rule = await db.query(
-          'SELECT * FROM approval_rules WHERE id = $1',
-          [approvalRuleId]
-        );
-
-        if (rule.rows.length > 0) {
-          const levelsRequired = rule.rows[0].levels_required;
-
-          // Get manager chain from org chart
-          const chainResult = await db.query(
-            'SELECT * FROM get_manager_chain($1, $2)',
-            [req.user.id, levelsRequired]
-          );
-
-          if (chainResult.rows.length > 0) {
-            // Build approval chain with manager details
-            approvalChain = chainResult.rows.map(row => ({
-              level: row.level,
-              user_id: row.manager_id,
-              user_name: row.manager_name,
-              user_email: row.manager_email,
-              status: 'pending'
-            }));
-            console.log(`User ${req.user.id} has complete manager chain (${chainResult.rows.length} levels). Status: pending`);
-          } else {
-            // No complete manager chain found - auto-approve
-            console.log(`User ${req.user.id} has no complete manager chain for ${levelsRequired} levels. Status: approved (auto)`);
-            approvalRuleId = null;
-            approvalChain = null;
-          }
-        }
-      } else {
-        // No approval rule found - auto-approve
-        console.log(`No approval rule found for amount $${totalAmount}. Status: approved (auto)`);
-      }
-    }
+    console.log(`Cart checkout routing for user ${req.user.id}: ${approvalReason}` +
+      (approvalChain ? ` (${approvalChain.length} level(s))` : ''));
 
     const status = approvalChain ? 'pending' : 'approved';
     const approvedAt = approvalChain ? null : new Date();
@@ -372,7 +328,7 @@ router.post('/checkout', authMiddleware, [
       setImmediate(async () => {
         try {
           const { sendExpenseSubmissionNotification } = require('../services/emailService');
-          const firstApprover = approvalChain[0];
+          const recipients = approverRecipients(approvalChain[0]);
 
           // Get submitter name from database
           const submitterResult = await db.query(
@@ -392,16 +348,14 @@ router.post('/checkout', authMiddleware, [
               vendor_name: expense.vendor_name,
               notes: expense.notes
             };
-            const managerData = {
-              name: firstApprover.user_name,
-              email: firstApprover.user_email
-            };
             const submitterData = {
               name: `${submitter.first_name} ${submitter.last_name}`
             };
 
-            await sendExpenseSubmissionNotification(expenseData, managerData, submitterData)
-              .catch(err => console.error('Failed to send approval notification:', err));
+            for (const recipient of recipients) {
+              await sendExpenseSubmissionNotification(expenseData, recipient, submitterData)
+                .catch(err => console.error('Failed to send approval notification:', err));
+            }
           }
         } catch (err) {
           console.error('Error sending approval notifications:', err);
@@ -414,6 +368,8 @@ router.post('/checkout', authMiddleware, [
       expenses,
       count: expenses.length,
       autoApproved: !approvalChain,
+      approvalReason,
+      approvalChain,
       amazonOrderResults
     });
   } catch (error) {

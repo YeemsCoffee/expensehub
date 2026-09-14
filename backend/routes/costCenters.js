@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
 
 // Get all active cost centers
 router.get('/', authMiddleware, async (req, res) => {
@@ -42,7 +42,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Create new cost center
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { code, name, budget, department } = req.body;
 
@@ -77,7 +77,7 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // Update cost center
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { name, budget, department } = req.body;
     const { id } = req.params;
@@ -114,7 +114,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 });
 
 // Delete cost center (hard delete from database)
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 

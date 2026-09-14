@@ -320,18 +320,23 @@ const App = () => {
               : '')
           : '';
 
+        const reasonText = response.data.approvalReason === 'no_matching_rule'
+          ? 'No approval rule covers this amount, so no approval was required.'
+          : 'Your role does not require approval.';
+
         alert(
           `Expenses automatically approved!\n\n` +
           `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created and approved\n` +
           `Total: $${totalAmount.toFixed(2)}${amazonSummary}\n\n` +
-          `Your expenses are ready for processing.`
+          reasonText
         );
       } else {
+        const firstApprover = response.data.approvalChain?.[0]?.user_name || 'your manager';
         alert(
           `Expense report submitted successfully!\n\n` +
           `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created\n` +
           `Total: $${totalAmount.toFixed(2)}\n\n` +
-          `Your expenses have been submitted for manager approval.`
+          `Sent to ${firstApprover} for approval.`
         );
       }
 
@@ -407,7 +412,7 @@ const App = () => {
       case 'approval-rules':
         return <ApprovalRules />;
       case 'approvals':
-        return <Approvals />;
+        return <Approvals user={user} />;
       case 'xero-settings':
         return <XeroSettings />;
       case 'expense-categories':

@@ -269,7 +269,7 @@ router.post('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) =>
 });
 
 // POST /api/xero/sync/:expenseId - Sync single expense to Xero (any user can sync)
-router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
+router.post('/sync/:expenseId', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.body;
 
@@ -357,7 +357,7 @@ router.post('/sync/:expenseId', authMiddleware, async (req, res) => {
 });
 
 // POST /api/xero/sync-bulk - Sync multiple expenses to Xero (any user)
-router.post('/sync-bulk', authMiddleware, async (req, res) => {
+router.post('/sync-bulk', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId, expenseIds } = req.body;
 

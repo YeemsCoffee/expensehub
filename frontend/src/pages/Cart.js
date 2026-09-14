@@ -11,6 +11,16 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate, us
   const [selectedCostCenter, setSelectedCostCenter] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Office Supplies');
+  // Amazon Punchout returns the user here via #cart?punchout_success=true
+  const [punchoutReturn, setPunchoutReturn] = useState(
+    () => window.location.hash.includes('punchout_success=true')
+  );
+
+  useEffect(() => {
+    if (punchoutReturn) {
+      window.history.replaceState({}, '', `${window.location.pathname}#cart`);
+    }
+  }, [punchoutReturn]);
 
   const subtotal = calculateCartTotal(cart);
   const tax = calculateTax(subtotal);
@@ -76,7 +86,17 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate, us
   return (
     <div>
       <h2 className="page-title">Shopping Cart</h2>
-      
+
+      {punchoutReturn && (
+        <div className="alert alert-success mb-4" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+          <div>
+            <strong>Items from Amazon Business were added to your cart.</strong>{' '}
+            Choose a cost center, category and shipping location, then submit the order for approval.
+          </div>
+          <button type="button" className="btn btn-link" onClick={() => setPunchoutReturn(false)}>Dismiss</button>
+        </div>
+      )}
+
       <div className="cart-layout">
         <div className="cart-items">
           {cart.map((item) => (

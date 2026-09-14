@@ -60,6 +60,23 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
       return res.status(400).json({ error: 'User with this email or employee ID already exists' });
     }
 
+    // A manager must be able to act on approvals (same rule as PUT /:id/manager)
+    if (managerId) {
+      const managerCheck = await db.query(
+        'SELECT role, is_active FROM users WHERE id = $1',
+        [managerId]
+      );
+      if (managerCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Manager not found' });
+      }
+      if (!managerCheck.rows[0].is_active) {
+        return res.status(400).json({ error: 'Selected manager is inactive' });
+      }
+      if (!['manager', 'admin', 'developer'].includes(managerCheck.rows[0].role)) {
+        return res.status(400).json({ error: 'Selected user must have manager, admin, or developer role' });
+      }
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
