@@ -47,6 +47,82 @@ const upload = multer({
 });
 
 // ============================================================================
+// AUTHORIZATION HELPERS
+// ============================================================================
+
+/**
+ * Compute a user's access to a single document row.
+ * Expects the row to include `uploaded_by`, `is_confidential`, and
+ * `project_submitted_by` (projects.submitted_by for the owning project).
+ *
+ * - canAccess: may view/download this document (respects confidentiality).
+ * - canSeeConfidential: may view this document even when confidential.
+ * - canModify: may update/delete this document.
+ *
+ * Project ownership is derived from projects.submitted_by (a real user id).
+ * projects.project_manager is a free-text name and is NOT used for authz.
+ */
+function computeDocAccess(doc, user) {
+  const role = user.role;
+  const isPrivileged = role === 'manager' || role === 'admin' || role === 'developer';
+  const isAdminDev = role === 'admin' || role === 'developer';
+  const isUploader = doc.uploaded_by != null && doc.uploaded_by === user.id;
+  const isProjectOwner = doc.project_submitted_by != null && doc.project_submitted_by === user.id;
+
+  const canSeeConfidential = isUploader || isProjectOwner || isAdminDev;
+  const canModify = isUploader || isProjectOwner || isAdminDev;
+  const canAccess = doc.is_confidential
+    ? canSeeConfidential
+    : (isUploader || isProjectOwner || isPrivileged);
+
+  return { canAccess, canSeeConfidential, canModify };
+}
+
+/**
+ * Load a document joined to its project, with computed access flags.
+ * Returns null if the document does not exist.
+ */
+async function loadDocWithAccess(documentId, user) {
+  const result = await db.query(
+    `SELECT pd.*, p.submitted_by AS project_submitted_by
+     FROM project_documents pd
+     LEFT JOIN projects p ON pd.project_id = p.id
+     WHERE pd.id = $1`,
+    [documentId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const doc = result.rows[0];
+  return { doc, ...computeDocAccess(doc, user) };
+}
+
+/**
+ * Whether a user may add documents to a given project.
+ * Allowed for manager/admin/developer roles, or the project owner
+ * (projects.submitted_by).
+ */
+async function canAddToProject(projectId, user) {
+  const role = user.role;
+  if (role === 'manager' || role === 'admin' || role === 'developer') {
+    return true;
+  }
+
+  const result = await db.query(
+    'SELECT submitted_by FROM projects WHERE id = $1',
+    [projectId]
+  );
+
+  if (result.rows.length === 0) {
+    return false;
+  }
+
+  return result.rows[0].submitted_by === user.id;
+}
+
+// ============================================================================
 // PROJECT DOCUMENTS ROUTES
 // ============================================================================
 
@@ -58,6 +134,15 @@ router.get('/project/:projectId', authMiddleware, auditLog('VIEW_PROJECT_DOCUMEN
   try {
     const { projectId } = req.params;
 
+    const role = req.user.role;
+    const isPrivileged = role === 'manager' || role === 'admin' || role === 'developer';
+    const isAdminDev = role === 'admin' || role === 'developer';
+
+    // Filter in SQL so users never receive documents they may not see.
+    // Visible when: uploader, project owner (projects.submitted_by),
+    // a privileged (manager+) user for non-confidential docs, or an
+    // admin/developer for any doc. Plain managers do not see confidential
+    // docs on projects they neither own nor uploaded to.
     const result = await db.query(
       `SELECT pd.*,
               u1.first_name || ' ' || u1.last_name as uploaded_by_name,
@@ -69,9 +154,16 @@ router.get('/project/:projectId', authMiddleware, auditLog('VIEW_PROJECT_DOCUMEN
        LEFT JOIN users u2 ON pd.approved_by = u2.id
        LEFT JOIN project_phases pp ON pd.phase_id = pp.id
        LEFT JOIN project_change_requests cr ON pd.change_request_id = cr.id
+       LEFT JOIN projects p ON pd.project_id = p.id
        WHERE pd.project_id = $1 AND pd.is_active = true
+         AND (
+           pd.uploaded_by = $2
+           OR p.submitted_by = $2
+           OR ($3 = true AND pd.is_confidential = false)
+           OR $4 = true
+         )
        ORDER BY pd.uploaded_at DESC`,
-      [projectId]
+      [projectId, req.user.id, isPrivileged, isAdminDev]
     );
 
     res.json(result.rows);
@@ -91,6 +183,7 @@ router.get('/:id', authMiddleware, auditLog('VIEW_DOCUMENT'), async (req, res) =
 
     const result = await db.query(
       `SELECT pd.*,
+              p.submitted_by AS project_submitted_by,
               u1.first_name || ' ' || u1.last_name as uploaded_by_name,
               u2.first_name || ' ' || u2.last_name as approved_by_name,
               pp.name as phase_name,
@@ -100,6 +193,7 @@ router.get('/:id', authMiddleware, auditLog('VIEW_DOCUMENT'), async (req, res) =
        LEFT JOIN users u2 ON pd.approved_by = u2.id
        LEFT JOIN project_phases pp ON pd.phase_id = pp.id
        LEFT JOIN project_change_requests cr ON pd.change_request_id = cr.id
+       LEFT JOIN projects p ON pd.project_id = p.id
        WHERE pd.id = $1 AND pd.is_active = true`,
       [id]
     );
@@ -108,7 +202,14 @@ router.get('/:id', authMiddleware, auditLog('VIEW_DOCUMENT'), async (req, res) =
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    res.json(result.rows[0]);
+    const document = result.rows[0];
+    const { canAccess } = computeDocAccess(document, req.user);
+    if (!canAccess) {
+      return res.status(403).json({ error: 'Access denied to this document' });
+    }
+
+    delete document.project_submitted_by;
+    res.json(document);
   } catch (err) {
     console.error('Error fetching document:', err);
     res.status(500).json({ error: 'Failed to fetch document' });
@@ -124,16 +225,17 @@ router.get('/:id/versions', authMiddleware, auditLog('VIEW_DOCUMENT_VERSIONS'), 
     const { id } = req.params;
 
     // Get the document to find all related versions
-    const docResult = await db.query(
-      'SELECT * FROM project_documents WHERE id = $1',
-      [id]
-    );
+    const access = await loadDocWithAccess(id, req.user);
 
-    if (docResult.rows.length === 0) {
+    if (!access) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    const document = docResult.rows[0];
+    if (!access.canAccess) {
+      return res.status(403).json({ error: 'Access denied to this document' });
+    }
+
+    const document = access.doc;
 
     // Find the root document (oldest version)
     let rootId = id;
@@ -202,6 +304,18 @@ router.post('/upload', authMiddleware, upload.single('file'), auditLog('UPLOAD_D
     // Validation
     if (!project_id) {
       return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    // Authorization: caller must be allowed to add documents to this project.
+    // multer already wrote the temp file, so remove it on denial to avoid leaks.
+    const allowedToAdd = await canAddToProject(project_id, req.user);
+    if (!allowedToAdd) {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+      });
+      return res.status(403).json({
+        error: 'You do not have permission to add documents to this project'
+      });
     }
 
     await client.query('BEGIN');
@@ -279,16 +393,17 @@ router.get('/:id/download', authMiddleware, auditLog('DOWNLOAD_DOCUMENT'), async
   try {
     const { id } = req.params;
 
-    const result = await db.query(
-      'SELECT * FROM project_documents WHERE id = $1 AND is_active = true',
-      [id]
-    );
+    const access = await loadDocWithAccess(id, req.user);
 
-    if (result.rows.length === 0) {
+    if (!access || !access.doc.is_active) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    const document = result.rows[0];
+    if (!access.canAccess) {
+      return res.status(403).json({ error: 'Access denied to this document' });
+    }
+
+    const document = access.doc;
 
     // Check if file exists
     if (!fs.existsSync(document.file_path)) {
@@ -325,6 +440,16 @@ router.put('/:id', authMiddleware, auditLog('UPDATE_DOCUMENT'), async (req, res)
       tags,
       is_confidential
     } = req.body;
+
+    // Authorization: only the uploader, project owner, or admin/developer
+    // may update document metadata (including is_confidential).
+    const access = await loadDocWithAccess(id, req.user);
+    if (!access) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    if (!access.canModify) {
+      return res.status(403).json({ error: 'Access denied to update this document' });
+    }
 
     await client.query('BEGIN');
 
@@ -420,10 +545,20 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, auditLog('APPROVE_
  * DELETE /api/project-documents/:id
  * Soft delete a document
  */
-router.delete('/:id', authMiddleware, isManagerOrAdmin, auditLog('DELETE_DOCUMENT'), async (req, res) => {
+router.delete('/:id', authMiddleware, auditLog('DELETE_DOCUMENT'), async (req, res) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
+
+    // Authorization: only the uploader, project owner, or admin/developer
+    // may delete a document (a plain manager unrelated to it may not).
+    const access = await loadDocWithAccess(id, req.user);
+    if (!access) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    if (!access.canModify) {
+      return res.status(403).json({ error: 'Access denied to delete this document' });
+    }
 
     await client.query('BEGIN');
 

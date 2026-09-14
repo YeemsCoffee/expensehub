@@ -211,6 +211,14 @@ router.put('/:id', authMiddleware, auditLog('UPDATE_CHANGE_REQUEST'), async (req
       return res.status(404).json({ error: 'Change request not found' });
     }
 
+    // Authorization: only the requester or a manager/admin/developer may edit.
+    const role = req.user.role;
+    const isPrivileged = role === 'manager' || role === 'admin' || role === 'developer';
+    if (oldData.rows[0].requested_by !== req.user.id && !isPrivileged) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Access denied to update this change request' });
+    }
+
     // Only allow updates if not approved/implemented
     if (['approved', 'implemented'].includes(oldData.rows[0].status)) {
       await client.query('ROLLBACK');

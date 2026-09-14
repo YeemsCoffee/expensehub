@@ -454,7 +454,7 @@ router.get('/:id/wbs', authMiddleware, async (req, res) => {
 });
 
 // Create WBS elements for a project (bulk creation)
-router.post('/:id/wbs', authMiddleware, [
+router.post('/:id/wbs', authMiddleware, isManagerOrAdmin, [
   body('elements').isArray({ min: 1 }),
   body('elements.*.category').notEmpty().trim(),
   body('elements.*.budgetEstimate').isFloat({ min: 0 }),
@@ -547,7 +547,7 @@ router.post('/:id/wbs', authMiddleware, [
 });
 
 // Update a WBS element
-router.put('/:id/wbs/:wbsId', authMiddleware, [
+router.put('/:id/wbs/:wbsId', authMiddleware, isManagerOrAdmin, [
   body('category').optional().notEmpty().trim(),
   body('budgetEstimate').optional().isFloat({ min: 0 }),
   body('description').optional().trim(),
@@ -689,7 +689,7 @@ router.patch('/:id/wbs/:wbsId/increase-budget', authMiddleware, isAdminOrDevelop
 });
 
 // Delete a WBS element
-router.delete('/:id/wbs/:wbsId', authMiddleware, async (req, res) => {
+router.delete('/:id/wbs/:wbsId', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { id, wbsId } = req.params;
 
