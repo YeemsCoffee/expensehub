@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import './AuditTrail.css';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 function AuditTrail({ projectId, onClose }) {
   const [auditEntries, setAuditEntries] = useState([]);
@@ -35,11 +33,9 @@ function AuditTrail({ projectId, onClose }) {
 
   const fetchProjectAudit = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(
-        `${API_URL}/api/audit-trail/project/${projectId}`,
+      const response = await api.get(
+        `/audit-trail/project/${projectId}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
           params: { limit: filters.limit, offset: filters.offset }
         }
       );
@@ -54,9 +50,7 @@ function AuditTrail({ projectId, onClose }) {
 
   const fetchAuditTrail = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/audit-trail`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await api.get('/audit-trail', {
         params: { ...filters, project_id: projectId || undefined }
       });
       setAuditEntries(response.data.entries);
@@ -70,15 +64,11 @@ function AuditTrail({ projectId, onClose }) {
 
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('token');
       const params = {};
       if (filters.start_date) params.start_date = filters.start_date;
       if (filters.end_date) params.end_date = filters.end_date;
 
-      const response = await axios.get(`${API_URL}/api/audit-trail/stats/summary`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params
-      });
+      const response = await api.get('/audit-trail/stats/summary', { params });
       setStats(response.data);
       setShowStats(true);
     } catch (err) {

@@ -48,17 +48,17 @@ const Dashboard = () => {
     try {
       const { startDate, endDate } = getDateRange();
 
-      const expensesResponse = await api.get('/expenses');
-      setExpenses(expensesResponse.data.slice(0, 10));
+      // Independent requests - run them concurrently.
+      // Every figure on this page comes from the analytics endpoints, so asking
+      // for only the 10 most recent expenses does not affect any displayed total.
+      const [expensesResponse, analyticsResponse, categoryResponse] = await Promise.all([
+        api.get('/expenses', { params: { limit: 10 } }),
+        api.get('/expenses/analytics/summary', { params: { startDate, endDate } }),
+        api.get('/expenses/analytics/by-category', { params: { startDate, endDate } })
+      ]);
 
-      const analyticsResponse = await api.get('/expenses/analytics/summary', {
-        params: { startDate, endDate }
-      });
+      setExpenses(expensesResponse.data);
       setAnalytics(analyticsResponse.data);
-
-      const categoryResponse = await api.get('/expenses/analytics/by-category', {
-        params: { startDate, endDate }
-      });
       setCategoryBreakdown(categoryResponse.data.slice(0, 5));
 
       setLoading(false);

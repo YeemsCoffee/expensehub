@@ -16,15 +16,23 @@ const isAdminOrDeveloper = (req, res, next) => {
 // Get all users (admin/developer only)
 router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    const countResult = await db.query('SELECT COUNT(*) AS total FROM users');
+
     const result = await db.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.employee_id,
               u.department, u.role, u.is_active, u.created_at, u.manager_id,
               m.first_name || ' ' || m.last_name as manager_name
        FROM users u
        LEFT JOIN users m ON u.manager_id = m.id
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
 
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch users error:', error);

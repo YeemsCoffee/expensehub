@@ -24,6 +24,13 @@ const determineCostType = (category, amount) => {
   return 'OPEX';
 };
 
+// Pagination defaults shared by the list endpoints in this file
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+const parseLimit = (value) => Math.min(Math.max(parseInt(value, 10) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+const parseOffset = (value) => Math.max(parseInt(value, 10) || 0, 0);
+
 // Get all expenses for current user (or all expenses for admin/developer)
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -42,7 +49,10 @@ router.get('/', authMiddleware, async (req, res) => {
 
     const isPrivileged = ['admin', 'developer'].includes(req.user.role);
 
-    let query = `
+    const limit = parseLimit(req.query.limit);
+    const offset = parseOffset(req.query.offset);
+
+    const selectClause = `
       SELECT e.*,
              cc.code as cost_center_code, cc.name as cost_center_name,
              l.code as location_code, l.name as location_name,
@@ -50,88 +60,102 @@ router.get('/', authMiddleware, async (req, res) => {
              u.first_name || ' ' || u.last_name as approved_by_name,
              submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
              submitter.email as submitted_by_email
+    `;
+
+    const fromClause = `
       FROM expenses e
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
       LEFT JOIN users u ON e.approved_by = u.id
       LEFT JOIN users submitter ON e.user_id = submitter.id
-      WHERE 1=1
     `;
 
+    // Build the WHERE clause once so the count and the page use identical filters
+    let whereClause = ` WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
     // Admin/developer see all expenses; others see only their own
     if (!isPrivileged) {
-      query += ` AND e.user_id = $${paramIndex}`;
+      whereClause += ` AND e.user_id = $${paramIndex}`;
       params.push(req.user.id);
       paramIndex++;
     }
 
     if (status) {
-      query += ` AND e.status = $${paramIndex}`;
+      whereClause += ` AND e.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
     if (category) {
-      query += ` AND e.category = $${paramIndex}`;
+      whereClause += ` AND e.category = $${paramIndex}`;
       params.push(category);
       paramIndex++;
     }
 
     if (costType) {
-      query += ` AND e.cost_type = $${paramIndex}`;
+      whereClause += ` AND e.cost_type = $${paramIndex}`;
       params.push(costType);
       paramIndex++;
     }
 
     if (locationId) {
-      query += ` AND e.location_id = $${paramIndex}`;
+      whereClause += ` AND e.location_id = $${paramIndex}`;
       params.push(locationId);
       paramIndex++;
     }
 
     if (projectId) {
-      query += ` AND e.project_id = $${paramIndex}`;
+      whereClause += ` AND e.project_id = $${paramIndex}`;
       params.push(projectId);
       paramIndex++;
     }
 
     if (costCenterId) {
-      query += ` AND e.cost_center_id = $${paramIndex}`;
+      whereClause += ` AND e.cost_center_id = $${paramIndex}`;
       params.push(costCenterId);
       paramIndex++;
     }
 
     if (startDate) {
-      query += ` AND e.date >= $${paramIndex}`;
+      whereClause += ` AND e.date >= $${paramIndex}`;
       params.push(startDate);
       paramIndex++;
     }
 
     if (endDate) {
-      query += ` AND e.date <= $${paramIndex}`;
+      whereClause += ` AND e.date <= $${paramIndex}`;
       params.push(endDate);
       paramIndex++;
     }
 
     if (minAmount) {
-      query += ` AND e.amount >= $${paramIndex}`;
+      whereClause += ` AND e.amount >= $${paramIndex}`;
       params.push(minAmount);
       paramIndex++;
     }
 
     if (maxAmount) {
-      query += ` AND e.amount <= $${paramIndex}`;
+      whereClause += ` AND e.amount <= $${paramIndex}`;
       params.push(maxAmount);
       paramIndex++;
     }
 
-    query += ` ORDER BY e.date DESC, e.created_at DESC`;
+    const countResult = await db.query(
+      `SELECT COUNT(*) AS total${fromClause}${whereClause}`,
+      params
+    );
 
-    const result = await db.query(query, params);
+    const result = await db.query(
+      `${selectClause}${fromClause}${whereClause}
+       ORDER BY e.date DESC, e.created_at DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch expenses error:', error);
@@ -489,51 +513,68 @@ router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) =>
   try {
     const { locationId, projectId, costCenterId, costType } = req.query;
 
-    let query = `
-      SELECT e.*, 
+    const limit = parseLimit(req.query.limit);
+    const offset = parseOffset(req.query.offset);
+
+    const selectClause = `
+      SELECT e.*,
              u.first_name || ' ' || u.last_name as employee_name,
              u.employee_id,
              cc.code as cost_center_code, cc.name as cost_center_name,
              l.code as location_code, l.name as location_name,
              p.code as project_code, p.name as project_name
+    `;
+
+    const fromClause = `
       FROM expenses e
       JOIN users u ON e.user_id = u.id
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
-      WHERE e.status = 'pending'
     `;
 
+    // Build the WHERE clause once so the count and the page use identical filters
+    let whereClause = ` WHERE e.status = 'pending'`;
     const params = [];
     let paramIndex = 1;
 
     if (locationId) {
-      query += ` AND e.location_id = $${paramIndex}`;
+      whereClause += ` AND e.location_id = $${paramIndex}`;
       params.push(locationId);
       paramIndex++;
     }
 
     if (projectId) {
-      query += ` AND e.project_id = $${paramIndex}`;
+      whereClause += ` AND e.project_id = $${paramIndex}`;
       params.push(projectId);
       paramIndex++;
     }
 
     if (costCenterId) {
-      query += ` AND e.cost_center_id = $${paramIndex}`;
+      whereClause += ` AND e.cost_center_id = $${paramIndex}`;
       params.push(costCenterId);
       paramIndex++;
     }
 
     if (costType) {
-      query += ` AND e.cost_type = $${paramIndex}`;
+      whereClause += ` AND e.cost_type = $${paramIndex}`;
       params.push(costType);
       paramIndex++;
     }
 
-    query += ` ORDER BY e.date DESC, e.created_at DESC`;
+    const countResult = await db.query(
+      `SELECT COUNT(*) AS total${fromClause}${whereClause}`,
+      params
+    );
 
-    const result = await db.query(query, params);
+    const result = await db.query(
+      `${selectClause}${fromClause}${whereClause}
+       ORDER BY e.date DESC, e.created_at DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch pending expenses error:', error);
