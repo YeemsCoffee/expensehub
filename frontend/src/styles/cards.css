@@ -57,11 +57,11 @@
   background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-surface) 100%);
 }
 
-.stat-card-purple {
+.stat-card-tan {
   border-left-color: var(--color-cream-500);
 }
 
-.stat-card-purple:hover {
+.stat-card-tan:hover {
   background: linear-gradient(135deg, var(--color-cream-100) 0%, var(--color-surface) 100%);
 }
 

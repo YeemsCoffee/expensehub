@@ -351,7 +351,7 @@
   background: var(--color-surface);
   min-height: 140px;
   /* Longhand, and never border-left-color: cards.css owns border-left-color alone
-     (base + .stat-card-blue/yellow/green/purple), and it loads before this file.
+     (base + .stat-card-blue/yellow/green/tan), and it loads before this file.
      Setting color here - or using the `border`/`border-left` shorthand, which sets
      color too - would silently re-clobber every variant on every future edit. */
   border-top: 1px solid var(--color-border);
@@ -414,7 +414,7 @@
   color: var(--color-error-600);
 }
 
-/* Match the dashboard's stat-card-blue/yellow/green/purple border-left variants */
+/* Match the dashboard's stat-card-blue/yellow/green/tan border-left variants */
 .stat-icon-blue {
   background: var(--color-accent-100);
   color: var(--color-accent-600);
@@ -430,7 +430,7 @@
   color: var(--color-primary-600);
 }
 
-.stat-icon-purple {
+.stat-icon-tan {
   background: var(--color-cream-200);
   color: var(--color-neutral-700);
 }

@@ -137,7 +137,6 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
     if (hasDropdown) {
       // If it has a dropdown, toggle the dropdown instead of navigating
       const newState = expandedDropdown === tabId ? null : tabId;
-      console.log('🔽 Dropdown toggle:', tabId, 'New state:', newState);
       setExpandedDropdown(newState);
     } else {
       // Update hash instead of directly calling onTabChange

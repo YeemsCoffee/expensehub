@@ -148,9 +148,10 @@ const ExpenseHistory = () => {
       console.error('Error fetching data:', err);
       if (latestRequestRef.current === requestId) {
         setLoading(false);
+        toast.error('Couldn’t load expenses. Check your connection and try again.');
       }
     }
-  }, [debouncedFilters, page]);
+  }, [debouncedFilters, page, toast]);
 
   useEffect(() => {
     fetchData();

@@ -138,7 +138,7 @@ const Dashboard = () => {
       value: formatCurrency(parseFloat(analytics?.avg_amount) || 0),
       subtext: 'Average amount',
       icon: TrendingUp,
-      iconClass: 'purple'
+      iconClass: 'tan'
     }
   ];
 
@@ -178,6 +178,7 @@ const Dashboard = () => {
             onChange={(e) => setTimeRange(e.target.value)}
             className="form-select"
             disabled={refreshing}
+            aria-label="Time range"
           >
             <option value="thisMonth">This Month</option>
             <option value="lastMonth">Last Month</option>
@@ -198,7 +199,7 @@ const Dashboard = () => {
 
       <p className="dashboard-timerange-info">Showing data for: <strong>{getTimeRangeLabel()}</strong></p>
 
-      <div className="stats-grid">
+      <div className="stats-grid" aria-live="polite" aria-busy={refreshing}>
         {stats.map((stat, index) => (
           <div key={index} className={`stat-card stat-card-${stat.iconClass}`}>
             <div className="stat-card-content">
@@ -245,25 +246,27 @@ const Dashboard = () => {
           <p className="no-data-message">No expense data available</p>
         ) : (
           <div className="category-breakdown">
-            {categoryBreakdown.map((cat, index) => {
+            {(() => {
               const maxAmount = Math.max(...categoryBreakdown.map(c => parseFloat(c.total_amount)));
-              const percent = (parseFloat(cat.total_amount) / maxAmount) * 100;
-              
-              return (
-                <div key={index} className="category-item">
-                  <div className="category-header">
-                    <span className="category-name">{cat.category}</span>
-                    <span className="category-amount">
-                      {formatCurrency(parseFloat(cat.total_amount))}
-                    </span>
+              return categoryBreakdown.map((cat, index) => {
+                const percent = (parseFloat(cat.total_amount) / maxAmount) * 100;
+
+                return (
+                  <div key={index} className="category-item">
+                    <div className="category-header">
+                      <span className="category-name">{cat.category}</span>
+                      <span className="category-amount">
+                        {formatCurrency(parseFloat(cat.total_amount))}
+                      </span>
+                    </div>
+                    <div className="category-progress-bar">
+                      <div className="category-progress-fill" style={{ width: `${percent}%` }} />
+                    </div>
+                    <span className="category-count">{cat.count} transaction{cat.count !== 1 ? 's' : ''}</span>
                   </div>
-                  <div className="category-progress-bar">
-                    <div className="category-progress-fill" style={{ width: `${percent}%` }} />
-                  </div>
-                  <span className="category-count">{cat.count} transaction{cat.count !== 1 ? 's' : ''}</span>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         )}
       </div>
