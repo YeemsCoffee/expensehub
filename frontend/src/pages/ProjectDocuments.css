@@ -53,7 +53,7 @@
   position: absolute;
   bottom: -4px;
   right: -4px;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   background: white;
   border-radius: 50%;
   padding: 2px;
@@ -68,7 +68,7 @@
 
 .document-info h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   line-height: 1.3;
 }
@@ -124,7 +124,7 @@
   padding: 10px;
   background: var(--color-surface-hover);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .detail-row {
@@ -243,7 +243,7 @@
 .version-details {
   display: flex;
   gap: 16px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   flex-wrap: wrap;
 }
@@ -254,7 +254,7 @@
   background: white;
   border-left: 3px solid var(--color-info-600);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   font-style: italic;
 }
@@ -293,7 +293,7 @@
   text-align: center;
   color: var(--color-text-tertiary);
   padding: 60px 20px;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   grid-column: 1 / -1;
 }
 

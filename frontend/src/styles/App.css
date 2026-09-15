@@ -23,6 +23,9 @@
    ======================================== */
 
 html {
+  /* Deliberately a literal 16px, not a token: this is the root rem anchor, and
+     every --font-size-* token is itself defined in rem. Pointing this at one of
+     them would make the root's own font-size self-referential. */
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;

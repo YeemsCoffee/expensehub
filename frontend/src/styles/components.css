@@ -168,17 +168,29 @@
    CARDS
    ======================================== */
 
+/* This is the single source of truth for .card / .card-title. cards.css used to
+   carry a second, conflicting definition of both (different padding and title
+   margin) that only lost the cascade by accident of file load order - see
+   DESIGN.md's Layout section. It now only carries card-family selectors this
+   file doesn't own (.cost-center-card, .stat-card-* variants, etc). */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-16);
+  padding: var(--spacing-8);
   box-shadow: var(--shadow-card);
   transition: all var(--transition-fast);
 }
 
 .card:hover {
+  border-color: var(--color-border-hover);
   box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+/* Opt out of the hover lift for a card that shouldn't read as interactive */
+.card-static {
+  transform: none !important;
 }
 
 .card-header {
@@ -191,10 +203,11 @@
 }
 
 .card-title {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  margin: 0;
+  margin: 0 0 var(--spacing-6);
+  line-height: var(--line-height-tight);
 }
 
 .card-subtitle {
@@ -336,26 +349,32 @@
 
 .stat-card {
   background: var(--color-surface);
-  /* Longhand on purpose: cards.css sets a colored border-left (4px, per stat-card-*
-     variant) on this same selector. A `border` shorthand here would reset that
-     color/width for every side, silently killing the variant color-coding. */
+  min-height: 140px;
+  /* Longhand, and never border-left-color: cards.css owns border-left-color alone
+     (base + .stat-card-blue/yellow/green/purple), and it loads before this file.
+     Setting color here - or using the `border`/`border-left` shorthand, which sets
+     color too - would silently re-clobber every variant on every future edit. */
   border-top: 1px solid var(--color-border);
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
+  border-left-width: 4px;
+  border-left-style: solid;
   border-radius: var(--radius-lg);
   padding: var(--spacing-8);
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-12);
+  box-shadow: var(--shadow-card);
   transition: all var(--transition-fast);
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
   border-top-color: var(--color-border-hover);
   border-right-color: var(--color-border-hover);
   border-bottom-color: var(--color-border-hover);
+  border-left-width: 6px;
 }
 
 .stat-icon {
@@ -366,6 +385,13 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .stat-icon-primary {
@@ -414,15 +440,19 @@
 }
 
 .stat-label {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-  margin: 0 0 var(--spacing-2);
+  margin: 0 0 var(--spacing-8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .stat-value {
   font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+  letter-spacing: -0.02em;
   margin: 0;
   line-height: var(--line-height-tight);
 }

@@ -4,7 +4,7 @@
   align-items: center;
   padding: 4px 12px;
   border-radius: var(--radius-full);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   line-height: 1;
 }
@@ -35,14 +35,14 @@
 
 /* Enhanced Stats Grid */
 .stat-subtext {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   margin-top: 4px;
 }
 
 /* Form Hints */
 .form-hint {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   margin-top: 4px;
 }
@@ -63,14 +63,14 @@
 }
 
 .empty-state-text {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
 .empty-state-subtext {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-bottom: 24px;
 }
@@ -87,11 +87,14 @@
   margin-top: 20px;
 }
 
+/* Single source of truth for .cost-center-card - see cards.css's note on the
+   .cost-center-header/-code/-name/-actions family it still owns. */
 .cost-center-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  box-shadow: var(--shadow-card);
   transition: all 0.2s;
   position: relative;
 }
@@ -110,14 +113,14 @@
 }
 
 .cost-center-code {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: var(--color-accent-600);
   margin-bottom: 4px;
 }
 
 .cost-center-name {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -164,7 +167,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
@@ -175,11 +178,11 @@
 
 /* Text Utilities */
 .text-sm {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .text-xs {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .text-gray-600 {
@@ -238,7 +241,7 @@
 .table thead th {
   padding: 12px 16px;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   color: var(--color-text-secondary);
@@ -256,7 +259,7 @@
 
 .table tbody td {
   padding: 16px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
 }
 
@@ -303,14 +306,14 @@
 }
 
 .expense-item-title {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .expense-item-meta {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   display: flex;
   align-items: center;
@@ -324,7 +327,7 @@
 }
 
 .expense-item-amount {
-  font-size: 16px;
+  font-size: var(--font-size-base);
   font-weight: 700;
   color: var(--color-text-primary);
 }
@@ -354,7 +357,7 @@
   color: var(--color-error-600);
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   margin-bottom: 16px;
 }
 
@@ -410,7 +413,7 @@
   }
 
   .table {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
   }
 
   .table thead th,
@@ -499,13 +502,13 @@
 }
 
 .cost-type-label {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-secondary);
 }
 
 .cost-type-percent {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
 }
 
@@ -518,7 +521,7 @@
 }
 
 .cost-type-amount {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   color: var(--color-text-primary);
 }
@@ -577,13 +580,13 @@
 }
 
 .category-name {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-text-primary);
 }
 
 .category-amount {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-primary-600);
 }
@@ -603,7 +606,7 @@
 }
 
 .category-count {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
 
@@ -625,19 +628,19 @@
 }
 
 .reimbursable-title {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-warning-700);
 }
 
 .reimbursable-amount {
-  font-size: 20px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--color-warning-700);
 }
 
 .reimbursable-description {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-warning-600);
 }
 
@@ -699,10 +702,10 @@
   }
 
   .cost-type-amount {
-    font-size: 20px;
+    font-size: var(--font-size-xl);
   }
 
   .cost-type-percent {
-    font-size: 18px;
+    font-size: var(--font-size-lg);
   }
 }

@@ -10,7 +10,7 @@
 
 .text-gray-500 { color: var(--color-text-tertiary); }
 .text-gray-600 { color: var(--color-text-secondary); }
-.text-xs { font-size: 0.75rem; }
+.text-xs { font-size: var(--font-size-xs); }
 .font-mono {
   font-family: 'Courier New', monospace;
   font-size: 13px;
@@ -25,7 +25,7 @@
   gap: 0.25rem;
   padding: 0.25rem 0.5rem;
   border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 
@@ -65,7 +65,7 @@
   gap: 0.25rem;
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 
@@ -240,7 +240,7 @@
 .toast button {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   line-height: 1;
   cursor: pointer;
   color: currentColor;
@@ -265,7 +265,7 @@
 }
 
 .empty-state h3 {
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   color: var(--color-text-primary);
   margin-bottom: 0.5rem;
 }
@@ -327,7 +327,7 @@
 
 .toast-message {
   flex: 1;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   line-height: 1.4;
 }

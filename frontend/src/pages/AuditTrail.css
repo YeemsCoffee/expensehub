@@ -19,7 +19,7 @@
 .audit-subtitle {
   color: var(--color-text-secondary);
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 /* Filters Panel */
@@ -55,7 +55,7 @@
   padding: 8px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .filter-group select:focus,
@@ -71,7 +71,7 @@
   background: var(--color-surface-hover);
   border-radius: 6px;
   margin-bottom: 20px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   font-weight: 500;
 }
@@ -108,7 +108,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
 }
 
 .entry-timestamp {
@@ -213,7 +213,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 12px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .detail-grid strong {
@@ -232,7 +232,7 @@
   color: var(--color-info-700);
   padding: 5px 12px;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -242,7 +242,7 @@
   border-radius: 6px;
   padding: 14px;
   overflow-x: auto;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   line-height: 1.6;
   color: var(--color-text-primary);
   max-height: 300px;
@@ -290,7 +290,7 @@
 
 .stat-card h4 {
   margin: 0 0 10px 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   opacity: 0.9;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -311,7 +311,7 @@
 .stat-section h4 {
   margin: 0 0 16px 0;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 .stats-grid {
@@ -343,7 +343,7 @@
 .stat-count {
   color: var(--color-info-600);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 /* Pagination */
@@ -357,7 +357,7 @@
 }
 
 .pagination-info {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   font-weight: 500;
 }
@@ -367,7 +367,7 @@
   text-align: center;
   color: var(--color-text-tertiary);
   padding: 60px 20px;
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 /* Responsive */

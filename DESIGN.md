@@ -80,7 +80,7 @@ components:
   card:
     backgroundColor: "{colors.paper}"
     rounded: "{rounded.lg}"
-    padding: "4rem"
+    padding: "2rem"
   badge-primary:
     backgroundColor: "{colors.myrtle-pale}"
     textColor: "{colors.myrtle-deep}"
@@ -151,7 +151,7 @@ Three colors carry the whole system: a confident deep green, a warm neutral crea
 
 An 8-point-derived spacing scale drives padding, margin, and gap (`spacing-N` = N × 0.25rem, e.g. `spacing-4` = 16px, `spacing-16` = 64px). Page content is capped at `max-width: 1280px` and centered, with a `container-narrow` (960px) and `container-wide` (1440px) variant available. Grids collapse from 4→2→1 columns and 3→2→1 columns under 1024px/640px breakpoints respectively.
 
-Internal padding runs roomier than a typical dense SaaS UI — buttons and inputs use 32–48px horizontal padding, and cards currently resolve to a flat 64px (`spacing-16`) on all sides via `components.css`'s `.card` rule (a separate, non-effective 80px value also exists in `cards.css` but loses the cascade since it loads first — worth reconciling in a future layout pass rather than carrying two silently conflicting values forward).
+Internal padding runs roomier than a typical dense SaaS UI — buttons and inputs use 32–48px horizontal padding, and cards use a flat 32px (`spacing-8`) on all sides. `components.css` is the single source of truth for `.card` and `.stat-card`; `cards.css` now only carries what that file doesn't own (stat-card border-left color variants, the cost-center card family, loading shimmer) — the two files no longer define overlapping properties for the same selector.
 
 ## Elevation & Depth
 
@@ -187,7 +187,7 @@ Corners are generous and consistently rounded — nothing in the system uses sha
 - **Background:** Paper (white), never Parchment.
 - **Shadow Strategy:** Resting → Interactive per Elevation & Depth.
 - **Border:** 1px Hairline.
-- **Internal Padding:** Roomy — effectively 64px on all sides (see Layout note on the conflicting cards.css value).
+- **Internal Padding:** 32px on all sides.
 
 ### Inputs / Fields
 - **Style:** Paper background, 1px Hairline border, `rounded.md` (12px), height 2.5rem (40px).
@@ -211,4 +211,4 @@ Corners are generous and consistently rounded — nothing in the system uses sha
 - **Don't** introduce a second accent hue outside the Myrtle / Soft Harbor Blue / Parchment family without a confirmed brand decision — this is a fixed 3-color system.
 - **Don't** put heavy shadow on a resting surface; it belongs to hover/focus/active states only.
 - **Don't** use sharp (0px) corners anywhere in the system — the rounding scale is a consistent identity marker, not a per-component choice.
-- **Don't** carry the unused 80px `cards.css` card-padding value forward as if it were live; `components.css`'s 64px value is what actually renders.
+- **Don't** redefine `.card`, `.stat-card`, or their sub-elements outside `components.css` — it's the single source of truth for the base recipe. Other files may only add what it doesn't own (e.g. `cards.css`'s `.stat-card` border-left color variants).

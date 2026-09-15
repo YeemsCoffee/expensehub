@@ -1,92 +1,14 @@
 /**
- * Premium Card System
- * Modern, elegant card designs with subtle shadows and smooth interactions
+ * Card System - Extensions
+ * .card and .stat-card base styles live in components.css (the single source of
+ * truth - see the note there). This file carries only what that file doesn't own:
+ * the stat-card border-left color variants, the cost-center card family, and a
+ * couple of layout helpers unique to how Dashboard/CostCenters/Locations use them.
  */
 
 /* ========================================
-   BASE CARD STYLES
+   STAT CARDS
    ======================================== */
-
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-20);
-  box-shadow: var(--shadow-card);
-  transition: all var(--transition-base);
-  position: relative;
-  overflow: hidden;
-}
-
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-600));
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.card:hover {
-  border-color: var(--color-border-hover);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-2px);
-}
-
-.card:hover::before {
-  opacity: 1;
-}
-
-.card-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  margin: 0 0 var(--spacing-12);
-  letter-spacing: -0.01em;
-  line-height: var(--line-height-tight);
-}
-
-/* Card with no hover effect */
-.card-static {
-  transform: none !important;
-}
-
-.card-static::before {
-  display: none;
-}
-
-/* ========================================
-   STAT CARDS - Premium Design
-   ======================================== */
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--spacing-20);
-  margin-bottom: var(--spacing-24);
-}
-
-.stat-card {
-  background: var(--color-surface);
-  padding: 2rem;
-  min-height: 140px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-primary);
-  box-shadow: var(--shadow-card);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-4px);
-  border-left-width: 6px;
-}
 
 .stat-card-content {
   display: flex;
@@ -97,28 +19,6 @@
   z-index: 1;
 }
 
-.stat-label {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  margin-bottom: var(--spacing-8);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.stat-value {
-  font-size: 2.25rem;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  line-height: var(--line-height-tight);
-  letter-spacing: -0.02em;
-  margin: 0;
-  background: linear-gradient(135deg, var(--color-text-primary) 0%, var(--color-primary-600) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 .stat-subtext {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-sm);
@@ -126,27 +26,13 @@
   font-weight: var(--font-weight-medium);
 }
 
-.stat-icon {
-  width: 48px !important;
-  height: 48px !important;
-  min-width: 48px;
-  min-height: 48px;
-  border-radius: var(--radius-md);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-  stroke-width: 2;
+/* Base border-left color, and every color variant, live here on purpose: this
+   file loads before components.css, which owns border-left-width/style but
+   never touches color, so these can never be silently overridden. */
+.stat-card {
+  border-left-color: var(--color-primary);
 }
 
-.stat-icon svg {
-  width: 22px !important;
-  height: 22px !important;
-  display: block;
-}
-
-/* Stat card color variants */
 .stat-card-blue {
   border-left-color: var(--color-accent-200);
 }
@@ -187,40 +73,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: var(--spacing-20);
-}
-
-.cost-center-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-20);
-  transition: all var(--transition-base);
-  box-shadow: var(--shadow-card);
-  position: relative;
-  overflow: hidden;
-}
-
-.cost-center-card::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-400));
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform var(--transition-base);
-}
-
-.cost-center-card:hover {
-  border-color: var(--color-primary-200);
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-4px);
-}
-
-.cost-center-card:hover::after {
-  transform: scaleX(1);
 }
 
 .cost-center-header {
@@ -306,11 +158,6 @@
    ======================================== */
 
 @media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-16);
-  }
-
   .cost-center-grid {
     grid-template-columns: 1fr;
     gap: var(--spacing-16);
@@ -319,18 +166,6 @@
   .stat-value {
     font-size: 1.75rem;
   }
-
-  .card {
-    padding: var(--spacing-16);
-  }
-
-  .stat-card {
-    padding: var(--spacing-16);
-  }
-
-  .cost-center-card {
-    padding: var(--spacing-16);
-  }
 }
 
 /* ========================================
@@ -338,22 +173,6 @@
    ======================================== */
 
 @media (prefers-reduced-motion: reduce) {
-  .card,
-  .stat-card,
-  .cost-center-card {
-    transition: none;
-  }
-
-  .card::before,
-  .stat-card::before,
-  .cost-center-card::after {
-    transition: none;
-  }
-
-  .stat-icon {
-    transition: none;
-  }
-
   .card-loading {
     animation: none;
   }

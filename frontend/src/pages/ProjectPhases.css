@@ -65,12 +65,12 @@
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .phase-title h4 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   color: var(--color-text-primary);
 }
 
@@ -99,7 +99,7 @@
 }
 
 .detail-item .label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
   font-weight: 600;
   text-transform: uppercase;
@@ -108,7 +108,7 @@
 .gate-decision {
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -133,7 +133,7 @@
   background: var(--color-surface-hover);
   border-left: 4px solid var(--color-success-500);
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 /* Milestones Grid */
@@ -178,7 +178,7 @@
 
 .milestone-header h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
 }
 
@@ -196,7 +196,7 @@
 
 .milestone-description {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   margin-bottom: 12px;
   line-height: 1.4;
 }
@@ -239,7 +239,7 @@
 .badge {
   padding: 4px 10px;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -309,7 +309,7 @@
   margin-bottom: 6px;
   font-weight: 600;
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .form-group input,
@@ -319,7 +319,7 @@
   padding: 10px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
 }
 
@@ -361,7 +361,7 @@
   padding: 10px 20px;
   border: none;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -397,14 +397,14 @@
 
 .btn-sm {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .btn-icon {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   padding: 4px;
   transition: transform 0.2s ease;
 }
@@ -418,7 +418,7 @@
   text-align: center;
   color: var(--color-text-tertiary);
   padding: 40px;
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 /* Alert */
@@ -438,7 +438,7 @@
 .loading {
   text-align: center;
   padding: 40px;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   color: var(--color-text-secondary);
 }
 

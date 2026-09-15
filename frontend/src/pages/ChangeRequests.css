@@ -53,7 +53,7 @@
 .cr-number {
   font-family: monospace;
   font-weight: bold;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-info-600);
   background: var(--color-info-50);
   padding: 4px 8px;
@@ -62,13 +62,13 @@
 
 .cr-card h4 {
   margin: 0 0 12px 0;
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   color: var(--color-text-primary);
 }
 
 .cr-description {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   margin-bottom: 16px;
 }
@@ -165,7 +165,7 @@
   color: var(--color-info-700);
   padding: 4px 10px;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: capitalize;
 }
@@ -173,7 +173,7 @@
 .btn-close {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   cursor: pointer;
   color: var(--color-text-secondary);
   padding: 0;
@@ -204,7 +204,7 @@
 .detail-section h4 {
   margin: 0 0 12px 0;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 .detail-section p {
@@ -226,7 +226,7 @@
 }
 
 .info-item .label {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
   font-weight: 600;
   text-transform: uppercase;
@@ -235,7 +235,7 @@
 .info-item .cost {
   color: var(--color-warning-500);
   font-weight: 700;
-  font-size: 16px;
+  font-size: var(--font-size-base);
 }
 
 /* Impact Analysis */
@@ -255,12 +255,12 @@
   display: block;
   color: var(--color-text-primary);
   margin-bottom: 6px;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .impact-item p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .budget-increase {
@@ -317,7 +317,7 @@
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   text-align: center;
   flex-shrink: 0;
 }
@@ -332,7 +332,7 @@
 .approver-name {
   font-weight: 600;
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 .approval-status {
@@ -341,7 +341,7 @@
 }
 
 .approval-date {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
 
@@ -421,7 +421,7 @@
 .form-section h4 {
   margin: 0 0 16px 0;
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-base);
   padding-bottom: 8px;
   border-bottom: 2px solid var(--color-info-600);
 }

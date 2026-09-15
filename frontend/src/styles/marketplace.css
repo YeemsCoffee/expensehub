@@ -21,7 +21,7 @@
 }
 
 .marketplace-subtitle {
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
   color: var(--text-secondary);
   font-weight: 400;
 }
@@ -64,7 +64,7 @@
 }
 
 .success-banner-content strong {
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
   display: block;
   margin-bottom: 0.25rem;
 }
@@ -112,7 +112,7 @@
 }
 
 .amazon-title {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   margin: 0;
   color: var(--text-primary);
@@ -123,7 +123,7 @@
   color: var(--primary-color);
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
 }
 
@@ -132,13 +132,13 @@
 }
 
 .rating-stars {
-  font-size: 1rem;
+  font-size: var(--font-size-base);
   color: var(--color-warning-500);
   margin-bottom: 0.25rem;
 }
 
 .rating-text {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
@@ -163,12 +163,12 @@
   background: var(--background-secondary);
   padding: 0.5rem 1rem;
   border-radius: 8px;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
 
 .feature-icon {
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
 }
 
 .amazon-shop-button {
@@ -177,7 +177,7 @@
   border: none;
   padding: 0.875rem 1.5rem;
   border-radius: var(--radius-md);
-  font-size: 1rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
@@ -239,7 +239,7 @@
 }
 
 .note-icon {
-  font-size: 1rem;
+  font-size: var(--font-size-base);
 }
 
 
@@ -273,14 +273,14 @@
 }
 
 .vendor-name {
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 0.25rem 0;
 }
 
 .vendor-category {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -293,7 +293,7 @@
 
 .vendor-rating-star {
   color: var(--color-warning-500);
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
 }
 
 .vendor-rating-value {
@@ -314,7 +314,7 @@
   border: none;
   padding: 0.875rem 1.5rem;
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -358,7 +358,7 @@
   }
 
   .amazon-title {
-    font-size: 1.5rem;
+    font-size: var(--font-size-2xl);
   }
 
   .amazon-features {
