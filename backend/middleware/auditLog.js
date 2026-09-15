@@ -15,15 +15,23 @@ function auditLog(actionType) {
     // Track start time
     const startTime = Date.now();
 
+    // Express's res.json() calls res.send() internally, so without this guard
+    // every JSON response was audited twice.
+    const logOnce = (data) => {
+      if (res.locals.auditLogged) return;
+      res.locals.auditLogged = true;
+      logAuditEntry(req, res, actionType, data, null);
+    };
+
     // Override res.json to capture response
     res.json = function(data) {
-      logAuditEntry(req, res, actionType, data, null);
+      logOnce(data);
       return originalJson.call(this, data);
     };
 
     // Override res.send for error handling
     res.send = function(data) {
-      logAuditEntry(req, res, actionType, data, null);
+      logOnce(data);
       return originalSend.call(this, data);
     };
 
@@ -46,7 +54,10 @@ function auditLog(actionType) {
 async function logAuditEntry(req, res, actionType, responseData, error) {
   try {
     const userId = req.user ? req.user.id : null;
-    const username = req.user ? `${req.user.first_name} ${req.user.last_name}` : 'Anonymous';
+    // authMiddleware exposes firstName/lastName/name (camelCase), not first_name.
+    const username = req.user
+      ? (req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email)
+      : 'Anonymous';
 
     // Determine table and record ID from request
     const tableName = determineTableName(req);

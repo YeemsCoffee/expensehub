@@ -79,12 +79,19 @@ function buildPunchOutSetupRequest(userId, userEmail, userName, buyerCookie) {
 </cXML>`;
 }
 
+// Strip credentials before any cXML reaches the logs.
+function redactCxml(xml) {
+  return String(xml)
+    .replace(/<SharedSecret>[\s\S]*?<\/SharedSecret>/g, '<SharedSecret>[REDACTED]</SharedSecret>');
+}
+
 // Helper function to parse cXML response using fast-xml-parser
 function parseCxmlResponse(xmlString) {
   try {
     const parser = new XMLParser({
       ignoreAttributes: false,
-      attributeNamePrefix: '@_'
+      attributeNamePrefix: '@_',
+      processEntities: false // inbound XML is untrusted; never expand entities
     });
     const result = parser.parse(xmlString);
     return result;
@@ -150,7 +157,7 @@ router.post('/setup', authMiddleware, async (req, res) => {
       buyerCookie
     );
 
-    console.log('Generated cXML (first 500 chars):', cxmlRequest.substring(0, 500));
+    console.log('Generated cXML (first 500 chars):', redactCxml(cxmlRequest).substring(0, 500));
 
     // Store the request for debugging
     await db.query(
@@ -172,7 +179,7 @@ router.post('/setup', authMiddleware, async (req, res) => {
     if (!AMAZON_CONFIG.returnUrl) {
       console.error('❌ CRITICAL: BrowserFormPost URL is localhost - Amazon cannot POST the cart back! Set AMAZON_PUNCHOUT_RETURN_URL in Render env vars.');
     }
-    console.log('cXML Request (first 1000 chars):', cxmlRequest.substring(0, 1000));
+    console.log('cXML Request (first 1000 chars):', redactCxml(cxmlRequest).substring(0, 1000));
     console.log('Content-Type:', 'text/xml; charset=UTF-8');
     console.log('=== END REQUEST DEBUG ===');
 
@@ -264,120 +271,120 @@ router.post('/setup', authMiddleware, async (req, res) => {
 });
 
 // Handle Amazon Punchout Return (BrowserFormPost callback)
-// Note: Amazon sends form-urlencoded with parameter 'cxml-urlencoded'
+//
+// Amazon posts the cart back through the user's browser as
+// application/x-www-form-urlencoded with a 'cxml-urlencoded' field.  This
+// endpoint is necessarily unauthenticated (the browser has no API token in a
+// cross-site form post), so the defences are: the BuyerCookie must match a
+// session that has not already been completed (each session is one-shot), the
+// message must be addressed to our identity, and item values are range-checked.
+const MAX_PUNCHOUT_ITEMS = 200;
+const MAX_ITEM_QUANTITY = 1000;
+
+function extractText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return extractText(value['#text']);
+  return String(value);
+}
+
 router.post('/return', async (req, res) => {
   try {
-    console.log('Received punchout return data');
-    console.log('Request body type:', typeof req.body);
-    console.log('Request body (first 1000 chars):', JSON.stringify(req.body).substring(0, 1000));
-    console.log('Request headers:', JSON.stringify(req.headers));
-
-    // Parse the cXML response
-    // Amazon sends it as form parameter 'cxml-urlencoded' (lowercase)
     const cxmlResponse = typeof req.body === 'string'
       ? req.body
-      : req.body['cxml-urlencoded'] || req.body.cxml || req.body;
-    console.log('cxmlResponse type:', typeof cxmlResponse);
-    console.log('cxmlResponse (first 500 chars):', String(cxmlResponse).substring(0, 500));
+      : req.body['cxml-urlencoded'] || req.body.cxml;
+
+    if (typeof cxmlResponse !== 'string' || cxmlResponse.length === 0) {
+      return res.status(400).send('Invalid punchout response: missing cXML');
+    }
 
     const parsedXml = parseCxmlResponse(cxmlResponse);
-    console.log('Parsed XML structure:', JSON.stringify(parsedXml, null, 2).substring(0, 1000));
-
-    // Extract BuyerCookie and items
-    const buyerCookie = parsedXml.cXML?.Message?.PunchOutOrderMessage?.BuyerCookie;
-    console.log('Extracted BuyerCookie:', buyerCookie);
+    const message = parsedXml.cXML?.Message?.PunchOutOrderMessage;
+    const buyerCookie = extractText(message?.BuyerCookie);
 
     if (!buyerCookie) {
-      console.error('No BuyerCookie found in response');
-      console.error('Full parsed XML:', JSON.stringify(parsedXml, null, 2));
+      console.error('Punchout return: no BuyerCookie in response');
       return res.status(400).send('Invalid punchout response: missing BuyerCookie');
     }
 
-    console.log('Looking up session for BuyerCookie:', buyerCookie);
+    // The message must be addressed to our punchout identity.
+    const toCredentials = [].concat(parsedXml.cXML?.Header?.To?.Credential || []);
+    const addressedToUs = toCredentials.some(
+      cred => extractText(cred?.Identity) === AMAZON_CONFIG.identity
+    );
+    if (AMAZON_CONFIG.identity && !addressedToUs) {
+      console.error('Punchout return: message not addressed to our identity');
+      return res.status(400).send('Invalid punchout response: wrong recipient');
+    }
 
-    // Find the session
+    // Claim the session atomically so a replayed POST cannot add items twice.
     const sessionResult = await db.query(
-      `SELECT id, user_id, cost_center_id
-       FROM punchout_sessions
-       WHERE buyer_cookie = $1`,
-      [buyerCookie]
+      `UPDATE punchout_sessions
+       SET response_xml = $2, status = 'completed', updated_at = CURRENT_TIMESTAMP
+       WHERE buyer_cookie = $1 AND status = 'initiated'
+       RETURNING id, user_id, cost_center_id`,
+      [buyerCookie, cxmlResponse]
     );
 
-    console.log('Session query result:', sessionResult.rows.length, 'rows found');
-
     if (sessionResult.rows.length === 0) {
-      console.error('Session not found for cookie:', buyerCookie);
-      return res.status(404).send('Punchout session not found');
+      console.error('Punchout return: no open session for BuyerCookie');
+      return res.status(404).send('Punchout session not found or already completed');
     }
 
     const session = sessionResult.rows[0];
-    console.log('Found session:', session.id, 'for user:', session.user_id);
 
-    // Extract line items from the order
-    const itemsIn = parsedXml.cXML?.Message?.PunchOutOrderMessage?.ItemIn;
-    const items = Array.isArray(itemsIn) ? itemsIn : [itemsIn];
-    console.log('Extracted items count:', items.length);
+    const itemsIn = message?.ItemIn;
+    const items = (Array.isArray(itemsIn) ? itemsIn : [itemsIn]).filter(Boolean).slice(0, MAX_PUNCHOUT_ITEMS);
 
-    // Store response XML
-    console.log('Updating session with response XML...');
-    await db.query(
-      `UPDATE punchout_sessions
-       SET response_xml = $1, status = 'completed', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [cxmlResponse, session.id]
+    console.log(`Punchout return: session ${session.id}, user ${session.user_id}, ${items.length} item(s)`);
+
+    const amazonVendor = await db.query(
+      `SELECT id FROM vendors WHERE name = 'Amazon Business' LIMIT 1`
     );
-    console.log('Session updated successfully');
+    const amazonVendorId = amazonVendor.rows[0]?.id;
+    if (!amazonVendorId) {
+      throw new Error('Amazon Business vendor row is missing');
+    }
 
-    // Process items and add to cart or create as pending expenses
-    console.log('Processing items and adding to cart...');
+    let added = 0;
     for (const item of items) {
-      if (!item) continue;
+      const quantity = Math.min(Math.max(parseInt(item['@_quantity'], 10) || 1, 1), MAX_ITEM_QUANTITY);
+      const unitPrice = parseFloat(extractText(item.ItemDetail?.UnitPrice?.Money));
+      const description = (extractText(item.ItemDetail?.Description) || 'Amazon Business Item').trim();
+      const supplierPartId = extractText(item.ItemID?.SupplierPartID);
+      const manufacturerPartId = extractText(item.ItemDetail?.ManufacturerPartID);
+      // SupplierPartAuxiliaryID (under ItemID) is required to place the order later.
+      const supplierPartAuxiliaryID = extractText(item.ItemID?.SupplierPartAuxiliaryID);
 
-      const quantity = parseInt(item['@_quantity']) || 1;
-      const unitPrice = parseFloat(item.ItemDetail?.UnitPrice?.Money?.['#text'] || item.ItemDetail?.UnitPrice?.Money) || 0;
-      const description = item.ItemDetail?.Description?.['#text'] || item.ItemDetail?.Description || 'Amazon Business Item';
-      const supplierPartId = item.ItemID?.SupplierPartID || '';
-      const manufacturerPartId = item.ItemDetail?.ManufacturerPartID || '';
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        console.warn(`Punchout return: skipping item with invalid price (${supplierPartId})`);
+        continue;
+      }
 
-      // CRITICAL: Capture SupplierPartAuxiliaryID (Amazon cart/session ID)
-      // This is required to place orders with Amazon after approval
-      // NOTE: SupplierPartAuxiliaryID is under ItemID, not ItemDetail!
-      const supplierPartAuxiliaryID = item.ItemID?.SupplierPartAuxiliaryID || '';
-
-      console.log('Processing item:', {description, quantity, unitPrice, supplierPartId, supplierPartAuxiliaryID});
-
-      // Create a product entry for this Amazon item
+      // Only Amazon catalog rows may be created/updated from this endpoint.
       const productResult = await db.query(
-        `INSERT INTO products (
-          vendor_id,
-          name,
-          description,
-          price,
-          sku,
-          is_active
-        ) VALUES (
-          (SELECT id FROM vendors WHERE name = 'Amazon Business' LIMIT 1),
-          $1,
-          $2,
-          $3,
-          $4,
-          true
-        ) ON CONFLICT (sku) DO UPDATE SET
-          price = EXCLUDED.price,
-          description = EXCLUDED.description
-        RETURNING id`,
+        `INSERT INTO products (vendor_id, name, description, price, sku, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (sku) DO UPDATE SET
+           price = EXCLUDED.price,
+           description = EXCLUDED.description
+         WHERE products.vendor_id = EXCLUDED.vendor_id
+         RETURNING id`,
         [
+          amazonVendorId,
           description.substring(0, 200),
           description,
           unitPrice,
-          supplierPartId || manufacturerPartId || `AMAZON-${Date.now()}`
+          supplierPartId || manufacturerPartId || `AMAZON-${Date.now()}-${added}`
         ]
       );
 
-      const productId = productResult.rows[0].id;
-      console.log('Created/updated product with ID:', productId);
+      if (productResult.rows.length === 0) {
+        console.warn(`Punchout return: SKU ${supplierPartId} belongs to another vendor; skipping`);
+        continue;
+      }
 
-      // Add to cart with Amazon SPAID for order placement
+      const productId = productResult.rows[0].id;
+
       await db.query(
         `INSERT INTO cart_items (user_id, product_id, quantity, cost_center_id, amazon_spaid)
          VALUES ($1, $2, $3, $4, $5)
@@ -385,16 +392,16 @@ router.post('/return', async (req, res) => {
            quantity = cart_items.quantity + EXCLUDED.quantity,
            amazon_spaid = EXCLUDED.amazon_spaid,
            updated_at = CURRENT_TIMESTAMP`,
-        [session.user_id, productId, quantity, session.cost_center_id, supplierPartAuxiliaryID]
+        [session.user_id, productId, quantity, session.cost_center_id, supplierPartAuxiliaryID || null]
       );
-      console.log('Added item to cart for user:', session.user_id, 'with SPAID:', supplierPartAuxiliaryID);
+      added += 1;
     }
 
-    console.log('All items processed successfully');
+    console.log(`Punchout return: added ${added} item(s) to cart for user ${session.user_id}`);
 
-    // Redirect back to the application
-    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/cart?punchout_success=true`;
-    console.log('Redirecting to:', redirectUrl);
+    // The frontend is a hash router: send the user to the cart tab so they can
+    // pick a cost center/location and submit the order for approval.
+    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/#cart?punchout_success=true`;
 
     res.send(`
       <!DOCTYPE html>
@@ -455,25 +462,6 @@ router.get('/history', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Fetch history error:', error);
     res.status(500).json({ error: 'Failed to fetch punchout history' });
-  }
-});
-
-// Debug endpoint to view generated cXML
-router.get('/debug/cxml', authMiddleware, async (req, res) => {
-  try {
-    ensureAmazonConfig();
-    const buyerCookie = 'debug-cookie-' + Date.now();
-    const cxmlRequest = buildPunchOutSetupRequest(
-      req.user.id,
-      req.user.email,
-      req.user.name || req.user.email,
-      buyerCookie
-    );
-
-    res.set('Content-Type', 'text/xml');
-    res.send(cxmlRequest);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
@@ -688,8 +676,8 @@ async function sendOrderToAmazon(expense, userInfo) {
     console.log('Target URL:', AMAZON_CONFIG.poUrl);
     console.log('Deployment Mode:', AMAZON_CONFIG.useProd ? 'production' : 'test');
 
-    console.log('Full Order Request XML:');
-    console.log(orderRequest);
+    console.log('Full Order Request XML (credentials redacted):');
+    console.log(redactCxml(orderRequest));
     console.log('=== END DEBUG ===');
 
     // Send OrderRequest to Amazon PO URL
@@ -711,7 +699,8 @@ async function sendOrderToAmazon(expense, userInfo) {
     // Parse response to extract confirmation
     const parser = new XMLParser({
       ignoreAttributes: false,
-      attributeNamePrefix: '@_'
+      attributeNamePrefix: '@_',
+      processEntities: false
     });
     const parsed = parser.parse(response.data);
 

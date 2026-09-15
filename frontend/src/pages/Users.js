@@ -32,7 +32,9 @@ const Users = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await api.get('/users');
+      // This page lists every user and derives the manager dropdown from the same
+      // response, so ask for the server maximum rather than the default page of 50.
+      const response = await api.get('/users', { params: { limit: 200 } });
       setUsers(response.data);
       // Filter managers for dropdown - include manager, admin, and developer roles
       setManagers(response.data.filter(u => ['manager', 'admin', 'developer'].includes(u.role)));

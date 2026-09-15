@@ -16,15 +16,23 @@ const isAdminOrDeveloper = (req, res, next) => {
 // Get all users (admin/developer only)
 router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    const countResult = await db.query('SELECT COUNT(*) AS total FROM users');
+
     const result = await db.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.employee_id,
               u.department, u.role, u.is_active, u.created_at, u.manager_id,
               m.first_name || ' ' || m.last_name as manager_name
        FROM users u
        LEFT JOIN users m ON u.manager_id = m.id
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
 
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch users error:', error);
@@ -58,6 +66,23 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
 
     if (userExists.rows.length > 0) {
       return res.status(400).json({ error: 'User with this email or employee ID already exists' });
+    }
+
+    // A manager must be able to act on approvals (same rule as PUT /:id/manager)
+    if (managerId) {
+      const managerCheck = await db.query(
+        'SELECT role, is_active FROM users WHERE id = $1',
+        [managerId]
+      );
+      if (managerCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Manager not found' });
+      }
+      if (!managerCheck.rows[0].is_active) {
+        return res.status(400).json({ error: 'Selected manager is inactive' });
+      }
+      if (!['manager', 'admin', 'developer'].includes(managerCheck.rows[0].role)) {
+        return res.status(400).json({ error: 'Selected user must have manager, admin, or developer role' });
+      }
     }
 
     // Hash password

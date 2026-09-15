@@ -42,41 +42,35 @@ app.use(helmet({
 
 // Middleware
 // CORS configuration - restrict to specific origins
+const allowedOrigins = new Set([
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'http://localhost:3000',
+  'https://expensehub-l8ka.onrender.com'  // Production frontend URL
+]);
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const devOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3001',
-      'https://expensehub-l8ka.onrender.com',  // Production frontend URL
-      'https://abintegrations.amazon.com',     // Amazon Punchout callbacks
-      'https://www.amazon.com',                 // Amazon Business
-      'https://business.amazon.com'             // Amazon Business portal
-    ];
-
-    // Debug logging for CORS issues
-    console.log('CORS Check - Origin:', origin);
-    console.log('CORS Check - Allowed:', allowedOrigins.indexOf(origin) !== -1);
-
-    // Allow requests with no origin (mobile apps, curl, server-to-server, etc.)
-    // Note: origin can be undefined, null, or the string "null"
-    // In development, allow all localhost/127.0.0.1 origins
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const isLocalhost = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
-    const noOrigin = !origin || origin === 'null';
-
-    if (noOrigin || allowedOrigins.indexOf(origin) !== -1 || (isDevelopment && isLocalhost)) {
-      callback(null, true);
-    } else {
-      console.log('CORS REJECTED - Origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+    // No Origin header: same-origin, curl, server-to-server. Nothing to grant.
+    if (!origin) {
+      return callback(null, true);
     }
+
+    if (allowedOrigins.has(origin) || (isDevelopment && devOriginPattern.test(origin))) {
+      return callback(null, true);
+    }
+
+    // Not an allowed origin: omit the CORS headers rather than throwing.
+    // Browsers then block cross-origin XHR themselves, while top-level form
+    // POSTs (e.g. the Amazon Punchout return, which arrives with
+    // Origin: null) are not subject to CORS and still reach the route.
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-Total-Count']
 };
 
 app.use(cors(corsOptions));
@@ -114,11 +108,13 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/', apiLimiter);
 
-// Request logging
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
+// Request logging (development only; production logs are handled by the host)
+if (isDevelopment) {
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+  });
+}
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -143,48 +139,15 @@ app.use('/api/project-templates', require('./routes/projectTemplates')); // Proj
 app.use('/api/project-documents', require('./routes/projectDocuments')); // Document management
 app.use('/api/audit-trail', require('./routes/auditTrail')); // Audit trail / traceability
 
-// Health check endpoint
+// Health check endpoint (public: liveness + DB reachability only, no schema details)
 app.get('/api/health', async (req, res) => {
   try {
     const db = require('./config/database');
-
-    // Test database connection
     await db.query('SELECT 1');
-
-    // Check if tables exist
-    const tables = await db.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      AND table_name IN ('locations', 'cost_centers', 'expenses', 'users')
-      ORDER BY table_name
-    `);
-
-    // Check row counts
-    const counts = await db.query(`
-      SELECT
-        (SELECT COUNT(*) FROM locations WHERE is_active = true) as locations,
-        (SELECT COUNT(*) FROM cost_centers WHERE is_active = true) as cost_centers,
-        (SELECT COUNT(*) FROM users) as users
-    `);
-
-    res.json({
-      status: 'OK',
-      message: 'ExpenseHub API is running',
-      timestamp: new Date().toISOString(),
-      database: {
-        connected: true,
-        tables: tables.rows.map(r => r.table_name),
-        counts: counts.rows[0]
-      }
-    });
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
   } catch (error) {
-    res.status(500).json({
-      status: 'ERROR',
-      message: 'Database connection failed',
-      timestamp: new Date().toISOString(),
-      error: error.message
-    });
+    console.error('Health check failed:', error.message);
+    res.status(503).json({ status: 'ERROR', timestamp: new Date().toISOString() });
   }
 });
 

@@ -84,6 +84,15 @@ router.get('/my-submissions', authMiddleware, async (req, res) => {
 // Get all submitted projects (visible to all authenticated users)
 router.get('/all', authMiddleware, async (req, res) => {
   try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+    const countResult = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM projects p
+       JOIN users u ON p.submitted_by = u.id`
+    );
+
     const result = await db.query(
       `SELECT p.id, p.code, p.name, p.description, p.start_date, p.end_date,
               p.budget, p.status, p.project_manager, p.created_at, p.updated_at,
@@ -92,9 +101,12 @@ router.get('/all', authMiddleware, async (req, res) => {
               u.email as submitted_by_email
        FROM projects p
        JOIN users u ON p.submitted_by = u.id
-       ORDER BY p.created_at DESC`
+       ORDER BY p.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
 
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch all projects error:', error);
@@ -442,7 +454,7 @@ router.get('/:id/wbs', authMiddleware, async (req, res) => {
 });
 
 // Create WBS elements for a project (bulk creation)
-router.post('/:id/wbs', authMiddleware, [
+router.post('/:id/wbs', authMiddleware, isManagerOrAdmin, [
   body('elements').isArray({ min: 1 }),
   body('elements.*.category').notEmpty().trim(),
   body('elements.*.budgetEstimate').isFloat({ min: 0 }),
@@ -535,7 +547,7 @@ router.post('/:id/wbs', authMiddleware, [
 });
 
 // Update a WBS element
-router.put('/:id/wbs/:wbsId', authMiddleware, [
+router.put('/:id/wbs/:wbsId', authMiddleware, isManagerOrAdmin, [
   body('category').optional().notEmpty().trim(),
   body('budgetEstimate').optional().isFloat({ min: 0 }),
   body('description').optional().trim(),
@@ -677,7 +689,7 @@ router.patch('/:id/wbs/:wbsId/increase-budget', authMiddleware, isAdminOrDevelop
 });
 
 // Delete a WBS element
-router.delete('/:id/wbs/:wbsId', authMiddleware, async (req, res) => {
+router.delete('/:id/wbs/:wbsId', authMiddleware, isManagerOrAdmin, async (req, res) => {
   try {
     const { id, wbsId } = req.params;
 

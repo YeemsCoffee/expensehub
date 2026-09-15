@@ -8,17 +8,24 @@ import api from '../services/api';
 import { useToast } from '../components/Toast';
 import StatusBadge from '../components/StatusBadge';
 
-const Approvals = () => {
+const Approvals = ({ user }) => {
   const toast = useToast();
+  const isPrivileged = ['admin', 'developer'].includes(user?.role);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedExpense, setExpandedExpense] = useState(null);
   const [actioningId, setActioningId] = useState(null);
   const [comments, setComments] = useState({});
+  const [autoApprovingAmazon, setAutoApprovingAmazon] = useState(false);
 
   const fetchPendingApprovals = useCallback(async () => {
     try {
-      const response = await api.get('/expense-approvals/pending-for-me');
+      // Admins see everything pending company-wide (and who it is waiting on);
+      // everyone else sees only items assigned to them at the current level.
+      const endpoint = isPrivileged
+        ? '/expense-approvals/pending/all'
+        : '/expense-approvals/pending-for-me';
+      const response = await api.get(endpoint);
       setPendingApprovals(response.data);
       setLoading(false);
     } catch (err) {
@@ -26,13 +33,25 @@ const Approvals = () => {
       toast.error('Failed to load pending approvals');
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, isPrivileged]);
 
   useEffect(() => {
     fetchPendingApprovals();
-  }, [fetchPendingApprovals]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchPendingApprovals]);
+
+  // Acting on an item that is waiting on someone else is an admin override.
+  const confirmOverride = (expenseId, verb) => {
+    const item = pendingApprovals.find(i => i.expense_id === expenseId);
+    if (!item || item.assigned_to_me !== false) return true;
+    return window.confirm(
+      `This item is waiting on ${item.current_approver || 'another approver'} ` +
+      `(level ${item.current_approval_level} of ${item.total_levels}).\n\n` +
+      `${verb} it now is an administrator override. Continue?`
+    );
+  };
 
   const handleApprove = async (expenseId) => {
+    if (!confirmOverride(expenseId, 'Approving')) return;
     setActioningId(expenseId);
 
     try {
@@ -62,6 +81,7 @@ const Approvals = () => {
       toast.error('Please provide a reason for rejection');
       return;
     }
+    if (!confirmOverride(expenseId, 'Rejecting')) return;
 
     setActioningId(expenseId);
 
@@ -86,8 +106,6 @@ const Approvals = () => {
       setActioningId(null);
     }
   };
-
-  const [autoApprovingAmazon, setAutoApprovingAmazon] = useState(false);
 
   const handleAutoApproveAmazonOrders = async () => {
     if (!window.confirm('This will auto-approve all pending Amazon orders and send them to Amazon. Continue?')) {
@@ -144,6 +162,43 @@ const Approvals = () => {
     });
   };
 
+  const routingLabel = (item) => {
+    if (!item.total_levels) return 'No approver assigned';
+    const levelText = `level ${item.current_approval_level} of ${item.total_levels}`;
+    return item.assigned_to_me
+      ? `Your approval needed (${levelText})`
+      : `Waiting on ${item.current_approver || 'unassigned'} (${levelText})`;
+  };
+
+  const renderChain = (item) => {
+    const chain = Array.isArray(item.approval_chain) ? item.approval_chain : [];
+    if (chain.length === 0) return null;
+    return (
+      <div className="approval-flow-info">
+        <div className="approval-flow-label">Approval chain</div>
+        <div className="approval-progress">
+          {chain.map((step, idx) => {
+            const isCurrent = step.level === item.current_approval_level && step.status === 'pending';
+            return (
+              <React.Fragment key={step.level}>
+                {idx > 0 && <span className="approval-arrow">→</span>}
+                <div className={`approval-step-indicator ${step.status === 'approved' ? 'approved' : ''} ${isCurrent ? 'current' : ''}`}>
+                  <span className="step-number">Level {step.level}</span>
+                  <span className="step-approver">{step.user_name || 'Administrator'}</span>
+                  {step.status === 'approved' && <CheckCircle size={14} className="step-icon" />}
+                  {step.status === 'rejected' && <XCircle size={14} className="step-icon" />}
+                  {step.fallback_reason && (
+                    <span className="step-note" title={step.fallback_reason}>fallback</span>
+                  )}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="page-title">
@@ -158,33 +213,39 @@ const Approvals = () => {
       <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h2 className="page-title" style={{ marginBottom: '0.5rem' }}>Pending Approvals</h2>
-          <p className="text-gray-600">Review and approve expense reports requiring your authorization</p>
+          <p className="text-gray-600">
+            {isPrivileged
+              ? 'All pending expense reports company-wide. Items waiting on someone else can be approved as an administrator override.'
+              : 'Review and approve expense reports requiring your authorization'}
+          </p>
         </div>
-        <button
-          onClick={handleAutoApproveAmazonOrders}
-          disabled={autoApprovingAmazon}
-          className="btn-secondary"
-          style={{
-            minWidth: '200px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem'
-          }}
-          title="Auto-approve all pending Amazon orders and send to Amazon"
-        >
-          {autoApprovingAmazon ? (
-            <>
-              <div className="loading-spinner" style={{ width: '16px', height: '16px' }}></div>
-              Processing...
-            </>
-          ) : (
-            <>
-              <CheckCircle size={16} />
-              Auto-Approve Amazon Orders
-            </>
-          )}
-        </button>
+        {isPrivileged && (
+          <button
+            onClick={handleAutoApproveAmazonOrders}
+            disabled={autoApprovingAmazon}
+            className="btn-secondary"
+            style={{
+              minWidth: '200px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}
+            title="Auto-approve all pending Amazon orders and send to Amazon"
+          >
+            {autoApprovingAmazon ? (
+              <>
+                <div className="loading-spinner" style={{ width: '16px', height: '16px' }}></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                <CheckCircle size={16} />
+                Auto-Approve Amazon Orders
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Summary Stats */}
@@ -247,6 +308,12 @@ const Approvals = () => {
                       <span className="approval-submitter-id">
                         Emp ID: {item.submitter_employee_id}
                       </span>
+                      {item.is_amazon_order && (
+                        <span className="badge badge-warning">Amazon order</span>
+                      )}
+                      <span className={`approval-level ${item.assigned_to_me ? '' : 'waiting'}`}>
+                        {routingLabel(item)}
+                      </span>
                     </div>
                   </div>
 
@@ -304,6 +371,8 @@ const Approvals = () => {
                         </div>
                       )}
                     </div>
+
+                    {renderChain(item)}
 
                     {/* Comments/Actions */}
                     <div className="approval-actions">
@@ -478,6 +547,16 @@ const Approvals = () => {
           font-size: 0.875rem;
           color: #2B4628;
           font-weight: 600;
+        }
+
+        .approval-level.waiting {
+          color: #b45309;
+        }
+
+        .step-note {
+          font-size: 0.7rem;
+          color: #b45309;
+          text-transform: uppercase;
         }
 
         .approval-submitter-id {

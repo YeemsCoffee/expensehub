@@ -4,6 +4,57 @@ import StatusBadge from '../components/StatusBadge';
 import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
 
+const RECENT_LIMIT = 5;
+const TOTALS_PAGE_SIZE = 200; // server-side maximum per request
+const TOTALS_MAX_PAGES = 20; // runaway guard - 4,000 expenses
+
+// The hero figures are sums over every expense, not just the ones on screen, so they
+// are gathered in bounded pages instead of one unbounded request. Only the running
+// totals are kept, never the full row set.
+const fetchReimbursementTotals = async () => {
+  const totals = {
+    pendingAmount: 0,
+    approvedAmount: 0,
+    pendingCount: 0,
+    approvedCount: 0
+  };
+
+  let offset = 0;
+  let total = null;
+
+  for (let pageIndex = 0; pageIndex < TOTALS_MAX_PAGES; pageIndex++) {
+    const response = await api.get('/expenses', {
+      params: { limit: TOTALS_PAGE_SIZE, offset }
+    });
+
+    response.data.forEach((expense) => {
+      if (!expense.is_reimbursable) return;
+
+      if (expense.status === 'pending') {
+        totals.pendingAmount += parseFloat(expense.amount);
+        totals.pendingCount++;
+      } else if (expense.status === 'approved') {
+        totals.approvedAmount += parseFloat(expense.amount);
+        totals.approvedCount++;
+      }
+    });
+
+    if (total === null) {
+      const headerCount = parseInt(response.headers['x-total-count'], 10);
+      total = Number.isNaN(headerCount) ? response.data.length : headerCount;
+    }
+
+    offset += TOTALS_PAGE_SIZE;
+
+    if (response.data.length === 0 || offset >= total) {
+      return totals;
+    }
+  }
+
+  console.warn(`Reimbursement totals truncated after ${TOTALS_MAX_PAGES * TOTALS_PAGE_SIZE} expenses`);
+  return totals;
+};
+
 const EmployeeHome = ({ onNavigate }) => {
   const [reimbursementData, setReimbursementData] = useState({
     pendingAmount: 0,
@@ -20,26 +71,15 @@ const EmployeeHome = ({ onNavigate }) => {
 
   const fetchEmployeeData = async () => {
     try {
-      // Fetch user's expenses
-      const expensesResponse = await api.get('/expenses');
-      const expenses = expensesResponse.data;
+      // The recent list only needs a handful of rows; the totals are collected
+      // separately so the list request stays small.
+      const [recentResponse, totals] = await Promise.all([
+        api.get('/expenses', { params: { limit: RECENT_LIMIT } }),
+        fetchReimbursementTotals()
+      ]);
 
-      // Calculate reimbursement data
-      const pending = expenses.filter(e => e.status === 'pending' && e.is_reimbursable);
-      const approved = expenses.filter(e => e.status === 'approved' && e.is_reimbursable);
-
-      const pendingAmount = pending.reduce((sum, e) => sum + parseFloat(e.amount), 0);
-      const approvedAmount = approved.reduce((sum, e) => sum + parseFloat(e.amount), 0);
-
-      setReimbursementData({
-        pendingAmount,
-        approvedAmount,
-        pendingCount: pending.length,
-        approvedCount: approved.length
-      });
-
-      // Get recent 5 expenses
-      setRecentExpenses(expenses.slice(0, 5));
+      setReimbursementData(totals);
+      setRecentExpenses(recentResponse.data);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching employee data:', err);

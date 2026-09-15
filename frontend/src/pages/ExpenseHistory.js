@@ -1,10 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Filter, X, Download, Edit2, Trash2, XCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Filter, X, Download, Edit2, Trash2, XCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
 import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
+
+const PAGE_SIZE = 50;
+
+// Delays propagating `value` so typing in a filter fires one request, not one per keystroke
+const useDebouncedValue = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 const ExpenseHistory = () => {
   const toast = useToast();
@@ -34,6 +48,12 @@ const ExpenseHistory = () => {
     maxAmount: ''
   });
 
+  const debouncedFilters = useDebouncedValue(filters, 300);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  // Identifies the most recent request so a slow, superseded response can't overwrite the page
+  const latestRequestRef = useRef(0);
+
   // Check for success info from cart checkout
   useEffect(() => {
     const successInfo = sessionStorage.getItem('expenseSubmitSuccess');
@@ -54,28 +74,59 @@ const ExpenseHistory = () => {
     }
   }, []);
 
+  // Reference data never depends on the filters, so load it once on mount
+  useEffect(() => {
+    const fetchReferenceData = async () => {
+      try {
+        const [ccResponse, locResponse, catResponse] = await Promise.all([
+          api.get('/cost-centers'),
+          api.get('/locations'),
+          api.get('/expense-categories').catch(() => null)
+        ]);
+
+        setCostCenters(ccResponse.data);
+        setLocations(locResponse.data);
+        if (catResponse && Array.isArray(catResponse.data) && catResponse.data.length > 0) {
+          setCategories(catResponse.data.map(c => c.name));
+        }
+      } catch (err) {
+        console.error('Error fetching reference data:', err);
+      }
+    };
+
+    fetchReferenceData();
+  }, []);
+
   const fetchData = useCallback(async () => {
+    const requestId = latestRequestRef.current + 1;
+    latestRequestRef.current = requestId;
+
     try {
-      const expensesResponse = await api.get('/expenses', { params: filters });
+      const expensesResponse = await api.get('/expenses', {
+        params: { ...debouncedFilters, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
+      });
+
+      // A newer request has been issued since; discard this response
+      if (latestRequestRef.current !== requestId) return;
+
+      // Deleting the last rows of a page can leave us past the end of the results
+      if (expensesResponse.data.length === 0 && page > 0) {
+        setPage((current) => Math.max(0, current - 1));
+        return;
+      }
+
       setExpenses(expensesResponse.data);
 
-      const [ccResponse, locResponse, catResponse] = await Promise.all([
-        api.get('/cost-centers'),
-        api.get('/locations'),
-        api.get('/expense-categories').catch(() => null)
-      ]);
-
-      setCostCenters(ccResponse.data);
-      setLocations(locResponse.data);
-      if (catResponse && Array.isArray(catResponse.data) && catResponse.data.length > 0) {
-        setCategories(catResponse.data.map(c => c.name));
-      }
+      const headerCount = parseInt(expensesResponse.headers['x-total-count'], 10);
+      setTotalCount(Number.isNaN(headerCount) ? expensesResponse.data.length : headerCount);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching data:', err);
-      setLoading(false);
+      if (latestRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [filters]);
+  }, [debouncedFilters, page]);
 
   useEffect(() => {
     fetchData();
@@ -83,6 +134,7 @@ const ExpenseHistory = () => {
 
   const handleFilterChange = (field, value) => {
     setFilters({ ...filters, [field]: value });
+    setPage(0);
   };
 
   const clearFilters = () => {
@@ -96,6 +148,7 @@ const ExpenseHistory = () => {
       minAmount: '',
       maxAmount: ''
     });
+    setPage(0);
   };
 
   const handleRescind = async (expenseId) => {
@@ -200,7 +253,10 @@ const ExpenseHistory = () => {
     link.click();
     document.body.removeChild(link);
 
-    toast.success(`Exported ${expenses.length} expense${expenses.length !== 1 ? 's' : ''} to CSV`);
+    toast.success(
+      `Exported ${expenses.length} expense${expenses.length !== 1 ? 's' : ''} to CSV` +
+      (totalCount > expenses.length ? ' (current page)' : '')
+    );
   };
 
   if (loading) {
@@ -208,6 +264,9 @@ const ExpenseHistory = () => {
   }
 
   const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+  const rangeStart = totalCount === 0 ? 0 : page * PAGE_SIZE + 1;
+  const rangeEnd = page * PAGE_SIZE + expenses.length;
+  const isLastPage = (page + 1) * PAGE_SIZE >= totalCount;
 
   return (
     <div className="container">
@@ -438,6 +497,40 @@ const ExpenseHistory = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginTop: '16px'
+          }}
+        >
+          <span className="text-sm text-gray-500">
+            {totalCount === 0
+              ? 'No expenses'
+              : `Showing ${rangeStart}–${rangeEnd} of ${totalCount}`}
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+              className="btn btn-secondary"
+              disabled={page === 0}
+            >
+              <ChevronLeft size={16} />
+              Prev
+            </button>
+            <button
+              onClick={() => setPage((current) => current + 1)}
+              className="btn btn-secondary"
+              disabled={isLastPage}
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

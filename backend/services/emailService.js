@@ -294,7 +294,6 @@ const sendPasswordResetEmail = async (userData, resetToken) => {
 
     // Create reset link with token
     const resetLink = `${process.env.FRONTEND_URL}/#/reset-password?token=${resetToken}`;
-    console.log('🔗 [EMAIL SERVICE] Reset link:', resetLink);
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

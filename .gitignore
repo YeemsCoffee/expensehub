@@ -74,3 +74,6 @@ backend/check-*.js
 backend/show-*.js
 backend/fix-*.js
 backend/run-*.js
+
+# Harness-managed transient git worktrees (subagent isolation)
+.claude/worktrees/

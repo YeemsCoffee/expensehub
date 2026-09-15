@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authMiddleware, isManagerOrAdmin } = require('../middleware/auth');
+const { authMiddleware, isManagerOrAdmin, isAdminOrDeveloper } = require('../middleware/auth');
 const { sendExpenseSubmissionNotification } = require('../services/emailService');
+const { buildApprovalChain, approverRecipients } = require('../services/approvalService');
+const { scheduleXeroAutoSync } = require('../services/xeroAutoSync');
 const xeroService = require('../services/xeroService');
 const { sendOrderToAmazon } = require('./amazonPunchout');
 
@@ -21,6 +23,13 @@ const determineCostType = (category, amount) => {
 
   return 'OPEX';
 };
+
+// Pagination defaults shared by the list endpoints in this file
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+const parseLimit = (value) => Math.min(Math.max(parseInt(value, 10) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+const parseOffset = (value) => Math.max(parseInt(value, 10) || 0, 0);
 
 // Get all expenses for current user (or all expenses for admin/developer)
 router.get('/', authMiddleware, async (req, res) => {
@@ -40,7 +49,10 @@ router.get('/', authMiddleware, async (req, res) => {
 
     const isPrivileged = ['admin', 'developer'].includes(req.user.role);
 
-    let query = `
+    const limit = parseLimit(req.query.limit);
+    const offset = parseOffset(req.query.offset);
+
+    const selectClause = `
       SELECT e.*,
              cc.code as cost_center_code, cc.name as cost_center_name,
              l.code as location_code, l.name as location_name,
@@ -48,88 +60,102 @@ router.get('/', authMiddleware, async (req, res) => {
              u.first_name || ' ' || u.last_name as approved_by_name,
              submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
              submitter.email as submitted_by_email
+    `;
+
+    const fromClause = `
       FROM expenses e
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
       LEFT JOIN users u ON e.approved_by = u.id
       LEFT JOIN users submitter ON e.user_id = submitter.id
-      WHERE 1=1
     `;
 
+    // Build the WHERE clause once so the count and the page use identical filters
+    let whereClause = ` WHERE 1=1`;
     const params = [];
     let paramIndex = 1;
 
     // Admin/developer see all expenses; others see only their own
     if (!isPrivileged) {
-      query += ` AND e.user_id = $${paramIndex}`;
+      whereClause += ` AND e.user_id = $${paramIndex}`;
       params.push(req.user.id);
       paramIndex++;
     }
 
     if (status) {
-      query += ` AND e.status = $${paramIndex}`;
+      whereClause += ` AND e.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
     if (category) {
-      query += ` AND e.category = $${paramIndex}`;
+      whereClause += ` AND e.category = $${paramIndex}`;
       params.push(category);
       paramIndex++;
     }
 
     if (costType) {
-      query += ` AND e.cost_type = $${paramIndex}`;
+      whereClause += ` AND e.cost_type = $${paramIndex}`;
       params.push(costType);
       paramIndex++;
     }
 
     if (locationId) {
-      query += ` AND e.location_id = $${paramIndex}`;
+      whereClause += ` AND e.location_id = $${paramIndex}`;
       params.push(locationId);
       paramIndex++;
     }
 
     if (projectId) {
-      query += ` AND e.project_id = $${paramIndex}`;
+      whereClause += ` AND e.project_id = $${paramIndex}`;
       params.push(projectId);
       paramIndex++;
     }
 
     if (costCenterId) {
-      query += ` AND e.cost_center_id = $${paramIndex}`;
+      whereClause += ` AND e.cost_center_id = $${paramIndex}`;
       params.push(costCenterId);
       paramIndex++;
     }
 
     if (startDate) {
-      query += ` AND e.date >= $${paramIndex}`;
+      whereClause += ` AND e.date >= $${paramIndex}`;
       params.push(startDate);
       paramIndex++;
     }
 
     if (endDate) {
-      query += ` AND e.date <= $${paramIndex}`;
+      whereClause += ` AND e.date <= $${paramIndex}`;
       params.push(endDate);
       paramIndex++;
     }
 
     if (minAmount) {
-      query += ` AND e.amount >= $${paramIndex}`;
+      whereClause += ` AND e.amount >= $${paramIndex}`;
       params.push(minAmount);
       paramIndex++;
     }
 
     if (maxAmount) {
-      query += ` AND e.amount <= $${paramIndex}`;
+      whereClause += ` AND e.amount <= $${paramIndex}`;
       params.push(maxAmount);
       paramIndex++;
     }
 
-    query += ` ORDER BY e.date DESC, e.created_at DESC`;
+    const countResult = await db.query(
+      `SELECT COUNT(*) AS total${fromClause}${whereClause}`,
+      params
+    );
 
-    const result = await db.query(query, params);
+    const result = await db.query(
+      `${selectClause}${fromClause}${whereClause}
+       ORDER BY e.date DESC, e.created_at DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch expenses error:', error);
@@ -215,60 +241,18 @@ router.post('/', authMiddleware, [
     // Project expenses default to CAPEX
     const finalCostType = costType || (projectId ? 'CAPEX' : determineCostType(category, amount));
 
-    // Auto-approve for admins and developers - they don't need approval for their own expenses
-    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+    // Routing is shared with cart checkout (services/approvalService).
+    // An employee with no usable manager is routed to administrators rather
+    // than being silently auto-approved.
+    const { approvalChain, approvalRuleId, reason: approvalReason } = await buildApprovalChain(db, {
+      user: req.user,
+      amount,
+      costCenterId
+    });
+    const currentApprovalLevel = 1;
 
-    let approvalChain = null;
-    let approvalRuleId = null;
-    let currentApprovalLevel = 1;
-
-    if (isPrivileged) {
-      console.log(`User ${req.user.id} is ${req.user.role} - auto-approving expense`);
-      // Leave approvalChain as null to auto-approve
-    } else {
-      // Find applicable approval rule based on amount
-      const ruleResult = await db.query(
-        'SELECT * FROM find_approval_rule($1, $2)',
-        [amount, costCenterId]
-      );
-
-      if (ruleResult.rows[0] && ruleResult.rows[0].find_approval_rule) {
-        approvalRuleId = ruleResult.rows[0].find_approval_rule;
-
-        // Get the rule details
-        const rule = await db.query(
-          'SELECT * FROM approval_rules WHERE id = $1',
-          [approvalRuleId]
-        );
-
-        if (rule.rows.length > 0) {
-          const levelsRequired = rule.rows[0].levels_required;
-
-          // Get manager chain from org chart
-          const chainResult = await db.query(
-            'SELECT * FROM get_manager_chain($1, $2)',
-            [req.user.id, levelsRequired]
-          );
-
-          if (chainResult.rows.length > 0) {
-            // Build approval chain
-            approvalChain = chainResult.rows.map(row => ({
-              level: row.level,
-              user_id: row.manager_id,
-              user_name: row.manager_name,
-              user_email: row.manager_email,
-              status: 'pending'
-            }));
-          } else {
-            // No manager chain found - allow submission without approval
-            // This allows employees without managers to still log expenses
-            console.log(`No manager chain found for user ${req.user.id}. Expense will be submitted without approval requirements.`);
-            approvalRuleId = null;
-            approvalChain = null;
-          }
-        }
-      }
-    }
+    console.log(`Expense routing for user ${req.user.id}: ${approvalReason}` +
+      (approvalChain ? ` (${approvalChain.length} level(s))` : ''));
 
     // Determine status: auto-approve if no approval chain required
     const status = approvalChain ? 'pending' : 'approved';
@@ -295,7 +279,6 @@ router.post('/', authMiddleware, [
 
     // Send email notification to the first approver in the chain (non-blocking)
     if (approvalChain && approvalChain.length > 0) {
-      const firstApprover = approvalChain[0];
       const expenseData = {
         id: result.rows[0].id,
         date: date,
@@ -305,23 +288,23 @@ router.post('/', authMiddleware, [
         vendor_name: vendorName,
         notes: notes
       };
-      const managerData = {
-        name: firstApprover.user_name,
-        email: firstApprover.user_email
-      };
       const submitterData = {
         name: `${req.user.firstName} ${req.user.lastName}`
       };
 
       // Send email asynchronously without blocking the response
-      sendExpenseSubmissionNotification(expenseData, managerData, submitterData)
-        .catch(err => console.error('Failed to send email notification:', err));
+      for (const recipient of approverRecipients(approvalChain[0])) {
+        sendExpenseSubmissionNotification(expenseData, recipient, submitterData)
+          .catch(err => console.error('Failed to send email notification:', err));
+      }
     }
 
     res.status(201).json({
       message: 'Expense created successfully',
       expense: result.rows[0],
-      approvalChain: approvalChain
+      approvalChain: approvalChain,
+      autoApproved: !approvalChain,
+      approvalReason
     });
   } catch (error) {
     console.error('Create expense error:', error);
@@ -380,6 +363,30 @@ router.put('/:id', authMiddleware, [
       vendorName, glAccount, notes, isReimbursable
     } = req.body;
 
+    // If the amount or cost center of a still-pending expense changes, the
+    // approval rule (and therefore the chain) may change too.  Recompute it
+    // from scratch so an expense cannot be submitted small and edited large.
+    let rerouted = null;
+    const existing = checkResult.rows[0];
+    if (!isPrivileged && existing.status === 'pending' && (amount !== undefined || costCenterId !== undefined)) {
+      const current = await db.query(
+        'SELECT amount, cost_center_id, approval_chain FROM expenses WHERE id = $1',
+        [req.params.id]
+      );
+      const newAmount = amount !== undefined ? Number(amount) : Number(current.rows[0].amount);
+      const newCostCenterId = costCenterId !== undefined ? costCenterId : current.rows[0].cost_center_id;
+      const amountChanged = Number(current.rows[0].amount) !== newAmount;
+      const costCenterChanged = Number(current.rows[0].cost_center_id) !== Number(newCostCenterId);
+
+      if (amountChanged || costCenterChanged) {
+        rerouted = await buildApprovalChain(db, {
+          user: req.user,
+          amount: newAmount,
+          costCenterId: newCostCenterId
+        });
+      }
+    }
+
     const result = await db.query(
       `UPDATE expenses
        SET date = COALESCE($1, date),
@@ -395,6 +402,13 @@ router.put('/:id', authMiddleware, [
            gl_account = COALESCE($11, gl_account),
            notes = COALESCE($12, notes),
            is_reimbursable = COALESCE($13, is_reimbursable),
+           ${rerouted ? `
+           approval_rule_id = $15,
+           approval_chain = $16,
+           current_approval_level = 1,
+           status = $17,
+           approved_at = $18,
+           approved_by = NULL,` : ''}
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $14
        RETURNING *`,
@@ -402,13 +416,22 @@ router.put('/:id', authMiddleware, [
         date, description, category, amount, costCenterId,
         locationId, projectId, costType, paymentMethod,
         vendorName, glAccount, notes, isReimbursable,
-        req.params.id
+        req.params.id,
+        ...(rerouted ? [
+          rerouted.approvalRuleId,
+          rerouted.approvalChain ? JSON.stringify(rerouted.approvalChain) : null,
+          rerouted.approvalChain ? 'pending' : 'approved',
+          rerouted.approvalChain ? null : new Date()
+        ] : [])
       ]
     );
 
     res.json({
-      message: 'Expense updated successfully',
-      expense: result.rows[0]
+      message: rerouted
+        ? 'Expense updated and re-routed for approval'
+        : 'Expense updated successfully',
+      expense: result.rows[0],
+      approvalChain: rerouted ? rerouted.approvalChain : undefined
     });
   } catch (error) {
     console.error('Update expense error:', error);
@@ -490,51 +513,68 @@ router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) =>
   try {
     const { locationId, projectId, costCenterId, costType } = req.query;
 
-    let query = `
-      SELECT e.*, 
+    const limit = parseLimit(req.query.limit);
+    const offset = parseOffset(req.query.offset);
+
+    const selectClause = `
+      SELECT e.*,
              u.first_name || ' ' || u.last_name as employee_name,
              u.employee_id,
              cc.code as cost_center_code, cc.name as cost_center_name,
              l.code as location_code, l.name as location_name,
              p.code as project_code, p.name as project_name
+    `;
+
+    const fromClause = `
       FROM expenses e
       JOIN users u ON e.user_id = u.id
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
-      WHERE e.status = 'pending'
     `;
 
+    // Build the WHERE clause once so the count and the page use identical filters
+    let whereClause = ` WHERE e.status = 'pending'`;
     const params = [];
     let paramIndex = 1;
 
     if (locationId) {
-      query += ` AND e.location_id = $${paramIndex}`;
+      whereClause += ` AND e.location_id = $${paramIndex}`;
       params.push(locationId);
       paramIndex++;
     }
 
     if (projectId) {
-      query += ` AND e.project_id = $${paramIndex}`;
+      whereClause += ` AND e.project_id = $${paramIndex}`;
       params.push(projectId);
       paramIndex++;
     }
 
     if (costCenterId) {
-      query += ` AND e.cost_center_id = $${paramIndex}`;
+      whereClause += ` AND e.cost_center_id = $${paramIndex}`;
       params.push(costCenterId);
       paramIndex++;
     }
 
     if (costType) {
-      query += ` AND e.cost_type = $${paramIndex}`;
+      whereClause += ` AND e.cost_type = $${paramIndex}`;
       params.push(costType);
       paramIndex++;
     }
 
-    query += ` ORDER BY e.date DESC, e.created_at DESC`;
+    const countResult = await db.query(
+      `SELECT COUNT(*) AS total${fromClause}${whereClause}`,
+      params
+    );
 
-    const result = await db.query(query, params);
+    const result = await db.query(
+      `${selectClause}${fromClause}${whereClause}
+       ORDER BY e.date DESC, e.created_at DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.set('X-Total-Count', String(countResult.rows[0].total));
     res.json(result.rows);
   } catch (error) {
     console.error('Fetch pending expenses error:', error);
@@ -542,8 +582,10 @@ router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) =>
   }
 });
 
-// Approve expense (with auto-sync to Xero)
-router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) => {
+// Legacy direct approve (admin/developer only).  This bypasses the org-chart
+// approval chain, so it is restricted to administrators; the normal path is
+// POST /api/expense-approvals/:id/approve, which also supports admin override.
+router.post('/:id/approve', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     // Get full expense details with user info
     const expenseQuery = await db.query(
@@ -580,132 +622,7 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
     const approvedExpense = { ...expense, ...result.rows[0] };
 
     // Auto-sync to Xero if connection exists (non-blocking)
-    setImmediate(async () => {
-      try {
-        // Check if Xero is connected
-        const xeroConnection = await db.query(
-          `SELECT * FROM xero_connections
-           WHERE is_organization_wide = true AND is_active = true
-           LIMIT 1`
-        );
-
-        if (xeroConnection.rows.length === 0) {
-          console.log(`Skipping Xero sync for expense ${approvedExpense.id} - No Xero connection`);
-          return;
-        }
-
-        const connection = xeroConnection.rows[0];
-        const tenantId = connection.tenant_id;
-
-        // Refresh token if needed
-        const expiresAt = new Date(connection.expires_at);
-        const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
-
-        if (expiresAt <= fiveMinutesFromNow) {
-          console.log(`🔄 [Auto-sync] Refreshing expired Xero token for expense ${approvedExpense.id}`);
-
-          // Must include expired access_token for XeroClient
-          xeroService.xero.setTokenSet({
-            access_token: connection.access_token,
-            refresh_token: connection.refresh_token
-          });
-          const refreshResult = await xeroService.refreshAccessToken(connection.refresh_token);
-
-          if (refreshResult.success) {
-            console.log(`✓ [Auto-sync] Token refreshed successfully`);
-
-            await db.query(
-              `UPDATE xero_connections
-               SET access_token = $1, refresh_token = $2, expires_at = $3, updated_at = CURRENT_TIMESTAMP
-               WHERE id = $4`,
-              [
-                refreshResult.tokenSet.access_token,
-                refreshResult.tokenSet.refresh_token || connection.refresh_token,
-                new Date(Date.now() + refreshResult.tokenSet.expires_in * 1000),
-                connection.id
-              ]
-            );
-            connection.access_token = refreshResult.tokenSet.access_token;
-            connection.refresh_token = refreshResult.tokenSet.refresh_token || connection.refresh_token;
-          } else {
-            console.error(`✗ [Auto-sync] Token refresh failed:`, refreshResult.error);
-            // Store error and skip sync
-            await db.query(
-              `UPDATE expenses
-               SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
-               WHERE id = $2`,
-              ['Xero token refresh failed: ' + refreshResult.error, approvedExpense.id]
-            );
-            return;
-          }
-        }
-
-        // Set access token with refresh token to ensure token set is complete
-        xeroService.setAccessToken(connection.access_token, connection.refresh_token);
-
-        // Get account mappings
-        const mappingsResult = await db.query(
-          `SELECT category, xero_account_code
-           FROM xero_account_mappings
-           WHERE is_organization_wide = true AND tenant_id = $1`,
-          [tenantId]
-        );
-
-        const mapping = {
-          categoryMapping: {},
-          dbCategoryMappings: {},
-          defaultExpenseAccount: '400',
-          defaultTaxType: 'NONE'
-        };
-
-        mappingsResult.rows.forEach(row => {
-          mapping.categoryMapping[row.category] = row.xero_account_code;
-        });
-
-        // Load category-level Xero mappings from expense_categories table
-        try {
-          const dbCategories = await db.query(
-            'SELECT name, xero_account_code FROM expense_categories WHERE is_active = true AND xero_account_code IS NOT NULL'
-          );
-          dbCategories.rows.forEach(row => {
-            mapping.dbCategoryMappings[row.name] = row.xero_account_code;
-          });
-        } catch (catErr) {
-          console.log('Note: expense_categories table not available, using defaults');
-        }
-
-        // Sync to Xero (bills payable to employee for reimbursable, vendor for non-reimbursable)
-        const syncResult = await xeroService.syncExpense(
-          tenantId,
-          approvedExpense,
-          mapping
-        );
-
-        if (syncResult.success) {
-          console.log(`✓ Auto-synced expense ${approvedExpense.id} to Xero`);
-        } else {
-          console.error(`✗ Failed to auto-sync expense ${approvedExpense.id}:`, syncResult.error);
-
-          // Store sync error for manual retry (safety net)
-          await db.query(
-            `UPDATE expenses
-             SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2`,
-            [syncResult.error, approvedExpense.id]
-          );
-        }
-      } catch (syncError) {
-        console.error(`Error during auto-sync for expense ${approvedExpense.id}:`, syncError);
-
-        // Store sync error for manual retry (safety net)
-        await db.query(
-          `UPDATE expenses
-           SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
-          [syncError.message, approvedExpense.id]
-        );
-      }
-    });
+    scheduleXeroAutoSync(approvedExpense.id);
 
     // Auto-send order to Amazon if expense has Amazon SPAID (non-blocking)
     if (approvedExpense.amazon_spaid && approvedExpense.amazon_order_status === 'pending') {
@@ -798,8 +715,8 @@ router.post('/:id/approve', authMiddleware, isManagerOrAdmin, async (req, res) =
   }
 });
 
-// Reject expense
-router.post('/:id/reject', authMiddleware, isManagerOrAdmin, [
+// Legacy direct reject (admin/developer only) - see note on /:id/approve.
+router.post('/:id/reject', authMiddleware, isAdminOrDeveloper, [
   body('reason').notEmpty().trim()
 ], async (req, res) => {
   try {
@@ -938,7 +855,7 @@ router.get('/analytics/by-category', authMiddleware, async (req, res) => {
 
 // Admin endpoint to auto-approve stuck pending Amazon orders
 // This is useful for orders that should have been auto-approved but weren't due to bugs
-router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isManagerOrAdmin, async (req, res) => {
+router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { userId } = req.body;
 
@@ -1108,7 +1025,7 @@ router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isManag
 
 // Fix stuck admin/developer Amazon orders
 // POST /api/expenses/fix-admin-dev-orders
-router.post('/fix-admin-dev-orders', authMiddleware, isManagerOrAdmin, async (req, res) => {
+router.post('/fix-admin-dev-orders', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     console.log(`🔧 Fixing stuck admin/developer Amazon orders...`);
 

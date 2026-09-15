@@ -41,7 +41,9 @@ const Projects = () => {
       setMyProjects(myResponse.data);
 
       // Fetch all projects (visible to everyone)
-      const allResponse = await api.get('/projects/all');
+      // The list shows a count of everything it renders, so ask for the server
+      // maximum rather than the default page of 50.
+      const allResponse = await api.get('/projects/all', { params: { limit: 200 } });
       setAllProjects(allResponse.data);
 
       setLoading(false);
