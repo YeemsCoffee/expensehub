@@ -336,9 +336,14 @@
 
 .stat-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  /* Longhand on purpose: cards.css sets a colored border-left (4px, per stat-card-*
+     variant) on this same selector. A `border` shorthand here would reset that
+     color/width for every side, silently killing the variant color-coding. */
+  border-top: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-16);
+  padding: var(--spacing-8);
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-12);
@@ -348,7 +353,9 @@
 .stat-card:hover {
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
-  border-color: var(--color-border-hover);
+  border-top-color: var(--color-border-hover);
+  border-right-color: var(--color-border-hover);
+  border-bottom-color: var(--color-border-hover);
 }
 
 .stat-icon {
@@ -379,6 +386,27 @@
 .stat-icon-error {
   background: var(--color-error-100);
   color: var(--color-error-600);
+}
+
+/* Match the dashboard's stat-card-blue/yellow/green/purple border-left variants */
+.stat-icon-blue {
+  background: var(--color-accent-100);
+  color: var(--color-accent-600);
+}
+
+.stat-icon-yellow {
+  background: var(--color-warning-100);
+  color: var(--color-warning-600);
+}
+
+.stat-icon-green {
+  background: var(--color-primary-100);
+  color: var(--color-primary-600);
+}
+
+.stat-icon-purple {
+  background: var(--color-cream-200);
+  color: var(--color-neutral-700);
 }
 
 .stat-content {

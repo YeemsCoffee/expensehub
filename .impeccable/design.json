@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-15T00:00:00Z",
+  "title": "Design System: ExpenseHub",
+  "extensions": {
+    "colorMeta": {
+      "myrtle": {
+        "role": "primary",
+        "displayName": "Deep Myrtle",
+        "canonical": "#2B4628",
+        "tonalRamp": ["#f2f6f1", "#e1eadd", "#c3d5bc", "#9cba91", "#729968", "#4c7343", "#2B4628", "#243a22", "#1d2f1b", "#162415"]
+      },
+      "soft-harbor-blue": {
+        "role": "secondary",
+        "displayName": "Soft Harbor Blue",
+        "canonical": "#BCD7DE",
+        "tonalRamp": ["#f2f8f9", "#e2eff1", "#BCD7DE", "#9ac2cc", "#74a8b5", "#518a99", "#3d6d7a"]
+      },
+      "warm-parchment": {
+        "role": "neutral",
+        "displayName": "Warm Parchment",
+        "canonical": "#F2ECD4",
+        "tonalRamp": ["#fdfcf8", "#F2ECD4", "#e8dfc0", "#dccda3", "#c9b57f", "#b39c60"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#ffffff"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#241f14",
+        "tonalRamp": ["#241f14", "#5c5648", "#8a8371"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles only." },
+      "headline": { "displayName": "Headline", "purpose": "Section titles and card titles." },
+      "title": { "displayName": "Title", "purpose": "Card subtitles and emphasized labels." },
+      "body": { "displayName": "Body", "purpose": "Default paragraph and form text." },
+      "label": { "displayName": "Label", "purpose": "Badges, table column headers, status chips." }
+    },
+    "shadows": [
+      { "name": "resting", "value": "0 1px 3px rgba(43,70,40,0.07)", "purpose": "Default state for cards, list rows, and stat tiles." },
+      { "name": "interactive", "value": "0 10px 20px rgba(43,70,40,0.12), 0 3px 6px rgba(43,70,40,0.07)", "purpose": "Hover/lift state for cards and tiles." },
+      { "name": "overlay", "value": "0 22px 44px rgba(43,70,40,0.17), 0 8px 16px rgba(43,70,40,0.07)", "purpose": "Modals and dropdowns." },
+      { "name": "focus", "value": "0 0 0 3px rgba(188,215,222,0.55)", "purpose": "Keyboard focus ring, built from Soft Harbor Blue." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0, 0, 0.2, 1)", "purpose": "Default UI transitions, 150-200ms." },
+      { "name": "ease-spring", "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "purpose": "Spring-feel transitions for playful moments (e.g. cart badge pop)." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call-to-action button. Deep Myrtle, used sparingly and deliberately.",
+      "html": "<button class=\"ds-btn-primary\">Submit Expense</button>",
+      "css": ".ds-btn-primary { background: #2B4628; color: #fff; border: none; border-radius: 12px; height: 2.5rem; padding: 0 3rem; font-weight: 500; font-size: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif; cursor: pointer; box-shadow: 0 1px 3px rgba(43,70,40,0.09), 0 1px 2px rgba(43,70,40,0.05); transition: all 150ms cubic-bezier(0,0,0.2,1); } .ds-btn-primary:hover { background: #243a22; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(43,70,40,0.09), 0 2px 4px rgba(43,70,40,0.05); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(188,215,222,0.55); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Paper background with a hairline border; hover shifts toward Soft Harbor Blue.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { background: #ffffff; color: #241f14; border: 1px solid #e6e2d3; border-radius: 12px; height: 2.5rem; padding: 0 3rem; font-weight: 500; font-size: 1rem; cursor: pointer; transition: all 150ms cubic-bezier(0,0,0.2,1); } .ds-btn-secondary:hover { background: #f2f8f9; border-color: #BCD7DE; color: #243a22; } .ds-btn-secondary:focus-visible { box-shadow: 0 0 0 3px rgba(188,215,222,0.55); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Paper surface raised off the Warm Parchment page floor; shadow only intensifies on hover.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Recent Expenses</h3><p class=\"ds-card-body\">Card content goes here.</p></div>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #e6e2d3; border-radius: 16px; padding: 4rem; box-shadow: 0 1px 3px rgba(43,70,40,0.07); transition: all 200ms cubic-bezier(0.4,0,0.2,1); } .ds-card:hover { box-shadow: 0 10px 20px rgba(43,70,40,0.12), 0 3px 6px rgba(43,70,40,0.07); } .ds-card-title { font-size: 1.25rem; font-weight: 600; color: #241f14; margin: 0 0 0.75rem; } .ds-card-body { color: #5c5648; font-size: 1rem; }"
+    },
+    {
+      "name": "Success Badge",
+      "kind": "chip",
+      "refersTo": "badge-primary",
+      "description": "Full-pill status chip; pale tint background with a deep-toned text of the same hue family.",
+      "html": "<span class=\"ds-badge-success\">Approved</span>",
+      "css": ".ds-badge-success { display: inline-flex; align-items: center; justify-content: center; background: #e1eadd; color: #1d2f1b; padding: 0.5rem 2rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 9999px; border: 1px solid transparent; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Paper background, hairline border, Soft Harbor Blue focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search vendors...\" />",
+      "css": ".ds-input { width: 100%; height: 2.5rem; padding: 0 2rem; background: #ffffff; border: 1px solid #e6e2d3; border-radius: 12px; font-size: 1rem; color: #241f14; box-sizing: border-box; transition: all 150ms cubic-bezier(0,0,0.2,1); } .ds-input::placeholder { color: #8a8371; } .ds-input:focus { outline: none; border-color: #BCD7DE; box-shadow: 0 0 0 3px rgba(188,215,222,0.55); }"
+    },
+    {
+      "name": "Nav Tab",
+      "kind": "nav",
+      "refersTo": "nav-tab",
+      "description": "Full-pill navigation tab; transparent at rest, Myrtle Pale fill when active.",
+      "html": "<button class=\"ds-nav-tab ds-nav-tab-active\">Dashboard</button>",
+      "css": ".ds-nav-tab { display: inline-flex; align-items: center; padding: 0.75rem 1rem; margin: 0.5rem 0; border: none; background: transparent; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; color: #5c5648; cursor: pointer; transition: all 150ms cubic-bezier(0,0,0.2,1); } .ds-nav-tab:hover { color: #243a22; background: #F2ECD4; } .ds-nav-tab-active { background: #e1eadd; color: #243a22; font-weight: 600; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Coffee Ledger",
+    "overview": "ExpenseHub is Yeems Coffee's internal procurement and expense system, and it reads that way: warm, tactile, and grounded, like a well-kept ledger rather than a sterile enterprise SaaS console. The resting surface is Warm Parchment, not clinical white or slate gray — the whole app sits on a page, not a grid. Deep Myrtle green carries authority sparingly, reserved for primary actions and navigation chrome, so it still reads as confident rather than shouted. Soft Harbor Blue is the quiet second voice: focus rings, info states, hover accents — present but never competing with Myrtle for attention.\n\nThe system explicitly avoids the sterile enterprise-SaaS look (generic blue-and-gray B2B dashboards, SAP Concur-style density) in favor of something a known, trusted internal team can feel comfortable living in every day.",
+    "keyCharacteristics": [
+      "Warm Parchment page background with Paper-white surfaces for anything that needs to read as raised",
+      "Deep Myrtle used sparingly and deliberately — primary actions and chrome, not decoration",
+      "Soft Harbor Blue as the calm secondary accent (focus, info, hover)",
+      "Generous, friendly rounding and roomy internal padding throughout",
+      "Shadows stay nearly silent at rest and only lift meaningfully in response to interaction"
+    ],
+    "rules": [
+      { "name": "The Parchment Floor Rule", "body": "Warm Parchment is the resting background everywhere. Paper (white) is reserved for surfaces that need to visually lift off that floor — never use Paper as a page background or Parchment as a card surface.", "section": "colors" },
+      { "name": "The One Voice Rule", "body": "Deep Myrtle is the system's only loud color. It marks primary actions and navigation chrome; it does not decorate icons, borders, or secondary UI just because green is on-brand.", "section": "colors" },
+      { "name": "The Earned Shadow Rule", "body": "Nothing carries a heavy shadow at rest. Weight appears only as a response to hover, focus, or active state — it signals \"this responded to you,\" not \"this is important.\"", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Deep Myrtle rare and deliberate — primary actions and chrome, not a decorative accent.",
+      "Do use Warm Parchment as the page floor and Paper for anything that needs to read as raised.",
+      "Do let shadow intensity communicate interaction state, not resting importance.",
+      "Do use full-pill radius for anything badge- or chip-shaped; reserve lg/xl for larger surfaces."
+    ],
+    "donts": [
+      "Don't introduce a second accent hue outside the Myrtle / Soft Harbor Blue / Parchment family without a confirmed brand decision — this is a fixed 3-color system.",
+      "Don't put heavy shadow on a resting surface; it belongs to hover/focus/active states only.",
+      "Don't use sharp (0px) corners anywhere in the system — the rounding scale is a consistent identity marker, not a per-component choice.",
+      "Don't carry the unused 80px cards.css card-padding value forward as if it were live; components.css's 64px value is what actually renders."
+    ]
+  }
+}

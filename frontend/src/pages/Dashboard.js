@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, Clock, CheckCircle, TrendingUp, FileText, PieChart, BarChart3, MapPin, Folder } from 'lucide-react';
+import { DollarSign, Clock, CheckCircle, TrendingUp, FileText, PieChart, BarChart3, MapPin, Folder, Receipt, AlertCircle, RefreshCw } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
@@ -9,6 +9,8 @@ const Dashboard = () => {
   const [analytics, setAnalytics] = useState(null);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState('thisMonth');
 
   const getDateRange = useCallback(() => {
@@ -44,7 +46,12 @@ const Dashboard = () => {
     };
   }, [timeRange]);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (isRefetch) => {
+    if (isRefetch) {
+      setRefreshing(true);
+    }
+    setError(null);
+
     try {
       const { startDate, endDate } = getDateRange();
 
@@ -60,20 +67,48 @@ const Dashboard = () => {
       setExpenses(expensesResponse.data);
       setAnalytics(analyticsResponse.data);
       setCategoryBreakdown(categoryResponse.data.slice(0, 5));
-
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
+      setError('Couldn’t load dashboard data. Your connection or the server may be having trouble.');
+    } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [getDateRange]);
 
+  // isRefetch is false only on the very first call (loading spinner instead of the
+  // lighter refreshing indicator); every later call - e.g. changing the time range -
+  // passes true.
+  const isFirstRun = React.useRef(true);
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData(!isFirstRun.current);
+    isFirstRun.current = false;
   }, [fetchDashboardData]);
 
   if (loading) {
-    return <div className="page-title">Loading dashboard...</div>;
+    return (
+      <div className="container">
+        <div className="flex-center" style={{ minHeight: '40vh' }}>
+          <span className="loading loading-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !analytics) {
+    return (
+      <div className="container">
+        <div className="alert alert-error">
+          <AlertCircle size={20} />
+          <div>
+            <p>{error}</p>
+            <button className="btn btn-secondary btn-sm mt-8" onClick={() => fetchDashboardData(true)}>
+              <RefreshCw size={16} /> Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const stats = [
@@ -136,20 +171,33 @@ const Dashboard = () => {
     <div className="container">
       <div className="dashboard-header">
         <h2 className="page-title">Dashboard</h2>
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          className="form-select"
-        >
-          <option value="thisMonth">This Month</option>
-          <option value="lastMonth">Last Month</option>
-          <option value="thisQuarter">This Quarter</option>
-          <option value="thisYear">This Year</option>
-        </select>
+        <div className="flex items-center gap-8">
+          {refreshing && <span className="loading" aria-label="Refreshing" />}
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="form-select"
+            disabled={refreshing}
+          >
+            <option value="thisMonth">This Month</option>
+            <option value="lastMonth">Last Month</option>
+            <option value="thisQuarter">This Quarter</option>
+            <option value="thisYear">This Year</option>
+          </select>
+        </div>
       </div>
 
+      {error && analytics && (
+        <div className="alert alert-error mb-8">
+          <AlertCircle size={18} />
+          <div>
+            <p>{error} Numbers below are from the last successful load.</p>
+          </div>
+        </div>
+      )}
+
       <p className="dashboard-timerange-info">Showing data for: <strong>{getTimeRangeLabel()}</strong></p>
-      
+
       <div className="stats-grid">
         {stats.map((stat, index) => (
           <div key={index} className={`stat-card stat-card-${stat.iconClass}`}>
@@ -158,6 +206,9 @@ const Dashboard = () => {
                 <p className="stat-label">{stat.label}</p>
                 <p className="stat-value">{stat.value}</p>
                 {stat.subtext && <p className="stat-subtext">{stat.subtext}</p>}
+              </div>
+              <div className={`stat-icon stat-icon-${stat.iconClass}`}>
+                <stat.icon size={22} />
               </div>
             </div>
           </div>
@@ -233,13 +284,28 @@ const Dashboard = () => {
       )}
 
       <div className="card mt-4">
-        <h3 className="card-title">Recent Expenses</h3>
+        <div className="card-section-header">
+          <Receipt size={20} className="card-section-icon" />
+          <h3 className="card-title">Recent Expenses</h3>
+        </div>
         <div className="expense-list">
           {expenses.length === 0 ? (
             <p className="no-data-message">No expenses yet</p>
           ) : (
             expenses.map((expense) => (
-              <div key={expense.id} className="expense-item">
+              <div
+                key={expense.id}
+                className="expense-item"
+                role="button"
+                tabIndex={0}
+                onClick={() => { window.location.hash = `#expenses-history?highlight=${expense.id}`; }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    window.location.hash = `#expenses-history?highlight=${expense.id}`;
+                  }
+                }}
+              >
                 <div className="expense-item-left">
                   <FileText className="expense-item-icon" />
                   <div>
