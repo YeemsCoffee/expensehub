@@ -24,17 +24,30 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'approvals', label: 'Approvals' }
           ]
         },
-        { id: 'projects', label: 'Projects', roles: ['developer'] },
+        {
+          id: 'projects',
+          label: 'Projects',
+          roles: ['developer'],
+          hasDropdown: true,
+          subItems: [
+            { id: 'projects', label: 'All Projects' },
+            { id: 'project-templates', label: 'Templates' },
+            { id: 'change-requests', label: 'Change Requests' },
+            { id: 'audit-trail', label: 'Audit Trail' }
+          ]
+        },
         {
           id: 'settings',
           label: 'Settings',
           roles: ['developer'],
           hasDropdown: true,
           subItems: [
+            { group: 'Expense Setup' },
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
             { id: 'expense-categories', label: 'Expense Categories' },
             { id: 'approval-rules', label: 'Approval Rules' },
+            { group: 'Administration' },
             { id: 'users', label: 'Users' },
             { id: 'xero-settings', label: 'Xero Integration' }
           ]
@@ -98,17 +111,30 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
             { id: 'approvals', label: 'Approvals' }
           ]
         },
-        { id: 'projects', label: 'Projects', roles: ['admin'] },
+        {
+          id: 'projects',
+          label: 'Projects',
+          roles: ['admin'],
+          hasDropdown: true,
+          subItems: [
+            { id: 'projects', label: 'All Projects' },
+            { id: 'project-templates', label: 'Templates' },
+            { id: 'change-requests', label: 'Change Requests' },
+            { id: 'audit-trail', label: 'Audit Trail' }
+          ]
+        },
         {
           id: 'settings',
           label: 'Settings',
           roles: ['admin'],
           hasDropdown: true,
           subItems: [
+            { group: 'Expense Setup' },
             { id: 'costcenters', label: 'Cost Centers' },
             { id: 'locations', label: 'Locations' },
             { id: 'expense-categories', label: 'Expense Categories' },
             { id: 'approval-rules', label: 'Approval Rules' },
+            { group: 'Administration' },
             { id: 'users', label: 'Users' },
             { id: 'xero-settings', label: 'Xero Integration' }
           ]
@@ -132,6 +158,14 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Close the dropdown on any navigation, not just clicks inside this component —
+  // links elsewhere in the app (e.g. a page's own "View all" button) change the
+  // hash directly without going through handleTabClick/handleSubItemClick, which
+  // previously left a stale dropdown open over the new page.
+  useEffect(() => {
+    setExpandedDropdown(null);
+  }, [activeTab]);
 
   const handleTabClick = (tabId, hasDropdown) => {
     if (hasDropdown) {
@@ -188,14 +222,23 @@ const Navigation = ({ activeTab, onTabChange, userRole }) => {
 
               {tab.hasDropdown && expandedDropdown === tab.id && (
                 <div className="nav-dropdown">
-                  {tab.subItems.map((subItem) => (
-                    <button
-                      key={subItem.id}
-                      onClick={() => handleSubItemClick(subItem.id)}
-                      className={`nav-dropdown-item ${activeTab === subItem.id ? 'active' : ''}`}
-                    >
-                      {subItem.label}
-                    </button>
+                  {tab.subItems.map((subItem, index) => (
+                    subItem.group ? (
+                      <div
+                        key={`group-${subItem.group}`}
+                        className={`nav-dropdown-group-label ${index > 0 ? 'nav-dropdown-group-label-divider' : ''}`}
+                      >
+                        {subItem.group}
+                      </div>
+                    ) : (
+                      <button
+                        key={subItem.id}
+                        onClick={() => handleSubItemClick(subItem.id)}
+                        className={`nav-dropdown-item ${activeTab === subItem.id ? 'active' : ''}`}
+                      >
+                        {subItem.label}
+                      </button>
+                    )
                   ))}
                 </div>
               )}

@@ -278,7 +278,8 @@
 /* Toast Container */
 .toast-container {
   position: fixed;
-  top: 20px;
+  /* Below the app header so toasts never sit on top of the Logout/cart controls. */
+  top: 96px;
   right: 20px;
   z-index: 9999;
   display: flex;
@@ -330,6 +331,24 @@
   font-size: var(--font-size-sm);
   font-weight: 500;
   line-height: 1.4;
+}
+
+.toast-action {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: currentColor;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.toast-action:hover {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .toast-close {

@@ -92,12 +92,17 @@ const authLimiter = rateLimit({
 });
 
 // General API rate limiting
+// NOTE: this is a shared limit per IP, and offices/VPNs put many employees behind
+// one IP. A single dashboard load fires several concurrent widget requests, so the
+// limit needs headroom for legitimate multi-user, multi-widget traffic, not just
+// abuse prevention. Was 100 req / 15 min, which real usage exhausted almost
+// immediately and locked users out of core pages (expense submission, dashboard).
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 600, // 600 requests per window per IP
   message: {
-    error: 'Too many requests. Please try again later.',
-    retryAfter: '15 minutes'
+    error: 'Too many requests. Please try again in a few minutes.',
+    retryAfter: '5 minutes'
   },
   standardHeaders: true,
   legacyHeaders: false

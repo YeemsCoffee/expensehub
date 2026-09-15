@@ -103,7 +103,8 @@
 
   --color-text-primary: #241f14;
   --color-text-secondary: #5c5648;
-  --color-text-tertiary: #8a8371;
+  /* Was #8a8371 (3.8:1 on white, fails WCAG AA's 4.5:1 for normal text). */
+  --color-text-tertiary: #756f60;
   --color-text-inverse: #ffffff;
   --color-text-on-primary: #ffffff;
 

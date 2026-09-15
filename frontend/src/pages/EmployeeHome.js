@@ -216,7 +216,7 @@ const EmployeeHome = ({ onNavigate }) => {
                     </span>
                   </div>
                   <div className="expense-details">
-                    <h4 className="expense-title">{expense.description}</h4>
+                    <h3 className="expense-title">{expense.description}</h3>
                     <p className="expense-meta">
                       {expense.category}
                       {expense.vendor_name && ` • ${expense.vendor_name}`}
@@ -243,7 +243,7 @@ const EmployeeHome = ({ onNavigate }) => {
             📋
           </div>
           <div className="action-tile-content">
-            <h4>Expense History</h4>
+            <h3>Expense History</h3>
             <p>View all your expenses</p>
           </div>
         </button>

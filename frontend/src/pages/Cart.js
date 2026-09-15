@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, X } from 'lucide-react';
 import { calculateCartTotal, calculateTax, formatCurrency } from '../utils/helpers';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
+import { useToast } from '../components/Toast';
 import api from '../services/api';
 
 const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate, user }) => {
+  const toast = useToast();
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
   const [categories, setCategories] = useState(EXPENSE_CATEGORIES);
@@ -42,23 +44,29 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate, us
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
+        toast.error('Failed to load cost centers/locations.', {
+          duration: 8000,
+          action: { label: 'Retry', onClick: () => fetchData() }
+        });
       }
     };
 
     fetchData();
-  }, []);
+  }, [toast]);
+
+  const canCheckout = Boolean(selectedCostCenter && selectedLocation && selectedCategory);
 
   const handleCheckout = () => {
     if (!selectedCostCenter) {
-      alert('Please select a cost center before submitting');
+      toast.error('Please select a cost center before submitting');
       return;
     }
     if (!selectedLocation) {
-      alert('Please select a shipping location before submitting');
+      toast.error('Please select a shipping location before submitting');
       return;
     }
     if (!selectedCategory) {
-      alert('Please select an expense category before submitting');
+      toast.error('Please select an expense category before submitting');
       return;
     }
     onCheckout(selectedCostCenter, selectedLocation, selectedCategory);
@@ -198,6 +206,9 @@ const Cart = ({ cart, onUpdateQuantity, onRemoveItem, onCheckout, onNavigate, us
             <button
               onClick={handleCheckout}
               className="btn btn-primary btn-full btn-lg"
+              disabled={!canCheckout}
+              aria-disabled={!canCheckout}
+              title={canCheckout ? undefined : 'Select a cost center, category, and shipping location first'}
             >
               {isPrivileged ? 'Place Order' : 'Submit for Approval'}
             </button>

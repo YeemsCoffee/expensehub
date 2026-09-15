@@ -10,7 +10,9 @@
 
 /* Hero Section - Reimbursement Status */
 .reimbursement-hero {
-  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-400) 100%);
+  /* --color-primary-400 end stop measured 3.2:1 for white text (fails WCAG AA's
+     4.5:1) — darkened to -500, which holds ~5.5:1 while keeping the gradient. */
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-500) 100%);
   border-radius: var(--radius-2xl);
   padding: 2rem;
   color: white;
@@ -45,7 +47,6 @@
 
 .hero-label {
   font-size: var(--font-size-base);
-  opacity: 0.95;
   margin: 0 0 1rem 0;
   font-weight: 500;
 }
@@ -86,7 +87,6 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  opacity: 0.9;
   background: rgba(255, 255, 255, 0.1);
   padding: 0.75rem;
   border-radius: 0.5rem;
@@ -405,7 +405,7 @@
   line-height: 1;
 }
 
-.action-tile-content h4 {
+.action-tile-content h3 {
   font-size: 0.938rem;
   font-weight: 600;
   color: var(--color-text-primary);

@@ -13,7 +13,7 @@ colors:
   paper: "#ffffff"
   ink: "#241f14"
   ink-soft: "#5c5648"
-  ink-faint: "#8a8371"
+  ink-faint: "#756f60"
   hairline: "#e6e2d3"
   ledger-warning: "#d68a1f"
   ledger-error: "#b8503f"
@@ -126,7 +126,7 @@ Three colors carry the whole system: a confident deep green, a warm neutral crea
 - **Paper** (`#ffffff`): Reserved for anything that needs to read as raised above the parchment floor — cards, modals, inputs, dropdowns.
 - **Ink** (`#241f14`): Primary text.
 - **Ink Soft** (`#5c5648`): Secondary text, meta labels.
-- **Ink Faint** (`#8a8371`): Tertiary text, placeholders, disabled labels.
+- **Ink Faint** (`#756f60`): Tertiary text, placeholders, disabled labels. Darkened from an earlier `#8a8371` (3.8:1 on white) to clear WCAG AA's 4.5:1 for normal text.
 - **Hairline** (`#e6e2d3`): Default borders and dividers.
 
 ### Named Rules

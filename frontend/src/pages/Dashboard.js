@@ -142,17 +142,21 @@ const Dashboard = () => {
     }
   ];
 
+  // `total_amount` arrives as a numeric string (e.g. "0.00"), which is truthy even
+  // when the value is zero — checking it directly let a 0/0 division through as NaN.
+  const totalAmount = parseFloat(analytics?.total_amount) || 0;
+
   const costTypeStats = [
     {
       label: 'OPEX',
       value: formatCurrency(parseFloat(analytics?.opex_total) || 0),
-      percent: analytics?.total_amount ? ((parseFloat(analytics.opex_total) / parseFloat(analytics.total_amount)) * 100).toFixed(1) : 0,
+      percent: totalAmount ? ((parseFloat(analytics.opex_total) / totalAmount) * 100).toFixed(1) : 0,
       type: 'opex'
     },
     {
       label: 'CAPEX',
       value: formatCurrency(parseFloat(analytics?.capex_total) || 0),
-      percent: analytics?.total_amount ? ((parseFloat(analytics.capex_total) / parseFloat(analytics.total_amount)) * 100).toFixed(1) : 0,
+      percent: totalAmount ? ((parseFloat(analytics.capex_total) / totalAmount) * 100).toFixed(1) : 0,
       type: 'capex'
     }
   ];

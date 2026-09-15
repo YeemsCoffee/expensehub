@@ -7,9 +7,9 @@ const ToastContext = React.createContext();
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback((message, type = 'info', duration = 4000) => {
+  const addToast = useCallback((message, type = 'info', duration = 4000, action = null) => {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts(prev => [...prev, { id, message, type, duration, action }]);
 
     if (duration > 0) {
       setTimeout(() => {
@@ -25,19 +25,19 @@ export const ToastProvider = ({ children }) => {
   const toast = useMemo(() => ({
     success: (message, options) => {
       const duration = typeof options === 'number' ? options : options?.duration ?? 4000;
-      addToast(message, 'success', duration);
+      addToast(message, 'success', duration, options?.action ?? null);
     },
     error: (message, options) => {
       const duration = typeof options === 'number' ? options : options?.duration ?? 4000;
-      addToast(message, 'error', duration);
+      addToast(message, 'error', duration, options?.action ?? null);
     },
     info: (message, options) => {
       const duration = typeof options === 'number' ? options : options?.duration ?? 4000;
-      addToast(message, 'info', duration);
+      addToast(message, 'info', duration, options?.action ?? null);
     },
     warning: (message, options) => {
       const duration = typeof options === 'number' ? options : options?.duration ?? 4000;
-      addToast(message, 'warning', duration);
+      addToast(message, 'warning', duration, options?.action ?? null);
     }
   }), [addToast]);
 
@@ -99,6 +99,17 @@ const Toast = ({ toast, onClose }) => {
     <div className={`toast toast-${toast.type} ${isExiting ? 'toast-exit' : ''}`}>
       {getIcon()}
       <span className="toast-message">{toast.message}</span>
+      {toast.action && (
+        <button
+          onClick={() => {
+            toast.action.onClick();
+            handleClose();
+          }}
+          className="toast-action"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button onClick={handleClose} className="toast-close" aria-label="Close">
         <X size={18} />
       </button>

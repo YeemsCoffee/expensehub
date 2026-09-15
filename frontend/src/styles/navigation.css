@@ -364,6 +364,23 @@
   margin: var(--spacing-1) 0;
 }
 
+/* Groups a long flat dropdown list into labeled sections (e.g. Settings'
+   "Expense Setup" vs "Administration") to stay within working-memory chunking
+   limits per section. */
+.nav-dropdown-group-label {
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-1);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.nav-dropdown-group-label-divider {
+  margin-top: var(--spacing-1);
+  border-top: 1px solid var(--color-border);
+}
+
 /* ========================================
    RESPONSIVE DESIGN
    ======================================== */
