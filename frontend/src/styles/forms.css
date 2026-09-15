@@ -110,7 +110,7 @@
   color: var(--color-text-primary);
   background: var(--color-background);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-md);
   transition: all var(--transition-fast);
   outline: none;
   box-sizing: border-box;
@@ -185,7 +185,7 @@
 .form-input.error:focus,
 .form-select.error:focus,
 .form-textarea.error:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 0 3px rgba(184, 80, 63, 0.15);
 }
 
 /* Success States */
@@ -295,7 +295,7 @@
   color: var(--color-text-secondary);
   background: var(--color-background);
   border: 2px dashed var(--color-border);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition-fast);
   text-align: center;

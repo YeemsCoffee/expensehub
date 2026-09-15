@@ -31,7 +31,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
   color: white;
   padding: 1.5rem;
   border-radius: 16px;
@@ -76,7 +76,7 @@
 
 /* Amazon Featured Card */
 .amazon-featured-card {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 1.5rem;
@@ -86,7 +86,7 @@
 
 .amazon-featured-card:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
 }
 
@@ -133,7 +133,7 @@
 
 .rating-stars {
   font-size: 1rem;
-  color: #FCD34D;
+  color: var(--color-warning-500);
   margin-bottom: 0.25rem;
 }
 
@@ -172,11 +172,11 @@
 }
 
 .amazon-shop-button {
-  background: #2B4628;
+  background: var(--color-primary);
   color: white;
   border: none;
   padding: 0.875rem 1.5rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -184,15 +184,15 @@
   align-items: center;
   gap: 0.5rem;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(43, 70, 40, 0.25);
   width: 100%;
   justify-content: center;
 }
 
 .amazon-shop-button:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--color-primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 12px rgba(43, 70, 40, 0.3);
 }
 
 .amazon-shop-button:disabled {
@@ -251,7 +251,7 @@
 }
 
 .vendor-card-modern {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 1.5rem;
@@ -261,7 +261,7 @@
 
 .vendor-card-modern:hover {
   border-color: var(--primary-color);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   transform: translateY(-4px);
 }
 
@@ -292,7 +292,7 @@
 }
 
 .vendor-rating-star {
-  color: #FCD34D;
+  color: var(--color-warning-500);
   font-size: 1.125rem;
 }
 
@@ -309,7 +309,7 @@
 
 .vendor-browse-button {
   width: 100%;
-  background: #2B4628;
+  background: var(--color-primary);
   color: white !important;
   border: none;
   padding: 0.875rem 1.5rem;
@@ -326,7 +326,7 @@
 }
 
 .vendor-browse-button:hover {
-  background: #1f3420;
+  background: var(--color-primary-active);
   transform: translateY(-2px);
   color: white !important;
 }

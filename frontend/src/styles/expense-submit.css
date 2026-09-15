@@ -27,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
   color: white;
   padding: 1rem 1.25rem;
   border-radius: 12px;
@@ -100,7 +100,7 @@
 .expense-form-select,
 .expense-form-textarea {
   padding: 0.75rem 1rem;
-  border: 1.5px solid #d1d5db;
+  border: 1.5px solid var(--color-neutral-300);
   border-radius: 10px;
   font-size: 0.9375rem;
   color: var(--text-primary);
@@ -151,7 +151,7 @@
 }
 
 .checkbox-group:hover {
-  background: #e5e7eb;
+  background: var(--color-border);
 }
 
 .checkbox-group input[type="checkbox"] {
@@ -171,7 +171,7 @@
 
 /* Receipt Upload Section */
 .receipt-upload-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-accent-600) 100%);
   border-radius: 12px;
   padding: 2rem;
   text-align: center;
@@ -203,7 +203,7 @@
 }
 
 .receipt-processed {
-  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -434,5 +434,5 @@
 }
 
 .modal-btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--color-border);
 }

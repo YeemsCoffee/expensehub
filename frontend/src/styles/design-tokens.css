@@ -1,86 +1,134 @@
 /**
- * Premium Design System - 2025
- * Inspired by Stripe, Linear, Apple, and Notion
+ * ExpenseHub Design System
+ * Palette: Myrtle (deep green), Rum Swizzle (warm cream), Light Blue (soft blue)
  *
- * Mood: Trustworthy, calm, precise
- * Motion: Fluid, responsive, alive
- * Polish: Premium, elegant, balanced
+ * Mood: Warm, friendly, approachable — still precise and trustworthy.
  */
 
 :root {
   /* ========================================
-     PREMIUM COLOR SYSTEM
+     BRAND COLOR RAMPS
      ======================================== */
 
-  /* Primary - Company Green (#2B4628) */
-  --color-primary-50: #f3f6f2;
-  --color-primary-100: #e3e9e1;
-  --color-primary-200: #c7d4c3;
-  --color-primary-300: #a5b89f;
-  --color-primary-400: #7d9576;
-  --color-primary-500: #5a7353;
+  /* Myrtle — primary brand green */
+  --color-primary-50: #f2f6f1;
+  --color-primary-100: #e1eadd;
+  --color-primary-200: #c3d5bc;
+  --color-primary-300: #9cba91;
+  --color-primary-400: #729968;
+  --color-primary-500: #4c7343;
   --color-primary-600: #2B4628;
   --color-primary-700: #243a22;
   --color-primary-800: #1d2f1b;
   --color-primary-900: #162415;
   --color-primary-950: #0e180d;
 
-  /* Soft Neutrals - Calm & Minimal */
-  --color-white: #ffffff;
-  --color-gray-50: #f8fafc;
-  --color-gray-100: #f1f5f9;
-  --color-gray-200: #e2e8f0;
-  --color-gray-300: #cbd5e1;
-  --color-gray-400: #94a3b8;
-  --color-gray-500: #64748b;
-  --color-gray-600: #475569;
-  --color-gray-700: #334155;
-  --color-gray-800: #1e293b;
-  --color-gray-900: #0f172a;
-  --color-gray-950: #020617;
+  /* Rum Swizzle — warm cream neutrals */
+  --color-cream-50: #fdfcf8;
+  --color-cream-100: #F2ECD4;
+  --color-cream-200: #e8dfc0;
+  --color-cream-300: #dccda3;
+  --color-cream-400: #c9b57f;
+  --color-cream-500: #b39c60;
 
-  /* Feedback Colors - Company Palette */
-  --color-success-50: #f3f6f2;
+  /* Light Blue — accent */
+  --color-accent-50: #f2f8f9;
+  --color-accent-100: #e2eff1;
+  --color-accent-200: #BCD7DE;
+  --color-accent-300: #9ac2cc;
+  --color-accent-400: #74a8b5;
+  --color-accent-500: #518a99;
+  --color-accent-600: #3d6d7a;
+
+  /* Warm neutrals (harmonized with cream, used for text/borders/surfaces) */
+  --color-white: #ffffff;
+  --color-neutral-50: #faf9f5;
+  --color-neutral-100: #f3f1e9;
+  --color-neutral-200: #e6e2d3;
+  --color-neutral-300: #d3ccb5;
+  --color-neutral-400: #a39c86;
+  --color-neutral-500: #7d7663;
+  --color-neutral-600: #5c5648;
+  --color-neutral-700: #423f35;
+  --color-neutral-800: #2c2a24;
+  --color-neutral-900: #1a1815;
+  --color-neutral-950: #100f0d;
+
+  /* Feedback Colors */
+  --color-success-50: #f2f6f1;
+  --color-success-100: #e1eadd;
   --color-success-500: #2B4628;
   --color-success-600: #243a22;
+  --color-success-700: #1d2f1b;
 
-  --color-warning-50: #fffbeb;
-  --color-warning-500: #f59e0b;
-  --color-warning-600: #d97706;
+  --color-warning-50: #fdf6e9;
+  --color-warning-100: #faebc9;
+  --color-warning-500: #d68a1f;
+  --color-warning-600: #b9740f;
+  --color-warning-700: #925c0c;
 
-  --color-error-50: #fef2f2;
-  --color-error-500: #ef4444;
-  --color-error-600: #dc2626;
+  --color-error-50: #fbf0ee;
+  --color-error-100: #f4d9d3;
+  --color-error-500: #b8503f;
+  --color-error-600: #9c3f30;
+  --color-error-700: #7c3226;
 
-  --color-info-50: #f0f8fa;
+  --color-info-50: #f2f8f9;
+  --color-info-100: #e2eff1;
   --color-info-500: #BCD7DE;
-  --color-info-600: #a0c5ce;
+  --color-info-600: #518a99;
+  --color-info-700: #3d6d7a;
 
-  /* Semantic Tokens - Light Mode (Default) */
+  /* ========================================
+     SEMANTIC TOKENS
+     ======================================== */
+
   --color-primary: #2B4628;
   --color-primary-hover: #243a22;
   --color-primary-active: #1d2f1b;
+  --color-primary-light: var(--color-primary-100);
+  --color-primary-dark: var(--color-primary-700);
+
+  --color-accent: #BCD7DE;
+  --color-accent-hover: #9ac2cc;
 
   --color-background: #ffffff;
   --color-background-secondary: #F2ECD4;
-  --color-background-tertiary: #e8dfc4;
+  --color-background-tertiary: #e8dfc0;
 
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
-  --color-surface-overlay: rgba(255, 255, 255, 0.95);
+  --color-surface-hover: var(--color-cream-50);
+  --color-surface-overlay: rgba(255, 255, 255, 0.96);
 
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #94a3b8;
+  --color-text-primary: #241f14;
+  --color-text-secondary: #5c5648;
+  --color-text-tertiary: #8a8371;
   --color-text-inverse: #ffffff;
+  --color-text-on-primary: #ffffff;
 
-  --color-border: #e2e8f0;
-  --color-border-hover: #cbd5e1;
+  --color-border: #e6e2d3;
+  --color-border-hover: #d3ccb5;
   --color-border-focus: #BCD7DE;
 
-  --color-shadow-sm: rgba(15, 23, 42, 0.04);
-  --color-shadow-md: rgba(15, 23, 42, 0.08);
-  --color-shadow-lg: rgba(15, 23, 42, 0.12);
+  --color-shadow-sm: rgba(43, 70, 40, 0.06);
+  --color-shadow-md: rgba(43, 70, 40, 0.1);
+  --color-shadow-lg: rgba(43, 70, 40, 0.14);
+
+  /* Bare aliases used across the codebase */
+  --primary-color: var(--color-primary);
+  --primary-dark: var(--color-primary-hover);
+  --primary-light: var(--color-primary-100);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --border-color: var(--color-border);
+  --background-secondary: var(--color-background-secondary);
+  --color-error: var(--color-error-500);
+  --color-warning: var(--color-warning-500);
+  --color-success: var(--color-success-500);
+  --color-info: var(--color-accent-500);
+  --error-color: var(--color-error-500);
+  --warning-color: var(--color-warning-500);
 
   /* ========================================
      8-POINT GRID SYSTEM
@@ -100,15 +148,16 @@
   --spacing-16: 4rem;       /* 64px */
   --spacing-20: 5rem;       /* 80px */
   --spacing-24: 6rem;       /* 96px */
+  --spacing-32: 8rem;       /* 128px */
 
   /* ========================================
-     PREMIUM TYPOGRAPHY
+     TYPOGRAPHY
      ======================================== */
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Roboto Mono', 'Fira Code', 'Consolas', monospace;
 
-  /* Font Sizes - Balanced Scale */
+  /* Font Sizes */
   --text-xs: 0.75rem;       /* 12px */
   --text-sm: 0.875rem;      /* 14px */
   --text-base: 1rem;        /* 16px */
@@ -118,11 +167,24 @@
   --text-3xl: 1.875rem;     /* 30px */
   --text-4xl: 2.25rem;      /* 36px */
 
+  --font-size-xs: var(--text-xs);
+  --font-size-sm: var(--text-sm);
+  --font-size-base: var(--text-base);
+  --font-size-lg: var(--text-lg);
+  --font-size-xl: var(--text-xl);
+  --font-size-2xl: var(--text-2xl);
+  --font-size-3xl: var(--text-3xl);
+
   /* Font Weights */
   --font-normal: 400;
   --font-medium: 500;
   --font-semibold: 600;
   --font-bold: 700;
+
+  --font-weight-normal: var(--font-normal);
+  --font-weight-medium: var(--font-medium);
+  --font-weight-semibold: var(--font-semibold);
+  --font-weight-bold: var(--font-bold);
 
   /* Line Heights */
   --leading-tight: 1.25;
@@ -131,56 +193,57 @@
   --leading-relaxed: 1.625;
   --leading-loose: 2;
 
+  --line-height-tight: var(--leading-tight);
+  --line-height-normal: var(--leading-normal);
+  --line-height-relaxed: var(--leading-relaxed);
+
   /* Letter Spacing */
   --tracking-tight: -0.025em;
   --tracking-normal: 0;
   --tracking-wide: 0.025em;
 
   /* ========================================
-     ROUNDED CORNERS (8-12px range)
+     ROUNDED CORNERS — friendly, generous
      ======================================== */
 
   --radius-sm: 0.5rem;      /* 8px */
-  --radius-md: 0.625rem;    /* 10px */
-  --radius-lg: 0.75rem;     /* 12px */
-  --radius-xl: 1rem;        /* 16px */
-  --radius-2xl: 1.5rem;     /* 24px */
+  --radius-md: 0.75rem;     /* 12px */
+  --radius-lg: 1rem;        /* 16px */
+  --radius-xl: 1.25rem;     /* 20px */
+  --radius-2xl: 1.75rem;    /* 28px */
   --radius-full: 9999px;
+  --radius-base: var(--radius-sm);
 
   /* ========================================
-     ELEVATION & SHADOWS (Subtle & Layered)
+     ELEVATION & SHADOWS
      ======================================== */
 
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 8px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.04);
-  --shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.16), 0 8px 16px rgba(15, 23, 42, 0.06);
+  --shadow-xs: 0 1px 2px rgba(43, 70, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(43, 70, 40, 0.09), 0 1px 2px rgba(43, 70, 40, 0.05);
+  --shadow-md: 0 4px 10px rgba(43, 70, 40, 0.09), 0 2px 4px rgba(43, 70, 40, 0.05);
+  --shadow-lg: 0 14px 28px rgba(43, 70, 40, 0.13), 0 4px 8px rgba(43, 70, 40, 0.05);
+  --shadow-xl: 0 22px 44px rgba(43, 70, 40, 0.17), 0 8px 16px rgba(43, 70, 40, 0.07);
+  --shadow-base: var(--shadow-sm);
 
-  /* Interactive shadows for cards */
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-card-hover: 0 8px 16px rgba(15, 23, 42, 0.1), 0 3px 6px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 3px rgba(43, 70, 40, 0.07);
+  --shadow-card-hover: 0 10px 20px rgba(43, 70, 40, 0.12), 0 3px 6px rgba(43, 70, 40, 0.07);
 
-  /* Focus ring - visible and accessible */
-  --shadow-focus: 0 0 0 3px rgba(188, 215, 222, 0.4);
+  --shadow-focus: 0 0 0 3px rgba(188, 215, 222, 0.55);
 
   /* ========================================
-     FLUID MOTION (< 300ms, ease-in-out)
+     MOTION
      ======================================== */
 
-  /* Timing */
   --duration-instant: 100ms;
   --duration-fast: 150ms;
   --duration-base: 200ms;
   --duration-slow: 250ms;
 
-  /* Easing - Apple-inspired curves */
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* Combined transitions */
   --transition-fast: 150ms cubic-bezier(0, 0, 0.2, 1);
   --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -198,6 +261,9 @@
   --z-popover: 1060;
   --z-tooltip: 1070;
 
+  --z-index-sticky: var(--z-sticky);
+  --z-index-modal-backdrop: var(--z-modal-backdrop);
+
   /* ========================================
      COMPONENT SIZING
      ======================================== */
@@ -209,6 +275,14 @@
   --height-button-sm: 2rem;     /* 32px */
   --height-button: 2.5rem;      /* 40px */
   --height-button-lg: 3rem;     /* 48px */
+
+  --input-height-sm: var(--height-input-sm);
+  --input-height-base: var(--height-input);
+  --input-height-lg: var(--height-input-lg);
+
+  --button-height-sm: var(--height-button-sm);
+  --button-height-base: var(--height-button);
+  --button-height-lg: var(--height-button-lg);
 }
 
 /* ========================================
@@ -227,7 +301,6 @@
   border-width: 0;
 }
 
-/* Premium focus ring */
 .focus-ring {
   outline: 2px solid transparent;
   outline-offset: 2px;

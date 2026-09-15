@@ -12,9 +12,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow:
-    0 1px 2px 0 rgba(15, 23, 42, 0.03),
-    0 1px 3px 0 rgba(15, 23, 42, 0.05);
+  box-shadow: var(--shadow-card);
 }
 
 .table-wrapper {
@@ -78,7 +76,7 @@
   position: sticky;
   top: 0;
   z-index: var(--z-index-sticky);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px rgba(43, 70, 40, 0.06);
 }
 
 .table th {
