@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, Clock, CheckCircle, TrendingUp, FileText, PieChart, BarChart3, MapPin, Folder, Receipt, AlertCircle, RefreshCw } from 'lucide-react';
+import { DollarSign, Clock, CheckCircle, TrendingUp, FileText, PieChart, BarChart3, MapPin, Folder, Receipt, AlertCircle, RefreshCw, Building2, ChevronDown, ChevronUp } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
@@ -70,6 +70,9 @@ const Dashboard = () => {
       setExpenses(expensesResponse.data);
       setAnalytics(analyticsResponse.data);
       setCategoryBreakdown(categoryResponse.data.slice(0, 5));
+      setCostCenterBreakdown(costCenterResponse.data);
+      // Collapse any open drill-down when the time range changes
+      setExpandedCostCenter(null);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Couldn’t load dashboard data. Your connection or the server may be having trouble.');
