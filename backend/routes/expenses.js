@@ -853,6 +853,109 @@ router.get('/analytics/by-category', authMiddleware, async (req, res) => {
   }
 });
 
+// Get spend grouped by cost center, with a nested per-category breakdown.
+// One query grouped by (cost_center, category); the cost-center totals are
+// folded up in JS so the drill-down needs no second round trip.
+// Scope matches the rest of this file: admin/developer see all expenses,
+// everyone else only their own.
+router.get('/analytics/by-cost-center', authMiddleware, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const isPrivileged = ['admin', 'developer'].includes(req.user.role);
+
+    let query = `
+      SELECT
+        e.cost_center_id,
+        cc.code AS cost_center_code,
+        cc.name AS cost_center_name,
+        e.category,
+        COUNT(*) AS count,
+        COALESCE(SUM(e.amount), 0) AS total_amount,
+        COALESCE(SUM(CASE WHEN e.status = 'approved' THEN e.amount ELSE 0 END), 0) AS approved_amount,
+        COALESCE(SUM(CASE WHEN e.status = 'pending' THEN e.amount ELSE 0 END), 0) AS pending_amount
+      FROM expenses e
+      LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (!isPrivileged) {
+      query += ` AND e.user_id = $${paramIndex}`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
+
+    if (startDate) {
+      query += ` AND e.date >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND e.date <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
+    query += ` GROUP BY e.cost_center_id, cc.code, cc.name, e.category`;
+
+    const result = await db.query(query, params);
+
+    // Fold the (cost_center, category) rows into cost centers with nested categories
+    const byCostCenter = new Map();
+
+    for (const row of result.rows) {
+      // cost_center_id is null for expenses with no cost center assigned
+      const key = row.cost_center_id === null ? 'unassigned' : String(row.cost_center_id);
+
+      if (!byCostCenter.has(key)) {
+        byCostCenter.set(key, {
+          cost_center_id: row.cost_center_id,
+          cost_center_code: row.cost_center_code || null,
+          cost_center_name: row.cost_center_name || 'Unassigned',
+          total_amount: 0,
+          approved_amount: 0,
+          pending_amount: 0,
+          count: 0,
+          categories: []
+        });
+      }
+
+      const entry = byCostCenter.get(key);
+      const total = parseFloat(row.total_amount) || 0;
+      const approved = parseFloat(row.approved_amount) || 0;
+      const pending = parseFloat(row.pending_amount) || 0;
+      const count = parseInt(row.count, 10) || 0;
+
+      entry.total_amount += total;
+      entry.approved_amount += approved;
+      entry.pending_amount += pending;
+      entry.count += count;
+      entry.categories.push({
+        category: row.category,
+        total_amount: total,
+        approved_amount: approved,
+        pending_amount: pending,
+        count
+      });
+    }
+
+    const costCenters = Array.from(byCostCenter.values())
+      .map(cc => ({
+        ...cc,
+        categories: cc.categories.sort((a, b) => b.total_amount - a.total_amount)
+      }))
+      .sort((a, b) => b.total_amount - a.total_amount);
+
+    res.json(costCenters);
+  } catch (error) {
+    console.error('Fetch cost center breakdown error:', error);
+    res.status(500).json({ error: 'Server error fetching cost center breakdown' });
+  }
+});
+
 // Admin endpoint to auto-approve stuck pending Amazon orders
 // This is useful for orders that should have been auto-approved but weren't due to bugs
 router.post('/admin/auto-approve-pending-amazon-orders', authMiddleware, isAdminOrDeveloper, async (req, res) => {
