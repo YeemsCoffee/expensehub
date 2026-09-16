@@ -23,6 +23,9 @@
    ======================================== */
 
 html {
+  /* Deliberately a literal 16px, not a token: this is the root rem anchor, and
+     every --font-size-* token is itself defined in rem. Pointing this at one of
+     them would make the root's own font-size self-referential. */
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
@@ -36,7 +39,8 @@ body {
   font-weight: var(--font-weight-normal);
   line-height: var(--line-height-normal);
   color: var(--color-text-primary);
-  background: linear-gradient(180deg, var(--color-background) 0%, var(--color-background-secondary) 100%);
+  background: linear-gradient(180deg, var(--color-cream-50) 0%, var(--color-background-secondary) 100%);
+  background-attachment: fixed;
   min-height: 100vh;
 }
 
@@ -48,7 +52,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-background);
+  background: transparent;
 }
 
 /* ========================================

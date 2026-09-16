@@ -17,7 +17,7 @@
 }
 
 .expense-submit-subtitle {
-  font-size: 1rem;
+  font-size: var(--font-size-base);
   color: var(--text-secondary);
   font-weight: 400;
 }
@@ -27,7 +27,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
   color: white;
   padding: 1rem 1.25rem;
   border-radius: 12px;
@@ -48,7 +48,7 @@
 
 /* Section Headers */
 .form-section-header {
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 1.25rem;
@@ -83,7 +83,7 @@
 }
 
 .expense-form-label {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
   display: flex;
@@ -100,7 +100,7 @@
 .expense-form-select,
 .expense-form-textarea {
   padding: 0.75rem 1rem;
-  border: 1.5px solid #d1d5db;
+  border: 1.5px solid var(--color-neutral-300);
   border-radius: 10px;
   font-size: 0.9375rem;
   color: var(--text-primary);
@@ -151,7 +151,7 @@
 }
 
 .checkbox-group:hover {
-  background: #e5e7eb;
+  background: var(--color-border);
 }
 
 .checkbox-group input[type="checkbox"] {
@@ -171,7 +171,7 @@
 
 /* Receipt Upload Section */
 .receipt-upload-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-accent-600) 100%);
   border-radius: 12px;
   padding: 2rem;
   text-align: center;
@@ -191,19 +191,19 @@
 }
 
 .receipt-upload-title {
-  font-size: 1.125rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
 .receipt-upload-description {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   opacity: 0.95;
   margin: 0;
 }
 
 .receipt-processed {
-  background: linear-gradient(135deg, #2B4628 0%, #243a22 100%);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -229,7 +229,7 @@
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 8px;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -300,7 +300,7 @@
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -386,7 +386,7 @@
 }
 
 .modal-title {
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 0.5rem;
@@ -434,5 +434,5 @@
 }
 
 .modal-btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--color-border);
 }

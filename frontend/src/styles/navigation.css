@@ -8,9 +8,9 @@
    ======================================== */
 
 .header {
-  background: linear-gradient(135deg, #2B4628 0%, #1d2f1b 100%);
+  background: linear-gradient(135deg, #345a30 0%, #1d2f1b 100%);
   color: var(--color-text-inverse);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(20, 32, 18, 0.22);
   position: relative;
   z-index: 100;
 }
@@ -175,9 +175,9 @@
 
 /* Logout Button */
 .header-right .btn-secondary {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--color-text-inverse);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-lg);
   padding: var(--spacing-2) var(--spacing-4);
   font-weight: var(--font-semibold);
@@ -191,10 +191,10 @@
 }
 
 .header-right .btn-secondary:hover {
-  background: rgba(220, 38, 38, 0.9);
-  border-color: rgba(220, 38, 38, 1);
+  background: var(--color-error-600);
+  border-color: var(--color-error-600);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .header-right .btn-secondary:active {
@@ -211,9 +211,9 @@
    ======================================== */
 
 .nav {
-  background: #ffffff;
+  background: var(--color-cream-50);
   border-bottom: 1px solid var(--color-border);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(43, 70, 40, 0.06);
   position: relative;
   z-index: 50;
   overflow: visible;  /* Allow dropdowns to extend beyond nav */
@@ -245,10 +245,11 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-4) var(--spacing-3);
+  margin: var(--spacing-2) 0;
+  padding: var(--spacing-3) var(--spacing-4);
   border: none;
   background: transparent;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-full);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
@@ -260,14 +261,13 @@
 }
 
 .nav-tab:hover {
-  color: var(--color-text-primary);
+  color: var(--color-primary-700);
   background: var(--color-background-secondary);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .nav-tab.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: var(--color-primary-700);
+  background: var(--color-primary-100);
   font-weight: var(--font-semibold);
 }
 
@@ -362,6 +362,23 @@
   height: 1px;
   background: var(--color-border);
   margin: var(--spacing-1) 0;
+}
+
+/* Groups a long flat dropdown list into labeled sections (e.g. Settings'
+   "Expense Setup" vs "Administration") to stay within working-memory chunking
+   limits per section. */
+.nav-dropdown-group-label {
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-1);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.nav-dropdown-group-label-divider {
+  margin-top: var(--spacing-1);
+  border-top: 1px solid var(--color-border);
 }
 
 /* ========================================

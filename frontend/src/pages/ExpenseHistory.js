@@ -54,6 +54,30 @@ const ExpenseHistory = () => {
   // Identifies the most recent request so a slow, superseded response can't overwrite the page
   const latestRequestRef = useRef(0);
 
+  // Deep-link support: Dashboard's "Recent Expenses" rows link here as
+  // #expenses-history?highlight=<id> so the referenced row can be found and highlighted.
+  const [highlightId, setHighlightId] = useState(null);
+  const rowRefs = useRef({});
+
+  useEffect(() => {
+    const match = window.location.hash.match(/[?&]highlight=(\d+)/);
+    if (match) {
+      setHighlightId(Number(match[1]));
+      // Clear the query param so a later refresh doesn't re-trigger the scroll/highlight
+      window.location.hash = '#expenses-history';
+    }
+  }, []);
+
+  useEffect(() => {
+    if (highlightId == null) return;
+    const node = rowRefs.current[highlightId];
+    if (!node) return;
+
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightId, expenses]);
+
   // Check for success info from cart checkout
   useEffect(() => {
     const successInfo = sessionStorage.getItem('expenseSubmitSuccess');
@@ -124,9 +148,10 @@ const ExpenseHistory = () => {
       console.error('Error fetching data:', err);
       if (latestRequestRef.current === requestId) {
         setLoading(false);
+        toast.error('Couldn’t load expenses. Check your connection and try again.');
       }
     }
-  }, [debouncedFilters, page]);
+  }, [debouncedFilters, page, toast]);
 
   useEffect(() => {
     fetchData();
@@ -420,7 +445,11 @@ const ExpenseHistory = () => {
                 </tr>
               ) : (
                 expenses.map((expense) => (
-                  <tr key={expense.id}>
+                  <tr
+                    key={expense.id}
+                    ref={(el) => { rowRefs.current[expense.id] = el; }}
+                    className={expense.id === highlightId ? 'row-highlight' : undefined}
+                  >
                     <td style={{ whiteSpace: 'nowrap' }}>{new Date(expense.date).toLocaleDateString()}</td>
                     <td>
                       <div>

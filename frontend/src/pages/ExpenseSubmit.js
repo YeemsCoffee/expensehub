@@ -123,7 +123,10 @@ const ExpenseSubmit = () => {
     } catch (err) {
       console.error('Error fetching data:', err);
       console.error('Error details:', err.response?.data || err.message);
-      toast.error('Failed to load form data. Please try again.');
+      toast.error('Failed to load form data.', {
+        duration: 8000,
+        action: { label: 'Retry', onClick: () => fetchData() }
+      });
       setLoading(false);
     }
   }, [toast]);

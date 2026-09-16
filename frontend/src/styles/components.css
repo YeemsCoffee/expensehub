@@ -20,7 +20,7 @@
   line-height: var(--line-height-tight);
   text-decoration: none;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
   outline: none;
@@ -37,33 +37,31 @@
 .btn-primary {
   background: var(--color-primary);
   color: var(--color-text-on-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  opacity: 0.9;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
   transform: translateY(-1px);
-  opacity: 1;
 }
 
 .btn-primary:active:not(:disabled) {
   background: var(--color-primary-active);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-xs);
   transform: translateY(0);
-  opacity: 1;
 }
 
 .btn-secondary {
-  background: var(--color-background-secondary);
+  background: var(--color-surface);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--color-background-tertiary);
-  border-color: var(--color-border-hover);
+  background: var(--color-accent-50);
+  border-color: var(--color-accent-200);
+  color: var(--color-primary-700);
 }
 
 .btn-danger {
@@ -170,17 +168,29 @@
    CARDS
    ======================================== */
 
+/* This is the single source of truth for .card / .card-title. cards.css used to
+   carry a second, conflicting definition of both (different padding and title
+   margin) that only lost the cascade by accident of file load order - see
+   DESIGN.md's Layout section. It now only carries card-family selectors this
+   file doesn't own (.cost-center-card, .stat-card-* variants, etc). */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-16);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
+  box-shadow: var(--shadow-card);
   transition: all var(--transition-fast);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-base);
+  border-color: var(--color-border-hover);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+/* Opt out of the hover lift for a card that shouldn't read as interactive */
+.card-static {
+  transform: none !important;
 }
 
 .card-header {
@@ -193,10 +203,11 @@
 }
 
 .card-title {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  margin: 0;
+  margin: 0 0 var(--spacing-6);
+  line-height: var(--line-height-tight);
 }
 
 .card-subtitle {
@@ -249,7 +260,7 @@
   line-height: var(--line-height-tight);
   border-radius: var(--radius-full);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
   border: 1px solid transparent;
   transition: all var(--transition-fast);
@@ -338,27 +349,49 @@
 
 .stat-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-16);
+  min-height: 140px;
+  /* Longhand, and never border-left-color: cards.css owns border-left-color alone
+     (base + .stat-card-blue/yellow/green/tan), and it loads before this file.
+     Setting color here - or using the `border`/`border-left` shorthand, which sets
+     color too - would silently re-clobber every variant on every future edit. */
+  border-top: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-8);
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-12);
+  box-shadow: var(--shadow-card);
   transition: all var(--transition-fast);
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-base);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+  border-top-color: var(--color-border-hover);
+  border-right-color: var(--color-border-hover);
+  border-bottom-color: var(--color-border-hover);
+  border-left-width: 6px;
 }
 
 .stat-icon {
   width: 48px;
   height: 48px;
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .stat-icon-primary {
@@ -381,20 +414,45 @@
   color: var(--color-error-600);
 }
 
+/* Match the dashboard's stat-card-blue/yellow/green/tan border-left variants */
+.stat-icon-blue {
+  background: var(--color-accent-100);
+  color: var(--color-accent-600);
+}
+
+.stat-icon-yellow {
+  background: var(--color-warning-100);
+  color: var(--color-warning-600);
+}
+
+.stat-icon-green {
+  background: var(--color-primary-100);
+  color: var(--color-primary-600);
+}
+
+.stat-icon-tan {
+  background: var(--color-cream-200);
+  color: var(--color-neutral-700);
+}
+
 .stat-content {
   flex: 1;
 }
 
 .stat-label {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-  margin: 0 0 var(--spacing-2);
+  margin: 0 0 var(--spacing-8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .stat-value {
   font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+  letter-spacing: -0.02em;
   margin: 0;
   line-height: var(--line-height-tight);
 }
@@ -513,7 +571,7 @@
 .product-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-16);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -599,8 +657,8 @@
 
 .cart-empty {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-hover);
+  border-radius: var(--radius-xl);
   padding: var(--spacing-32);
   text-align: center;
 }
@@ -639,7 +697,7 @@
 .cart-item {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-16);
 }
 
@@ -727,7 +785,7 @@
 .order-summary {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-16);
   position: sticky;
   top: var(--spacing-16);

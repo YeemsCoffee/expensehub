@@ -7,7 +7,11 @@ export const calculateTax = (amount, taxRate = 0.08) => {
 };
 
 export const formatCurrency = (amount) => {
-  return `$${amount.toFixed(2)}`;
+  const value = Number.isFinite(amount) ? amount : 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(value);
 };
 
 export const getStatusColor = (status) => {

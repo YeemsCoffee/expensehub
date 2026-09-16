@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ExternalLink } from 'lucide-react';
 import { VENDORS } from '../utils/constants';
+import { useToast } from '../components/Toast';
 import api from '../services/api';
 import '../styles/marketplace.css';
 
@@ -8,6 +9,7 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [punchoutSuccess, setPunchoutSuccess] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     // Check if we're returning from a punchout session
@@ -42,24 +44,19 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
       setLoading(false);
 
     } catch (error) {
+      // Full technical detail (whitelist/credentials/test-mode troubleshooting)
+      // stays in the console for whoever's debugging the integration — a regular
+      // employee buying office supplies doesn't need Amazon config jargon.
       console.error('Failed to initiate Amazon punchout:', error);
-
-      let errorMessage = 'Failed to connect to Amazon Business.';
-
       if (error.response?.status === 400) {
-        errorMessage += '\n\nThis may be due to:\n' +
-          '• Amazon credentials not yet activated\n' +
-          '• Return URL not whitelisted by Amazon\n' +
-          '• Test mode not enabled for your account\n\n' +
-          'Please contact Amazon Business support to verify your integration is set up.';
+        console.error('Possible causes: credentials not activated, return URL not whitelisted, or test mode not enabled. Contact Amazon Business support.');
       } else if (error.response?.status === 502) {
-        errorMessage += '\n\nReceived response from Amazon but no StartPage URL found.\n' +
-          'Check your credentials and domain settings.';
+        console.error('Received a response from Amazon but no StartPage URL was found. Check credentials and domain settings.');
       } else if (error.response?.data?.details) {
-        errorMessage += '\n\nDetails: ' + error.response.data.details;
+        console.error('Details:', error.response.data.details);
       }
 
-      alert(errorMessage);
+      toast.error("Couldn't connect to Amazon Business right now. Please try again, or contact IT if this keeps happening.", { duration: 7000 });
       setLoading(false);
     }
   };
@@ -92,12 +89,12 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
               <div className="amazon-card-content">
                 <div className="amazon-card-header">
                   <div className="amazon-logo-section">
-                    <h3 className="amazon-title">Amazon Business</h3>
+                    <h2 className="amazon-title">Amazon Business</h2>
                     <span className="amazon-badge">Integration</span>
                   </div>
-                  <div className="amazon-rating">
-                    <div className="rating-stars">★★★★★</div>
-                    <span className="rating-text">4.8</span>
+                  <div className="amazon-rating vendor-rating">
+                    <span className="vendor-rating-star">★</span>
+                    <span className="vendor-rating-value">4.8</span>
                   </div>
                 </div>
 
@@ -149,8 +146,11 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
               >
                 <div className="vendor-card-header">
                   <div>
-                    <h3 className="vendor-name">{vendor.name}</h3>
-                    <p className="vendor-category">{vendor.category}</p>
+                    <h2 className="vendor-name">{vendor.name}</h2>
+                    <p className="vendor-category">
+                      {vendor.category}
+                      {vendor.website && <span className="badge badge-secondary ml-2">External site</span>}
+                    </p>
                   </div>
                   <div className="vendor-rating">
                     <span className="vendor-rating-star">★</span>
@@ -196,7 +196,7 @@ const Marketplace = ({ onAddToCart, onRefreshCart }) => {
           <div className="card">
             <div className="vendor-card-header mb-6">
               <div>
-                <h3 className="vendor-name">{selectedVendor.name}</h3>
+                <h2 className="vendor-name">{selectedVendor.name}</h2>
                 <p className="vendor-category">{selectedVendor.category}</p>
               </div>
               <div className="vendor-rating">

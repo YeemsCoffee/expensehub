@@ -27,6 +27,9 @@ import ChangeRequests from './pages/ChangeRequests';
 import ProjectTemplates from './pages/ProjectTemplates';
 import ProjectDocuments from './pages/ProjectDocuments';
 import AuditTrail from './pages/AuditTrail';
+import ConfirmModal from './components/ConfirmModal';
+import CheckoutSuccessModal from './components/CheckoutSuccessModal';
+import { useToast } from './components/Toast';
 import { calculateCartTotal } from './utils/helpers';
 import api from './services/api';
 import './styles/design-tokens.css';
@@ -47,6 +50,9 @@ const App = () => {
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [checkoutResult, setCheckoutResult] = useState(null);
+  const toast = useToast();
 
   // Fetch cart from backend
   const fetchCart = async () => {
@@ -217,15 +223,18 @@ const App = () => {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setUser(null);
-      setCart([]);
-      setActiveTab('');
-      setCurrentView('login');
-      window.location.hash = '';
-    }
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setCart([]);
+    setActiveTab('');
+    setCurrentView('login');
+    window.location.hash = '';
   };
 
   const handleAddToCart = async (vendor, product) => {
@@ -239,7 +248,7 @@ const App = () => {
       await fetchCart();
     } catch (error) {
       console.error('Failed to add to cart:', error);
-      alert('Failed to add item to cart');
+      toast.error('Failed to add item to cart');
     }
   };
 
@@ -262,7 +271,7 @@ const App = () => {
       await fetchCart();
     } catch (error) {
       console.error('Failed to update cart:', error);
-      alert('Failed to update cart');
+      toast.error('Failed to update cart');
     }
   };
 
@@ -276,7 +285,7 @@ const App = () => {
       await fetchCart();
     } catch (error) {
       console.error('Failed to remove from cart:', error);
-      alert('Failed to remove item from cart');
+      toast.error('Failed to remove item from cart');
     }
   };
 
@@ -284,17 +293,17 @@ const App = () => {
     if (cart.length === 0) return;
 
     if (!costCenterId) {
-      alert('Please select a cost center');
+      toast.error('Please select a cost center');
       return;
     }
 
     if (!locationId) {
-      alert('Please select a shipping location');
+      toast.error('Please select a shipping location');
       return;
     }
 
     if (!category) {
-      alert('Please select an expense category');
+      toast.error('Please select an expense category');
       return;
     }
 
@@ -309,36 +318,34 @@ const App = () => {
       const expenseCount = response.data.count || response.data.expenses?.length;
       const autoApproved = response.data.autoApproved;
 
+      let amazonSummary = null;
+      let reasonText = null;
+      let firstApprover = null;
+
       if (autoApproved) {
         const amazonResults = response.data.amazonOrderResults || [];
-        const failedAmazonOrders = amazonResults.filter(result => result.status === 'failed');
-        const confirmedAmazonOrders = amazonResults.filter(result => result.status === 'confirmed');
-        const amazonSummary = amazonResults.length > 0
-          ? `\nAmazon orders confirmed: ${confirmedAmazonOrders.length}/${amazonResults.length}` +
-            (failedAmazonOrders.length > 0
-              ? `\nAmazon order errors: ${failedAmazonOrders.map(result => result.error).join('; ')}`
-              : '')
-          : '';
-
-        const reasonText = response.data.approvalReason === 'no_matching_rule'
+        if (amazonResults.length > 0) {
+          amazonSummary = {
+            confirmed: amazonResults.filter(result => result.status === 'confirmed').length,
+            total: amazonResults.length,
+            errors: amazonResults.filter(result => result.status === 'failed').map(result => result.error)
+          };
+        }
+        reasonText = response.data.approvalReason === 'no_matching_rule'
           ? 'No approval rule covers this amount, so no approval was required.'
           : 'Your role does not require approval.';
-
-        alert(
-          `Expenses automatically approved!\n\n` +
-          `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created and approved\n` +
-          `Total: $${totalAmount.toFixed(2)}${amazonSummary}\n\n` +
-          reasonText
-        );
       } else {
-        const firstApprover = response.data.approvalChain?.[0]?.user_name || 'your manager';
-        alert(
-          `Expense report submitted successfully!\n\n` +
-          `${expenseCount} expense${expenseCount > 1 ? 's' : ''} created\n` +
-          `Total: $${totalAmount.toFixed(2)}\n\n` +
-          `Sent to ${firstApprover} for approval.`
-        );
+        firstApprover = response.data.approvalChain?.[0]?.user_name || 'your manager';
       }
+
+      setCheckoutResult({
+        autoApproved,
+        expenseCount,
+        totalAmount,
+        amazonSummary,
+        reasonText,
+        firstApprover
+      });
 
       // Refresh cart from backend (should be empty now)
       await fetchCart();
@@ -350,13 +357,16 @@ const App = () => {
         autoApproved: autoApproved,
         timestamp: Date.now()
       }));
-
-      // Navigate to expense history to see submitted expenses
-      window.location.hash = '#expenses-history';
     } catch (error) {
       console.error('Checkout failed:', error);
-      alert(error.response?.data?.error || 'Failed to submit expenses for approval');
+      toast.error(error.response?.data?.error || 'Failed to submit expenses for approval');
     }
+  };
+
+  const closeCheckoutResult = () => {
+    setCheckoutResult(null);
+    // Navigate to expense history to see submitted expenses
+    window.location.hash = '#expenses-history';
   };
 
   const handleCartClick = () => {
@@ -464,6 +474,20 @@ const App = () => {
       <div className="container main-content">
         {renderPage()}
       </div>
+      <ConfirmModal
+        open={showLogoutConfirm}
+        variant="logout"
+        title="Log out of ExpenseHub?"
+        description="You'll need to sign in again to submit or approve expenses."
+        confirmLabel="Log Out"
+        cancelLabel="Stay Signed In"
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+      <CheckoutSuccessModal
+        result={checkoutResult}
+        onClose={closeCheckoutResult}
+      />
     </div>
   );
 };
