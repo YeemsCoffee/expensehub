@@ -6,6 +6,7 @@
  */
 const db = require('../config/database');
 const xeroService = require('./xeroService');
+const { getValidXeroConnection } = require('./xeroConnection');
 
 async function recordSyncError(expenseId, message) {
   await db.query(
@@ -30,53 +31,23 @@ async function autoSyncExpenseToXero(expenseId) {
   }
 
   try {
-    const xeroConnection = await db.query(
-      `SELECT * FROM xero_connections
-       WHERE is_organization_wide = true AND is_active = true
-       LIMIT 1`
-    );
+    // Shared, lock-serialised connection lookup (see services/xeroConnection)
+    const conn = await getValidXeroConnection();
 
-    if (xeroConnection.rows.length === 0) {
-      return; // Xero not connected; nothing to do.
-    }
-
-    const connection = xeroConnection.rows[0];
-    const tenantId = connection.tenant_id;
-
-    // Refresh token if it expires within five minutes
-    const expiresAt = new Date(connection.expires_at);
-    const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
-
-    if (expiresAt <= fiveMinutesFromNow) {
-      console.log(`🔄 [Xero auto-sync] Refreshing token for expense ${approvedExpense.id}`);
-
-      // Must include expired access_token for XeroClient
-      xeroService.xero.setTokenSet({
-        access_token: connection.access_token,
-        refresh_token: connection.refresh_token
-      });
-      const refreshResult = await xeroService.refreshAccessToken(connection.refresh_token);
-
-      if (!refreshResult.success) {
-        console.error('✗ [Xero auto-sync] Token refresh failed:', refreshResult.error);
-        await recordSyncError(approvedExpense.id, 'Xero token refresh failed: ' + refreshResult.error);
-        return;
+    if (!conn.connection) {
+      if (conn.reason === 'not_connected') {
+        return; // Xero not connected; nothing to do.
       }
-
-      await db.query(
-        `UPDATE xero_connections
-         SET access_token = $1, refresh_token = $2, expires_at = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4`,
-        [
-          refreshResult.tokenSet.access_token,
-          refreshResult.tokenSet.refresh_token || connection.refresh_token,
-          new Date(Date.now() + refreshResult.tokenSet.expires_in * 1000),
-          connection.id
-        ]
-      );
-      connection.access_token = refreshResult.tokenSet.access_token;
-      connection.refresh_token = refreshResult.tokenSet.refresh_token || connection.refresh_token;
+      const message = conn.reason === 'reconnect_required'
+        ? 'Xero connection expired - an admin must reconnect Xero in Settings'
+        : 'Xero token refresh failed: ' + conn.error;
+      console.error(`✗ [Xero auto-sync] ${message} (expense ${approvedExpense.id})`);
+      await recordSyncError(approvedExpense.id, message);
+      return;
     }
+
+    const connection = conn.connection;
+    const tenantId = connection.tenant_id;
 
     xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
