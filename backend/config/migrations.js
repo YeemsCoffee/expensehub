@@ -286,6 +286,39 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] Amazon quantity columns and status constraint already exist - skipping');
     }
 
+    // 8. Check and apply user soft-delete migration (users.deleted_at)
+    console.log('[MIGRATION] Checking if users.deleted_at column exists...');
+    const checkUserDeletedAt = await db.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'users'
+      AND column_name = 'deleted_at'
+      AND table_schema = 'public'
+    `);
+
+    if (checkUserDeletedAt.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying user soft-delete migration...');
+
+      const softDeleteMigrationPath = path.join(__dirname, '../database/add_user_soft_delete.sql');
+
+      if (fs.existsSync(softDeleteMigrationPath)) {
+        const softDeleteMigrationSQL = fs.readFileSync(softDeleteMigrationPath, 'utf8');
+
+        await Promise.race([
+          db.query(softDeleteMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] User soft-delete migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] User soft-delete migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] users.deleted_at column already exists - skipping');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)
