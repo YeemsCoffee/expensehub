@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Edit2, Shield, User as UserIcon, Mail, Briefcase, Plus, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
+import ConfirmModal from '../components/ConfirmModal';
 
 const Users = () => {
   const toast = useToast();
@@ -12,6 +13,14 @@ const Users = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditManagerModal, setShowEditManagerModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditDetailsModal, setShowEditDetailsModal] = useState(false);
+  const [editDetailsFormData, setEditDetailsFormData] = useState({
+    firstName: '',
+    lastName: '',
+    department: ''
+  });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [editFormData, setEditFormData] = useState({
     role: ''
   });
@@ -80,6 +89,55 @@ const Users = () => {
     setShowEditManagerModal(false);
     setEditManagerFormData({ managerId: '' });
     setError('');
+  };
+
+  const handleEditDetailsClick = (user) => {
+    setEditingUser(user);
+    setEditDetailsFormData({
+      firstName: user.first_name || '',
+      lastName: user.last_name || '',
+      department: user.department || ''
+    });
+    setShowEditDetailsModal(true);
+    setError('');
+  };
+
+  const handleCancelEditDetails = () => {
+    setEditingUser(null);
+    setShowEditDetailsModal(false);
+    setEditDetailsFormData({ firstName: '', lastName: '', department: '' });
+    setError('');
+  };
+
+  const handleUpdateDetails = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    const firstName = editDetailsFormData.firstName.trim();
+    const lastName = editDetailsFormData.lastName.trim();
+    if (!firstName || !lastName) {
+      setError('First and last name are required');
+      return;
+    }
+
+    try {
+      await api.put(`/users/${editingUser.id}`, {
+        firstName,
+        lastName,
+        department: editDetailsFormData.department.trim()
+      });
+
+      toast.success('User details updated');
+      fetchUsers();
+      handleCancelEditDetails();
+    } catch (err) {
+      const apiErrors = err.response?.data?.errors;
+      setError(
+        (apiErrors && apiErrors[0]?.msg) ||
+        err.response?.data?.error ||
+        'Failed to update user details'
+      );
+    }
   };
 
   const handleCancelCreate = () => {
@@ -156,17 +214,28 @@ const Users = () => {
     }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!window.confirm(`Are you sure you want to delete user ${userName}? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteUser = (user) => {
+    setDeleteTarget(user);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget || deleting) return;
+    const name = `${deleteTarget.first_name} ${deleteTarget.last_name}`;
+    setDeleting(true);
 
     try {
-      await api.delete(`/users/${userId}`);
-      toast.success('User deleted successfully');
+      const response = await api.delete(`/users/${deleteTarget.id}`);
+      const preserved = response.data?.preserved;
+      const kept = preserved
+        ? ` ${preserved.expensesSubmitted} submitted and ${preserved.expensesApproved} approved expense(s) were kept for your records.`
+        : '';
+      toast.success(`${name} was deleted.${kept}`);
+      setDeleteTarget(null);
       fetchUsers();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to delete user');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -199,7 +268,7 @@ const Users = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h2 className="page-title" style={{ marginBottom: '0.5rem' }}>User Management</h2>
-          <p className="text-gray-600">Manage user access rights and roles</p>
+          <p className="text-gray-600">Manage user details, access rights and roles</p>
         </div>
         <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
           <Plus size={18} />
@@ -261,24 +330,36 @@ const Users = () => {
                     <td>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
+                          onClick={() => handleEditDetailsClick(user)}
+                          className="btn-icon"
+                          title="Edit Name & Department"
+                          aria-label={`Edit details for ${user.first_name} ${user.last_name}`}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
                           onClick={() => handleEditClick(user)}
                           className="btn-icon"
                           title="Edit Role"
+                          aria-label={`Edit role for ${user.first_name} ${user.last_name}`}
+                          style={{ color: '#d97706' }}
                         >
-                          <Edit2 size={16} />
+                          <Shield size={16} />
                         </button>
                         <button
                           onClick={() => handleEditManagerClick(user)}
                           className="btn-icon"
                           title="Assign Manager"
+                          aria-label={`Assign manager for ${user.first_name} ${user.last_name}`}
                           style={{ color: '#8b5cf6' }}
                         >
                           <Briefcase size={16} />
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
+                          onClick={() => handleDeleteUser(user)}
                           className="btn-icon"
                           title="Delete User"
+                          aria-label={`Delete ${user.first_name} ${user.last_name}`}
                           style={{ color: '#ef4444' }}
                         >
                           <Trash2 size={16} />
@@ -580,6 +661,98 @@ const Users = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Details Modal (name & department) */}
+      {showEditDetailsModal && editingUser && (
+        <div className="modal-overlay" onClick={handleCancelEditDetails}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Edit User Details</h3>
+              <button onClick={handleCancelEditDetails} className="modal-close">×</button>
+            </div>
+
+            <div className="modal-body">
+              {error && (
+                <div className="error-message mb-4">
+                  {error}
+                </div>
+              )}
+
+              <div className="user-info-display">
+                <div className="user-info-row">
+                  <span className="label">Email:</span>
+                  <span className="value">{editingUser.email}</span>
+                </div>
+                <div className="user-info-row">
+                  <span className="label">Employee ID:</span>
+                  <span className="value">{editingUser.employee_id}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateDetails}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="edit-first-name">First Name *</label>
+                    <input
+                      id="edit-first-name"
+                      type="text"
+                      value={editDetailsFormData.firstName}
+                      onChange={(e) => setEditDetailsFormData({ ...editDetailsFormData, firstName: e.target.value })}
+                      className="form-input"
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="edit-last-name">Last Name *</label>
+                    <input
+                      id="edit-last-name"
+                      type="text"
+                      value={editDetailsFormData.lastName}
+                      onChange={(e) => setEditDetailsFormData({ ...editDetailsFormData, lastName: e.target.value })}
+                      className="form-input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="edit-department">Department</label>
+                  <input
+                    id="edit-department"
+                    type="text"
+                    value={editDetailsFormData.department}
+                    onChange={(e) => setEditDetailsFormData({ ...editDetailsFormData, department: e.target.value })}
+                    className="form-input"
+                    placeholder="Optional"
+                  />
+                </div>
+
+                <div className="modal-footer">
+                  <button type="submit" className="btn btn-primary">
+                    Save Changes
+                  </button>
+                  <button type="button" onClick={handleCancelEditDetails} className="btn btn-secondary">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        variant="danger"
+        title={deleteTarget ? `Delete ${deleteTarget.first_name} ${deleteTarget.last_name}?` : ''}
+        description="They will be removed from this list right away and will no longer be able to sign in. Their expenses, approvals and audit history are kept for your records, and their email address and employee ID become available to reuse."
+        confirmLabel={deleting ? 'Deleting…' : 'Delete User'}
+        cancelLabel="Keep User"
+        onConfirm={confirmDeleteUser}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+      />
     </div>
   );
 };

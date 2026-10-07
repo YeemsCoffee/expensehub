@@ -19,7 +19,8 @@ router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-    const countResult = await db.query('SELECT COUNT(*) AS total FROM users');
+    // Soft-deleted users are hidden from the list (see DELETE /:id)
+    const countResult = await db.query('SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL');
 
     const result = await db.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.employee_id,
@@ -27,6 +28,7 @@ router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
               m.first_name || ' ' || m.last_name as manager_name
        FROM users u
        LEFT JOIN users m ON u.manager_id = m.id
+       WHERE u.deleted_at IS NULL
        ORDER BY u.created_at DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
@@ -118,6 +120,64 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
   }
 });
 
+// Update user details - name and department (admin/developer only)
+router.put('/:id', authMiddleware, isAdminOrDeveloper, [
+  body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty'),
+  body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty'),
+  body('department').optional({ nullable: true }).trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { firstName, lastName, department } = req.body;
+
+    if (firstName === undefined && lastName === undefined && department === undefined) {
+      return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    const result = await db.query(
+      `UPDATE users
+       SET first_name = COALESCE($1, first_name),
+           last_name = COALESCE($2, last_name),
+           department = CASE WHEN $3::boolean THEN NULLIF($4, '') ELSE department END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5 AND deleted_at IS NULL
+       RETURNING id, email, first_name, last_name, employee_id, department, role`,
+      [
+        firstName ?? null,
+        lastName ?? null,
+        department !== undefined, // whether to touch department at all
+        department ?? null,
+        req.params.id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      message: 'User updated successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        employeeId: user.employee_id,
+        department: user.department,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Update user details error:', error);
+    res.status(500).json({ error: 'Server error updating user' });
+  }
+});
+
 // Update user role (admin/developer only)
 router.put('/:id/role', authMiddleware, isAdminOrDeveloper, [
   body('role').isIn(['employee', 'manager', 'admin', 'developer'])
@@ -174,15 +234,19 @@ router.put('/:id/manager', authMiddleware, isAdminOrDeveloper, [
 
     const { managerId } = req.body;
 
-    // Validate manager exists and has appropriate role (manager, admin, or developer)
+    // Validate manager exists, is active and not deleted, and can approve
     if (managerId) {
       const managerCheck = await db.query(
-        'SELECT role FROM users WHERE id = $1',
+        'SELECT role, is_active FROM users WHERE id = $1 AND deleted_at IS NULL',
         [managerId]
       );
 
       if (managerCheck.rows.length === 0) {
         return res.status(400).json({ error: 'Manager not found' });
+      }
+
+      if (!managerCheck.rows[0].is_active) {
+        return res.status(400).json({ error: 'Selected manager is inactive' });
       }
 
       const validRoles = ['manager', 'admin', 'developer'];
@@ -212,38 +276,78 @@ router.put('/:id/manager', authMiddleware, isAdminOrDeveloper, [
 });
 
 // Delete user (admin/developer only)
+//
+// This is a soft delete: the row is kept so every expense, approval, document
+// and audit record that references the user stays valid, but the user is
+// deactivated, hidden from the list, and their PII anonymised so the email and
+// employee ID can be reused. A hard DELETE cannot work "regardless" here -
+// 20+ foreign keys reference users(id) without ON DELETE rules, and the one
+// that cascades (expenses.user_id) would erase approved expenses, Amazon POs
+// and Xero bills.
 router.delete('/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
-  try {
-    // Prevent deleting yourself
-    if (parseInt(req.params.id) === req.user.id) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
-    }
+  // Prevent deleting yourself (you'd lock yourself out mid-session)
+  if (parseInt(req.params.id, 10) === req.user.id) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
 
-    // Check if user has expenses
-    const expensesCheck = await db.query(
-      'SELECT COUNT(*) as count FROM expenses WHERE user_id = $1',
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Detach anyone who reported to this user so approval routing never
+    // points at a deleted manager (approvalService then routes to admins).
+    const reports = await client.query(
+      `UPDATE users
+       SET manager_id = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE manager_id = $1 AND deleted_at IS NULL
+       RETURNING id`,
       [req.params.id]
     );
 
-    if (parseInt(expensesCheck.rows[0].count) > 0) {
-      return res.status(400).json({
-        error: 'Cannot delete user with existing expenses. Consider deactivating instead.'
-      });
-    }
+    // Count history we are keeping, to report back
+    const history = await client.query(
+      `SELECT
+         (SELECT COUNT(*) FROM expenses WHERE user_id = $1) AS submitted,
+         (SELECT COUNT(*) FROM expenses WHERE approved_by = $1) AS approved`,
+      [req.params.id]
+    );
 
-    const result = await db.query(
-      'DELETE FROM users WHERE id = $1 RETURNING id',
+    const result = await client.query(
+      `UPDATE users
+       SET is_active = false,
+           deleted_at = CURRENT_TIMESTAMP,
+           first_name = 'Deleted',
+           last_name = 'User',
+           email = 'deleted-' || id || '@removed.local',
+           employee_id = 'DELETED-' || id,
+           manager_id = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id`,
       [req.params.id]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ message: 'User deleted successfully' });
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'User deleted successfully',
+      reportsReassigned: reports.rows.length,
+      preserved: {
+        expensesSubmitted: parseInt(history.rows[0].submitted, 10),
+        expensesApproved: parseInt(history.rows[0].approved, 10)
+      }
+    });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Delete user error:', error);
     res.status(500).json({ error: 'Server error deleting user' });
+  } finally {
+    client.release();
   }
 });
 
