@@ -135,6 +135,34 @@ const XeroSettings = () => {
     }
   };
 
+  // The backend answers Xero-connection problems with a `code` so they are
+  // never confused with an ExpenseHub login problem. Returns true if handled.
+  const handleXeroConnectionError = useCallback((error) => {
+    const code = error.response?.data?.code;
+    if (code === 'XERO_RECONNECT_REQUIRED' || code === 'XERO_NOT_CONNECTED') {
+      setConnected(false);
+      setConnections([]);
+      setSelectedTenant(null);
+      setAccounts([]);
+      setExpenses([]);
+      setMessage({
+        type: 'error',
+        text: code === 'XERO_RECONNECT_REQUIRED'
+          ? 'Your Xero connection has expired and must be reconnected. Click "Connect to Xero" to sign in to Xero again - your account mappings are kept.'
+          : 'Not connected to Xero. Click "Connect to Xero" to get started.'
+      });
+      return true;
+    }
+    if (code === 'XERO_REFRESH_FAILED') {
+      setMessage({
+        type: 'error',
+        text: 'Could not reach Xero to refresh the connection. Please try again in a moment.'
+      });
+      return true;
+    }
+    return false;
+  }, []);
+
   const loadAccounts = useCallback(async () => {
     try {
       const response = await api.get(`/xero/accounts?tenantId=${selectedTenant}`);
@@ -145,19 +173,20 @@ const XeroSettings = () => {
       setAccounts(expenseAccounts);
     } catch (error) {
       console.error('Error loading accounts:', error);
+      if (handleXeroConnectionError(error)) return;
       if (error.response?.status === 401) {
         setMessage({
           type: 'error',
-          text: 'Authentication required. You need admin or developer privileges to access Xero settings.'
+          text: 'Your ExpenseHub session has expired. Please sign in again.'
         });
       } else {
         setMessage({
           type: 'error',
-          text: 'Failed to load Xero accounts. Try disconnecting and reconnecting to Xero.'
+          text: error.response?.data?.error || 'Failed to load Xero accounts.'
         });
       }
     }
-  }, [selectedTenant]);
+  }, [selectedTenant, handleXeroConnectionError]);
 
   const loadMappings = useCallback(async () => {
     try {
@@ -235,6 +264,7 @@ const XeroSettings = () => {
       setMessage({ type: 'success', text: `Expense #${expenseId} synced to Xero successfully` });
       loadExpenses();
     } catch (error) {
+      if (handleXeroConnectionError(error)) return;
       const errMsg = error.response?.data?.error || 'Failed to sync expense';
       setMessage({ type: 'error', text: errMsg });
     } finally {
@@ -265,6 +295,7 @@ const XeroSettings = () => {
       setMessage({ type: 'success', text: result.data.message });
       loadExpenses();
     } catch (error) {
+      if (handleXeroConnectionError(error)) return;
       const errMsg = error.response?.data?.error || 'Bulk sync failed';
       setMessage({ type: 'error', text: errMsg });
     } finally {

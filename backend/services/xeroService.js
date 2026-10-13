@@ -97,9 +97,11 @@ class XeroService {
       console.log('✓ Token refresh successful');
       return { success: true, tokenSet: newTokenSet };
     } catch (error) {
-      console.error('✗ Xero token refresh error:', error);
-      console.error('Error stack:', error.stack);
-      return { success: false, error: error.message };
+      console.error('✗ Xero token refresh error:', error.message);
+      // openid-client raises OPError with .error = 'invalid_grant' when the
+      // refresh token has been consumed/revoked. Surface it so callers can
+      // tell a dead token from a transient failure.
+      return { success: false, error: error.message, code: error.error || null };
     }
   }
 
