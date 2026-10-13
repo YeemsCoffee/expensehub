@@ -683,6 +683,119 @@
   color: var(--color-text-primary);
 }
 
+/* Rows whose control carries a note under the select */
+.mapping-row--top {
+  align-items: start;
+}
+
+.mapping-row--top .mapping-label {
+  padding-top: var(--spacing-8);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mapping-row--default {
+  padding-bottom: var(--spacing-12);
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.mapping-row--removing {
+  opacity: 0.55;
+}
+
+.mapping-label-meta {
+  font-size: var(--font-size-xs);
+  font-weight: normal;
+  color: var(--color-text-secondary);
+}
+
+.mapping-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+.mapping-control--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding-top: var(--spacing-4);
+}
+
+.mapping-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.mapping-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.mapping-note--warn {
+  color: var(--color-warning-700);
+}
+
+.mapping-note--pending {
+  color: var(--color-accent-600);
+  font-weight: var(--font-weight-medium);
+}
+
+.mapping-orphan-account {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.mapping-section-title {
+  margin: var(--spacing-20) 0 var(--spacing-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.mapping-section-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.xero-chart-summary {
+  margin-top: var(--spacing-8);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.xero-chart-summary p {
+  margin: 0 0 var(--spacing-4);
+}
+
+.xero-chart-table {
+  max-height: 360px;
+  overflow: auto;
+  margin: var(--spacing-8) 0 var(--spacing-12);
+}
+
+.xero-org-note {
+  margin: var(--spacing-4) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.xero-sync-error {
+  margin-top: var(--spacing-4);
+  max-width: 360px;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  color: var(--color-error-700);
+}
+
 /* Steps list */
 .steps-list {
   list-style: decimal;

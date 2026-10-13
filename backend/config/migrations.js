@@ -319,6 +319,39 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] users.deleted_at column already exists - skipping');
     }
 
+    // 9. Xero organisation selection, per-grant tokens and mapping clean-up
+    console.log('[MIGRATION] Checking if xero_connections.grant_id column exists...');
+    const checkXeroGrantId = await db.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'xero_connections'
+      AND column_name = 'grant_id'
+      AND table_schema = 'public'
+    `);
+
+    if (checkXeroGrantId.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying Xero organisation/mapping migration...');
+
+      const xeroOrgMigrationPath = path.join(__dirname, '../database/xero_org_selection_and_mapping_fixes.sql');
+
+      if (fs.existsSync(xeroOrgMigrationPath)) {
+        const xeroOrgMigrationSQL = fs.readFileSync(xeroOrgMigrationPath, 'utf8');
+
+        await Promise.race([
+          db.query(xeroOrgMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Xero organisation/mapping migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Xero organisation/mapping migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] xero_connections.grant_id already exists - skipping');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)

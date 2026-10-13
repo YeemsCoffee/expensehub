@@ -1,6 +1,47 @@
 const { XeroClient } = require('xero-node');
 const db = require('../config/database');
 
+/**
+ * xero-node API methods reject with a JSON *string*
+ * (`JSON.stringify(errorResponse.generateError())`), so `error.message` is
+ * undefined and Xero's validation messages were being lost. Normalise any
+ * rejection into { message, statusCode, body }.
+ */
+function parseXeroError(error) {
+  let e = error;
+  if (typeof e === 'string') {
+    try {
+      e = JSON.parse(e);
+    } catch (parseErr) {
+      return { message: e, statusCode: null, body: null };
+    }
+  }
+
+  const statusCode = (e && e.response && e.response.statusCode) || (e && e.statusCode) || null;
+  const body = (e && e.response && e.response.body) || (e && e.body) || null;
+
+  const messages = [];
+  if (body && typeof body === 'object') {
+    for (const element of body.Elements || []) {
+      for (const v of element.ValidationErrors || []) {
+        if (v && v.Message) messages.push(v.Message);
+      }
+    }
+    if (!messages.length && body.Detail) messages.push(body.Detail);
+    if (!messages.length && body.Message) messages.push(body.Message);
+    if (!messages.length && body.Title) messages.push(body.Title);
+  } else if (typeof body === 'string' && body.trim()) {
+    messages.push(body.trim());
+  }
+  if (!messages.length && e && e.message) messages.push(e.message);
+
+  const message = messages.length
+    ? [...new Set(messages)].join('; ')
+    : (statusCode ? `Xero API error (HTTP ${statusCode})` : 'Unknown Xero API error');
+
+  return { message, statusCode, body };
+}
+
 class XeroService {
   constructor() {
     this.xero = new XeroClient({
@@ -122,28 +163,73 @@ class XeroService {
   }
 
   /**
-   * Get Xero chart of accounts
+   * xero-node only creates its OpenID client in buildConsentUrl(); refresh
+   * and revoke need it, so make sure it exists without losing the token set.
+   */
+  async ensureOpenIdClient() {
+    if (!this.xero.openIdClient) {
+      const currentTokenSet = this.xero.readTokenSet();
+      await this.xero.buildConsentUrl();
+      if (currentTokenSet) {
+        this.xero.setTokenSet(currentTokenSet);
+      }
+    }
+  }
+
+  /**
+   * Revoke an OAuth grant at Xero (disconnects every organisation it covers).
+   * Best effort: the caller deactivates the local connection regardless.
+   */
+  async revokeGrant(accessToken, refreshToken) {
+    try {
+      this.xero.setTokenSet({ access_token: accessToken, refresh_token: refreshToken });
+      await this.ensureOpenIdClient();
+      await this.xero.revokeToken();
+      return { success: true };
+    } catch (error) {
+      const parsed = parseXeroError(error);
+      console.error('Xero token revoke error:', parsed.message);
+      return { success: false, error: parsed.message };
+    }
+  }
+
+  /**
+   * Get the organisation's full chart of accounts (every type and status;
+   * filtering for what can be posted to happens in services/xeroAccounts).
    * @param {string} tenantId - Xero organization ID
-   * @returns {Promise<Object>} Chart of accounts
+   * @returns {Promise<Object>} { success, accounts } or { success: false, error, statusCode }
    */
   async getChartOfAccounts(tenantId) {
     try {
       const response = await this.xero.accountingApi.getAccounts(tenantId);
 
-      const accounts = response.body.accounts.map(account => ({
+      const accounts = (response.body.accounts || []).map(account => ({
         accountId: account.accountID,
-        code: account.code,
+        code: account.code || null,
         name: account.name,
         type: account.type,
-        taxType: account.taxType,
+        // xero-node maps the wire field "Class" to `_class`; `account.class`
+        // is always undefined.
+        class: account._class || null,
         status: account.status,
-        class: account.class
+        taxType: account.taxType,
+        systemAccount: account.systemAccount || null,
+        description: account.description || null
       }));
+
+      // Xero's order is not guaranteed; sort by code the way its chart does
+      accounts.sort((a, b) => {
+        if (!a.code && !b.code) return String(a.name).localeCompare(String(b.name));
+        if (!a.code) return 1;
+        if (!b.code) return -1;
+        return a.code.localeCompare(b.code, undefined, { numeric: true });
+      });
 
       return { success: true, accounts };
     } catch (error) {
-      console.error('Error fetching Xero accounts:', error);
-      return { success: false, error: error.message };
+      const parsed = parseXeroError(error);
+      console.error('Error fetching Xero accounts:', parsed.message);
+      return { success: false, error: parsed.message, statusCode: parsed.statusCode };
     }
   }
 
@@ -209,39 +295,22 @@ class XeroService {
   }
 
   /**
-   * Sync expense to Xero (auto-detects supplier based on reimbursable flag)
-   * @param {string} tenantId - Xero organization ID
-   * @param {Object} expense - Expense data
-   * @param {Object} mapping - Account mapping configuration
-   * @returns {Promise<Object>} Sync result
-   */
-  async syncExpense(tenantId, expense, mapping) {
-    try {
-      // For reimbursable expenses, create bill payable to employee
-      // For non-reimbursable, create bill payable to vendor
-      return await this.syncExpenseToXero(tenantId, expense, mapping);
-    } catch (error) {
-      console.error('Error syncing expense:', error);
-      return {
-        success: false,
-        error: error.message,
-        details: error.response?.body
-      };
-    }
-  }
-
-  /**
    * Sync expense to Xero as an expense claim (for reimbursable expenses)
    * NOTE: Not currently used - reimbursable expenses are created as bills payable to employee instead
    * Kept for future reference if Xero user mapping is implemented
    * @param {string} tenantId - Xero organization ID
    * @param {Object} expense - Expense data
-   * @param {Object} mapping - Account mapping configuration
+   * @param {{accountCode: string, taxType?: string}} options - Resolved, validated account (services/xeroAccounts)
    * @param {string} userId - Xero user ID for expense claim
    * @returns {Promise<Object>} Sync result
    */
-  async syncExpenseClaimToXero(tenantId, expense, mapping, userId) {
+  async syncExpenseClaimToXero(tenantId, expense, options, userId) {
     try {
+      const { accountCode, taxType = 'NONE' } = options || {};
+      if (!accountCode) {
+        return { success: false, error: 'No Xero account code was resolved for this expense' };
+      }
+
       // Build line items for expense claim
       const receiptLines = [];
 
@@ -252,8 +321,8 @@ class XeroService {
             description: item.description,
             quantity: item.quantity || 1,
             unitAmount: item.unitPrice || item.total,
-            accountCode: mapping.defaultExpenseAccount || '400',
-            taxType: mapping.defaultTaxType || 'NONE'
+            accountCode,
+            taxType
           });
         });
       } else {
@@ -262,8 +331,8 @@ class XeroService {
           description: expense.description || 'Expense',
           quantity: 1,
           unitAmount: expense.amount,
-          accountCode: this.mapCategoryToAccount(expense.category, mapping),
-          taxType: mapping.defaultTaxType || 'NONE'
+          accountCode,
+          taxType
         });
       }
 
@@ -307,23 +376,34 @@ class XeroService {
       };
 
     } catch (error) {
-      console.error('Error syncing expense claim to Xero:', error);
+      const parsed = parseXeroError(error);
+      console.error('Error syncing expense claim to Xero:', parsed.message);
       return {
         success: false,
-        error: error.message,
-        details: error.response?.body
+        error: parsed.message,
+        details: parsed.body
       };
     }
   }
 
   /**
-   * Sync expense to Xero as a bill (accounts payable)
+   * Sync expense to Xero as a bill (accounts payable).
+   *
+   * The account must already be resolved and validated against the live chart
+   * (services/xeroAccounts.resolveExpenseAccount). There is deliberately no
+   * fallback code: posting to an account nobody chose is worse than failing.
+   *
    * @param {string} tenantId - Xero organization ID
    * @param {Object} expense - Expense data
-   * @param {Object} mapping - Account mapping configuration
+   * @param {{accountCode: string, taxType?: string}} options
    * @returns {Promise<Object>} Sync result
    */
-  async syncExpenseToXero(tenantId, expense, mapping) {
+  async syncExpenseToXero(tenantId, expense, options) {
+    const { accountCode, taxType = 'NONE' } = options || {};
+    if (!accountCode) {
+      return { success: false, error: 'No Xero account code was resolved for this expense' };
+    }
+
     try {
       // Determine contact based on reimbursable flag
       let contactName;
@@ -346,14 +426,15 @@ class XeroService {
       const lineItems = [];
 
       if (expense.line_items && expense.line_items.length > 0) {
-        // Use actual line items from receipt
+        // Use actual line items from receipt; every line belongs to the
+        // expense's category account
         expense.line_items.forEach(item => {
           lineItems.push({
             description: item.description,
             quantity: item.quantity || 1,
             unitAmount: item.unitPrice || item.total,
-            accountCode: mapping.defaultExpenseAccount || '400', // Default expense account
-            taxType: mapping.defaultTaxType || 'NONE'
+            accountCode,
+            taxType
           });
         });
       } else {
@@ -362,8 +443,8 @@ class XeroService {
           description: billDescription || 'Expense',
           quantity: 1,
           unitAmount: expense.amount,
-          accountCode: this.mapCategoryToAccount(expense.category, mapping),
-          taxType: mapping.defaultTaxType || 'NONE'
+          accountCode,
+          taxType
         });
       }
 
@@ -385,11 +466,12 @@ class XeroService {
 
       const createdBill = response.body.invoices[0];
 
-      // Update expense with Xero info
+      // Update expense with Xero info (and clear any earlier failure)
       await db.query(
         `UPDATE expenses
          SET xero_invoice_id = $1,
              xero_synced_at = CURRENT_TIMESTAMP,
+             xero_sync_error = NULL,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
         [createdBill.invoiceID, expense.id]
@@ -403,93 +485,14 @@ class XeroService {
       };
 
     } catch (error) {
-      console.error('Error syncing expense to Xero:', error);
+      const parsed = parseXeroError(error);
+      console.error(`Error syncing expense ${expense.id} to Xero:`, parsed.message);
       return {
         success: false,
-        error: error.message,
-        details: error.response?.body
+        error: parsed.message,
+        details: parsed.body
       };
     }
-  }
-
-  /**
-   * Map expense category to Xero account code
-   * @param {string} category - Expense category
-   * @param {Object} mapping - Account mapping configuration
-   * @returns {string} Xero account code
-   */
-  mapCategoryToAccount(category, mapping) {
-    // Use custom mapping if provided
-    if (mapping.categoryMapping && mapping.categoryMapping[category]) {
-      return mapping.categoryMapping[category];
-    }
-
-    // Try normalized key (e.g. "Meals & Entertainment" -> "meals_entertainment")
-    const normalizedKey = category.toLowerCase().replace(/[&\s]+/g, '_').replace(/_+/g, '_');
-    if (mapping.categoryMapping && mapping.categoryMapping[normalizedKey]) {
-      return mapping.categoryMapping[normalizedKey];
-    }
-
-    // Check database category mappings if loaded
-    if (mapping.dbCategoryMappings && mapping.dbCategoryMappings[category]) {
-      return mapping.dbCategoryMappings[category];
-    }
-
-    // Default account codes (customize based on your chart of accounts)
-    const defaultMapping = {
-      'meals': '420',
-      'meals_entertainment': '420',
-      'travel': '493',
-      'car_rental': '404',
-      'fuel': '404',
-      'office_supplies': '461',
-      'software': '453',
-      'equipment': '630',
-      'professional_services': '404',
-      'marketing': '400',
-      'internet': '445',
-      'utilities': '445',
-      'other': '404'
-    };
-
-    return defaultMapping[category] || defaultMapping[normalizedKey] || mapping.defaultExpenseAccount || '400';
-  }
-
-  /**
-   * Bulk sync multiple expenses to Xero
-   * @param {string} tenantId - Xero organization ID
-   * @param {Array} expenses - Array of expenses
-   * @param {Object} mapping - Account mapping configuration
-   * @returns {Promise<Object>} Bulk sync result
-   */
-  async bulkSyncExpenses(tenantId, expenses, mapping) {
-    const results = {
-      success: [],
-      failed: []
-    };
-
-    for (const expense of expenses) {
-      const result = await this.syncExpenseToXero(tenantId, expense, mapping);
-
-      if (result.success) {
-        results.success.push({
-          expenseId: expense.id,
-          xeroInvoiceId: result.xeroInvoiceId
-        });
-      } else {
-        results.failed.push({
-          expenseId: expense.id,
-          error: result.error
-        });
-      }
-    }
-
-    return {
-      success: true,
-      synced: results.success.length,
-      failed: results.failed.length,
-      details: results
-    };
   }
 
   /**
@@ -513,11 +516,13 @@ class XeroService {
         }
       };
     } catch (error) {
-      console.error('Error fetching Xero organization:', error);
-      return { success: false, error: error.message };
+      const parsed = parseXeroError(error);
+      console.error('Error fetching Xero organization:', parsed.message);
+      return { success: false, error: parsed.message };
     }
   }
 }
 
 // Export singleton instance
 module.exports = new XeroService();
+module.exports.parseXeroError = parseXeroError;

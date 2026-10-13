@@ -156,7 +156,6 @@ const ExpenseCategories = () => {
 
   const activeCount = categories.filter(c => c.is_active).length;
   const inactiveCount = categories.filter(c => !c.is_active).length;
-  const unmappedCount = categories.filter(c => c.is_active && !c.xero_account_code).length;
 
   return (
     <div className="container">
@@ -164,13 +163,11 @@ const ExpenseCategories = () => {
         <div>
           <h2 className="page-title" style={{ margin: 0 }}>Expense Categories</h2>
           <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            Manage expense categories and their Xero account mappings.
-            {' '}{activeCount} active, {inactiveCount} inactive
-            {unmappedCount > 0 && (
-              <span style={{ color: '#f59e0b', fontWeight: '600' }}>
-                {' '} ({unmappedCount} missing Xero mapping)
-              </span>
-            )}
+            Manage expense categories. {activeCount} active, {inactiveCount} inactive.
+          </p>
+          <p style={{ color: '#6b7280', fontSize: '0.8125rem', marginTop: '0.25rem' }}>
+            The Xero account each category posts to is chosen in <strong>Settings → Xero Integration</strong>,
+            from your live Xero chart of accounts. A code set here is only a fallback for categories not mapped there.
           </p>
         </div>
         <button
@@ -211,7 +208,7 @@ const ExpenseCategories = () => {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                  Xero Account Code
+                  Fallback Xero Account Code (optional)
                 </label>
                 <input
                   type="text"
@@ -278,7 +275,7 @@ const ExpenseCategories = () => {
               <tr>
                 <th style={{ width: '40px' }}>Order</th>
                 <th>Category Name</th>
-                <th>Xero Account Code</th>
+                <th>Fallback Xero Code</th>
                 <th>Xero Account Name</th>
                 <th>Status</th>
                 <th style={{ width: '180px' }}>Actions</th>
@@ -306,8 +303,8 @@ const ExpenseCategories = () => {
                         {category.xero_account_code}
                       </span>
                     ) : (
-                      <span style={{ padding: '0.25rem 0.5rem', borderRadius: '0.25rem', background: '#fef3c7', color: '#f59e0b', fontSize: '0.75rem', fontWeight: '500' }}>
-                        Not mapped
+                      <span style={{ color: '#9ca3af', fontSize: '0.875rem' }} title="No fallback set - map this category in Settings → Xero Integration">
+                        -
                       </span>
                     )}
                   </td>

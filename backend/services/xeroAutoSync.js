@@ -3,19 +3,17 @@
  *
  * Extracted from the legacy POST /api/expenses/:id/approve handler so that the
  * org-chart approval path (routes/expenseApprovals.js) gets the same behaviour.
+ * Posts to the admin-chosen default organisation via the shared sync path
+ * (services/xeroSync), so it resolves accounts exactly like a manual sync.
  */
 const db = require('../config/database');
-const xeroService = require('./xeroService');
 const { getValidXeroConnection } = require('./xeroConnection');
+const { syncExpensesToXero, recordSyncError } = require('./xeroSync');
 
-async function recordSyncError(expenseId, message) {
-  await db.query(
-    `UPDATE expenses
-     SET xero_sync_error = $1, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2`,
-    [message, expenseId]
-  ).catch(err => console.error(`Failed to record Xero sync error for expense ${expenseId}:`, err));
-}
+const CONNECTION_ERRORS = {
+  reconnect_required: 'Xero connection expired - an admin must reconnect Xero in Settings → Xero Integration, then sync again',
+  no_default: 'Several Xero organisations are connected and none is chosen for syncing - choose one in Settings → Xero Integration, then sync again'
+};
 
 async function autoSyncExpenseToXero(expenseId) {
   const expenseResult = await db.query(
@@ -31,66 +29,30 @@ async function autoSyncExpenseToXero(expenseId) {
   }
 
   try {
-    // Shared, lock-serialised connection lookup (see services/xeroConnection)
+    // Default organisation only - never "whichever row was updated last"
     const conn = await getValidXeroConnection();
 
     if (!conn.connection) {
       if (conn.reason === 'not_connected') {
         return; // Xero not connected; nothing to do.
       }
-      const message = conn.reason === 'reconnect_required'
-        ? 'Xero connection expired - an admin must reconnect Xero in Settings'
-        : 'Xero token refresh failed: ' + conn.error;
+      const message = CONNECTION_ERRORS[conn.reason] || ('Xero token refresh failed: ' + conn.error);
       console.error(`✗ [Xero auto-sync] ${message} (expense ${approvedExpense.id})`);
       await recordSyncError(approvedExpense.id, message);
       return;
     }
 
-    const connection = conn.connection;
-    const tenantId = connection.tenant_id;
+    const result = await syncExpensesToXero(conn.connection, [approvedExpense]);
 
-    xeroService.setAccessToken(connection.access_token, connection.refresh_token);
-
-    const mappingsResult = await db.query(
-      `SELECT category, xero_account_code
-       FROM xero_account_mappings
-       WHERE is_organization_wide = true AND tenant_id = $1`,
-      [tenantId]
-    );
-
-    const mapping = {
-      categoryMapping: {},
-      dbCategoryMappings: {},
-      defaultExpenseAccount: '400',
-      defaultTaxType: 'NONE'
-    };
-
-    mappingsResult.rows.forEach(row => {
-      mapping.categoryMapping[row.category] = row.xero_account_code;
-    });
-
-    try {
-      const dbCategories = await db.query(
-        'SELECT name, xero_account_code FROM expense_categories WHERE is_active = true AND xero_account_code IS NOT NULL'
-      );
-      dbCategories.rows.forEach(row => {
-        mapping.dbCategoryMappings[row.name] = row.xero_account_code;
-      });
-    } catch (catErr) {
-      console.log('Note: expense_categories table not available, using defaults');
-    }
-
-    const syncResult = await xeroService.syncExpense(tenantId, approvedExpense, mapping);
-
-    if (syncResult.success) {
-      console.log(`✓ [Xero auto-sync] Synced expense ${approvedExpense.id}`);
-    } else {
-      console.error(`✗ [Xero auto-sync] Failed for expense ${approvedExpense.id}:`, syncResult.error);
-      await recordSyncError(approvedExpense.id, syncResult.error);
+    if (result.synced) {
+      const posted = result.details.synced[0];
+      console.log(`✓ [Xero auto-sync] Synced expense ${approvedExpense.id} to account ${posted.accountCode}`);
+    } else if (result.failed) {
+      console.error(`✗ [Xero auto-sync] Failed for expense ${approvedExpense.id}:`, result.details.failed[0].error);
     }
   } catch (syncError) {
     console.error(`[Xero auto-sync] Error for expense ${approvedExpense.id}:`, syncError);
-    await recordSyncError(approvedExpense.id, syncError.message);
+    await recordSyncError(approvedExpense.id, syncError.message || 'Unexpected error syncing to Xero');
   }
 }
 

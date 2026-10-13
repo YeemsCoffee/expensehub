@@ -158,42 +158,46 @@ class VeryfiService {
     const vendorName = (veryfiData.vendor?.name || '').toLowerCase();
     const vendorCategory = (veryfiData.vendor?.category || '').toLowerCase();
 
-    // Category mapping based on vendor name or category
-    const categoryMap = {
+    // Category inference based on vendor name or category. Returns the names
+    // of the default expense categories (expense_categories), not snake-case
+    // ids: an id like 'fuel' matched no category, so the submit form showed
+    // "Select a category" while still saving 'fuel', and Xero account
+    // mappings (keyed by category) never applied to it. Checked in order.
+    const categoryRules = [
       // Meals & Entertainment
-      'meals': ['restaurant', 'cafe', 'coffee', 'food', 'dining', 'pizza', 'burger'],
-      'meals_entertainment': ['bar', 'pub', 'entertainment', 'theater', 'cinema'],
+      ['Meals & Entertainment', ['restaurant', 'cafe', 'coffee', 'food', 'dining', 'pizza', 'burger']],
+      ['Meals & Entertainment', ['bar', 'pub', 'entertainment', 'theater', 'cinema']],
 
       // Travel
-      'travel': ['hotel', 'motel', 'inn', 'lodging', 'airbnb', 'uber', 'lyft', 'taxi', 'airline', 'flight'],
-      'car_rental': ['rental', 'hertz', 'enterprise', 'avis', 'budget'],
-      'fuel': ['gas', 'fuel', 'petrol', 'shell', 'chevron', 'exxon', 'bp'],
+      ['Travel', ['hotel', 'motel', 'inn', 'lodging', 'airbnb', 'uber', 'lyft', 'taxi', 'airline', 'flight']],
+      ['Travel', ['rental', 'hertz', 'enterprise', 'avis', 'budget']],
+      ['Fuel & Mileage', ['gas', 'fuel', 'petrol', 'shell', 'chevron', 'exxon', 'bp']],
 
       // Office
-      'office_supplies': ['office', 'staples', 'depot', 'supplies'],
+      ['Office Supplies', ['office', 'staples', 'depot', 'supplies']],
 
       // IT & Software
-      'software': ['software', 'saas', 'subscription', 'microsoft', 'adobe', 'google'],
-      'equipment': ['electronics', 'computer', 'laptop', 'apple', 'dell', 'hp'],
+      ['Software & Subscriptions', ['software', 'saas', 'subscription', 'microsoft', 'adobe', 'google']],
+      ['Equipment & Hardware', ['electronics', 'computer', 'laptop', 'apple', 'dell', 'hp']],
 
       // Services
-      'professional_services': ['consulting', 'legal', 'accounting', 'services'],
-      'marketing': ['marketing', 'advertising', 'promotion'],
+      ['Professional Services', ['consulting', 'legal', 'accounting', 'services']],
+      ['Marketing & Advertising', ['marketing', 'advertising', 'promotion']],
 
       // Utilities
-      'internet': ['internet', 'wifi', 'broadband'],
-      'utilities': ['utility', 'electric', 'water', 'power']
-    };
+      ['Utilities & Telecom', ['internet', 'wifi', 'broadband']],
+      ['Utilities & Telecom', ['utility', 'electric', 'water', 'power']]
+    ];
 
     // Check vendor name against categories
-    for (const [category, keywords] of Object.entries(categoryMap)) {
+    for (const [category, keywords] of categoryRules) {
       if (keywords.some(keyword => vendorName.includes(keyword) || vendorCategory.includes(keyword))) {
         return category;
       }
     }
 
     // Default to "Other" if no match
-    return 'other';
+    return 'Other';
   }
 
   /**
