@@ -13,18 +13,20 @@ CREATE TABLE IF NOT EXISTS expense_categories (
 -- Create index for active categories lookup
 CREATE INDEX IF NOT EXISTS idx_expense_categories_active ON expense_categories(is_active, display_order);
 
--- Seed default categories that align with Xero mappings
-INSERT INTO expense_categories (name, xero_account_code, xero_account_name, is_active, display_order) VALUES
-  ('Travel', '493', 'Travel - National', true, 1),
-  ('Meals & Entertainment', '420', 'Entertainment', true, 2),
-  ('Office Supplies', '461', 'Office Expenses', true, 3),
-  ('Software & Subscriptions', '453', 'Computer Expenses', true, 4),
-  ('Equipment & Hardware', '630', 'Equipment Purchases', true, 5),
-  ('Professional Services', '404', 'General Expenses', true, 6),
-  ('Marketing & Advertising', '400', 'Advertising', true, 7),
-  ('Utilities & Telecom', '445', 'Telephone & Internet', true, 8),
-  ('Fuel & Mileage', '404', 'General Expenses', true, 9),
-  ('Other', '404', 'General Expenses', true, 10)
+-- Seed default category names only. Xero account codes are organisation
+-- specific, so they are chosen per organisation in Settings -> Xero
+-- Integration from the live chart of accounts, never hardcoded here.
+INSERT INTO expense_categories (name, is_active, display_order) VALUES
+  ('Travel', true, 1),
+  ('Meals & Entertainment', true, 2),
+  ('Office Supplies', true, 3),
+  ('Software & Subscriptions', true, 4),
+  ('Equipment & Hardware', true, 5),
+  ('Professional Services', true, 6),
+  ('Marketing & Advertising', true, 7),
+  ('Utilities & Telecom', true, 8),
+  ('Fuel & Mileage', true, 9),
+  ('Other', true, 10)
 ON CONFLICT (name) DO NOTHING;
 
 COMMENT ON TABLE expense_categories IS 'Configurable expense categories with Xero account mapping';

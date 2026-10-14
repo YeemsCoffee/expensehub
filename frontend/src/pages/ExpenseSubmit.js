@@ -218,6 +218,14 @@ const ExpenseSubmit = () => {
   };
 
   const handleReceiptProcessed = (extractedData, receiptId) => {
+    // Only accept an OCR-suggested category that is one of the categories in
+    // the dropdown. Otherwise the select shows "Select a category" while the
+    // unknown value is still submitted, and no Xero account mapping applies.
+    const suggested = (extractedData.category || '').toLowerCase();
+    const matchedCategory = suggested
+      ? categories.find(c => c.toLowerCase() === suggested)
+      : undefined;
+
     // Auto-fill form with extracted data
     setNewExpense(prev => ({
       ...prev,
@@ -227,7 +235,7 @@ const ExpenseSubmit = () => {
       subtotal: extractedData.subtotal?.toString() || prev.subtotal,
       tax: extractedData.tax?.toString() || prev.tax,
       tip: extractedData.tip?.toString() || prev.tip,
-      category: extractedData.category || prev.category,
+      category: matchedCategory || prev.category,
       description: extractedData.description || prev.description,
       notes: extractedData.notes || prev.notes
     }));
