@@ -197,15 +197,18 @@ function candidateKeys(category, activeKeys) {
 
 /**
  * Everything needed to resolve categories for one tenant.
- *  tenantMappings: normalizedKey -> { storedKey, code, name, accountId }
- *                  (xero_account_mappings, chosen on the Settings page)
- *  categoryCodes:  normalizedKey -> { code, name }
- *                  (expense_categories.xero_account_code, set on the Expense
- *                  Categories page; a fallback, shown on the Settings page)
- *  activeKeys:     keys of the active expense categories
+ *  tenantMappings:  normalizedKey -> { storedKey, code, name, accountId }
+ *                   (shared xero_account_mappings, chosen on the Settings page)
+ *  profileMappings: profileId -> Map like tenantMappings, for mappings saved
+ *                   for one account profile (e.g. one store)
+ *  profileNames:    profileId -> name
+ *  categoryCodes:   normalizedKey -> { code, name }
+ *                   (expense_categories.xero_account_code, set on the Expense
+ *                   Categories page; a fallback, shown on the Settings page)
+ *  activeKeys:      keys of the active expense categories
  */
 async function loadMappingContext(tenantId) {
-  const [mappingRows, categoryRows] = await Promise.all([
+  const [mappingRows, categoryRows, profileRows] = await Promise.all([
     db.query(
       `SELECT *
        FROM xero_account_mappings
@@ -216,14 +219,23 @@ async function loadMappingContext(tenantId) {
     db.query(
       `SELECT name, xero_account_code, xero_account_name, is_active
        FROM expense_categories`
-    ).catch(() => ({ rows: [] }))
+    ).catch(() => ({ rows: [] })),
+    db.query('SELECT id, name FROM xero_account_profiles').catch(() => ({ rows: [] }))
   ]);
 
   const tenantMappings = new Map();
+  const profileMappings = new Map();
   for (const row of mappingRows.rows) {
     const key = normalizeCategoryKey(row.category);
-    if (!tenantMappings.has(key)) { // newest row wins
-      tenantMappings.set(key, {
+    let scope = tenantMappings;
+    if (row.account_profile_id) {
+      if (!profileMappings.has(row.account_profile_id)) {
+        profileMappings.set(row.account_profile_id, new Map());
+      }
+      scope = profileMappings.get(row.account_profile_id);
+    }
+    if (!scope.has(key)) { // newest row wins
+      scope.set(key, {
         storedKey: row.category,
         code: row.xero_account_code,
         name: row.xero_account_name || null,
@@ -231,6 +243,8 @@ async function loadMappingContext(tenantId) {
       });
     }
   }
+
+  const profileNames = new Map(profileRows.rows.map((p) => [p.id, p.name]));
 
   const categoryCodes = new Map();
   const activeKeys = new Set();
@@ -245,33 +259,56 @@ async function loadMappingContext(tenantId) {
     }
   }
 
-  return { tenantMappings, categoryCodes, activeKeys };
+  return { tenantMappings, profileMappings, profileNames, categoryCodes, activeKeys };
+}
+
+/** The mappings saved for one profile (empty if none or no profile). */
+function profileScope(ctx, profileId) {
+  return (profileId && ctx.profileMappings && ctx.profileMappings.get(Number(profileId))) || null;
 }
 
 /**
  * Which account a category posts to, before checking the live chart.
- * Order: Settings-page mapping -> Expense Categories page code -> the
- * Settings-page default account. Returns null when nothing is configured;
- * there is deliberately no hardcoded fallback.
+ * Order, most specific first:
+ *   the profile's mapping for the category -> the shared mapping for it ->
+ *   the Expense Categories page code -> the profile's default account ->
+ *   the shared default account.
+ * Returns null when nothing is configured; there is deliberately no hardcoded
+ * fallback.
+ *
+ * @param {number|null} profileId  the employee's account profile, if any
  */
-function resolveCategoryAccount(category, ctx) {
+function resolveCategoryAccount(category, ctx, profileId = null) {
   const keys = candidateKeys(category, ctx.activeKeys);
+  const own = profileScope(ctx, profileId);
 
-  // Both sources for one key before moving to the next, so a category never
+  // Every source for one key before moving to the next, so a category never
   // resolves through a different key than the row it is shown under
   for (const key of keys) {
+    const p = own && own.get(key);
+    if (p) return { ...p, source: 'profile_mapping', matchedKey: key };
     const m = ctx.tenantMappings.get(key);
     if (m) return { ...m, source: 'mapping', matchedKey: key };
     const c = ctx.categoryCodes.get(key);
     if (c) return { storedKey: null, code: c.code, name: c.name, accountId: null, source: 'expense_category', matchedKey: key };
   }
+  const profileFallback = own && own.get(DEFAULT_KEY);
+  if (profileFallback) return { ...profileFallback, source: 'profile_default', matchedKey: DEFAULT_KEY };
   const fallback = ctx.tenantMappings.get(DEFAULT_KEY);
   if (fallback) return { ...fallback, source: 'default', matchedKey: DEFAULT_KEY };
   return null;
 }
 
-/** The mapping saved for exactly this key on the Settings page, or null. */
-function directMapping(ctx, key) {
+/**
+ * The mapping saved for exactly this key on the Settings page, or null: the
+ * profile's own mapping when profileId is given, else the shared one.
+ */
+function directMapping(ctx, key, profileId = null) {
+  if (profileId) {
+    const own = profileScope(ctx, profileId);
+    const p = own && own.get(key);
+    return p ? { ...p, source: 'profile_mapping', matchedKey: key } : null;
+  }
   const m = ctx.tenantMappings.get(key);
   return m ? { ...m, source: 'mapping', matchedKey: key } : null;
 }
@@ -292,23 +329,35 @@ function checkAgainstChart(resolved, chart) {
   };
 }
 
-const SOURCE_SUFFIX = {
-  mapping: '',
-  expense_category: ' (set on the Expense Categories page)',
-  default: ' (the default account)'
-};
+function sourceSuffix(source, profileName) {
+  switch (source) {
+    case 'profile_mapping': return ` (in the "${profileName}" account profile)`;
+    case 'mapping': return profileName ? ' (the shared mapping for all profiles)' : '';
+    case 'expense_category': return ' (set on the Expense Categories page)';
+    case 'profile_default': return ` (the "${profileName}" profile's default account)`;
+    case 'default': return ' (the shared default account)';
+    default: return '';
+  }
+}
 
 /**
  * The account an expense in `category` should post to, validated against the
- * live chart. { ok: true, code, accountName, source } or { ok: false, error }.
+ * live chart. { ok: true, code, accountName, source, profileName } or
+ * { ok: false, error }.
+ *
+ * @param {number|null} profileId  the account profile of the employee who
+ *   submitted the expense, if any
  */
-function resolveExpenseAccount(category, ctx, chart) {
+function resolveExpenseAccount(category, ctx, chart, profileId = null) {
   const label = category || '(none)';
-  const resolved = resolveCategoryAccount(category, ctx);
+  const profileName = profileId ? (ctx.profileNames && ctx.profileNames.get(Number(profileId))) || null : null;
+  const resolved = resolveCategoryAccount(category, ctx, profileName ? profileId : null);
   if (!resolved) {
     return {
       ok: false,
-      error: `No Xero account is mapped for the category "${label}". Map it, or set a default account, in Settings → Xero Integration, then sync again.`
+      error: profileName
+        ? `No Xero account is mapped for the category "${label}" in the "${profileName}" account profile or the shared mappings. Map it, or set a default account, in Settings → Xero Integration, then sync again.`
+        : `No Xero account is mapped for the category "${label}". Map it, or set a default account, in Settings → Xero Integration, then sync again.`
     };
   }
 
@@ -317,11 +366,11 @@ function resolveExpenseAccount(category, ctx, chart) {
     const name = (check.live && check.live.name) || resolved.name;
     return {
       ok: false,
-      error: `The category "${label}" is mapped to Xero account ${check.code}${name ? ` (${name})` : ''}${SOURCE_SUFFIX[resolved.source]}, which ${problemText(check.problem, check.live)}. Update the mapping in Settings → Xero Integration, then sync again.`
+      error: `The category "${label}" is mapped to Xero account ${check.code}${name ? ` (${name})` : ''}${sourceSuffix(resolved.source, profileName)}, which ${problemText(check.problem, check.live)}. Update the mapping in Settings → Xero Integration, then sync again.`
     };
   }
 
-  return { ok: true, code: check.code, accountName: check.live.name, source: resolved.source };
+  return { ok: true, code: check.code, accountName: check.live.name, source: resolved.source, profileName };
 }
 
 /** A resolved mapping enriched with live-chart status for the Settings page. */
@@ -356,9 +405,12 @@ function describeMapping(resolved, chart) {
  *
  * @param {string} tenantId
  * @param {Array|null} chart  live accounts, or null if Xero could not be reached
+ * @param {number|null} profileId  the account profile being edited; null for
+ *   the shared mappings (used by every profile, and by employees without one)
  */
-async function buildMappingOverview(tenantId, chart) {
+async function buildMappingOverview(tenantId, chart, profileId = null) {
   const ctx = await loadMappingContext(tenantId);
+  const scope = profileId ? (profileScope(ctx, profileId) || new Map()) : ctx.tenantMappings;
 
   const [categoryResult, usedResult] = await Promise.all([
     db.query(
@@ -390,8 +442,8 @@ async function buildMappingOverview(tenantId, chart) {
       key,
       name,
       kind: 'category',
-      mapping: describeMapping(directMapping(ctx, key), chart),
-      effective: describeMapping(resolveCategoryAccount(name, ctx), chart)
+      mapping: describeMapping(directMapping(ctx, key, profileId), chart),
+      effective: describeMapping(resolveCategoryAccount(name, ctx, profileId), chart)
     });
   }
 
@@ -405,28 +457,38 @@ async function buildMappingOverview(tenantId, chart) {
       name: category,
       kind: 'expense_only',
       expenseCount,
-      mapping: describeMapping(directMapping(ctx, key), chart),
-      effective: describeMapping(resolveCategoryAccount(category, ctx), chart)
+      mapping: describeMapping(directMapping(ctx, key, profileId), chart),
+      effective: describeMapping(resolveCategoryAccount(category, ctx, profileId), chart)
     });
   }
 
   // Saved mappings no row shows (old category ids, deleted categories). They
   // can still steer postings, so they are listed with a remove action.
   const orphans = [];
-  for (const [key, mapping] of ctx.tenantMappings) {
+  for (const [key, mapping] of scope) {
     if (key === DEFAULT_KEY || rowKeys.has(key)) continue;
     orphans.push({
       key,
-      ...describeMapping({ ...mapping, source: 'mapping' }, chart),
+      ...describeMapping({ ...mapping, source: profileId ? 'profile_mapping' : 'mapping' }, chart),
       // A legacy id's mapping is only consulted if its category no longer exists
       usedByOlderExpenses: Boolean(LEGACY_ALIASES[key]) && !ctx.activeKeys.has(LEGACY_ALIASES[key])
     });
   }
 
+  // Where unmapped categories go for this profile: its own default account,
+  // else the shared one
+  const ownDefault = directMapping(ctx, DEFAULT_KEY, profileId);
+  const sharedDefault = profileId ? directMapping(ctx, DEFAULT_KEY) : null;
+
   return {
     tenantId,
+    profileId: profileId || null,
     chartVerified: Boolean(chart),
-    defaultMapping: describeMapping(directMapping(ctx, DEFAULT_KEY), chart),
+    defaultMapping: describeMapping(ownDefault, chart),
+    // Only for a profile without its own default: the shared one it falls back to
+    inheritedDefault: !ownDefault && sharedDefault
+      ? describeMapping({ ...sharedDefault, source: 'default' }, chart)
+      : null,
     rows,
     orphans
   };

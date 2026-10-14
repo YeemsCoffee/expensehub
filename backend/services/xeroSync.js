@@ -24,8 +24,10 @@ async function recordSyncError(expenseId, message) {
 /**
  * Post expenses to the organisation of `connection`.
  *
- * Each expense's account is resolved from its category and checked against
- * the organisation's live chart of accounts before anything is posted. An
+ * Each expense's account is resolved from its category and the account profile
+ * of the employee who submitted it (stores post the same kind of expense to
+ * different accounts), and checked against the organisation's live chart of
+ * accounts before anything is posted. An
  * expense whose category is unmapped, or mapped to an account that is
  * archived, deleted or not postable, fails with an explanation instead of
  * being posted to an account nobody chose.
@@ -71,14 +73,21 @@ async function syncExpensesToXero(connection, expenses) {
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1, $2)', [XERO_SYNC_LOCK, expense.id]);
-      const fresh = await client.query('SELECT xero_invoice_id FROM expenses WHERE id = $1', [expense.id]);
+      // The submitter's account profile (e.g. their store) as it is now
+      const fresh = await client.query(
+        `SELECT e.xero_invoice_id, u.account_profile_id
+         FROM expenses e
+         LEFT JOIN users u ON u.id = e.user_id
+         WHERE e.id = $1`,
+        [expense.id]
+      );
 
       if (!fresh.rows[0] || fresh.rows[0].xero_invoice_id) {
         details.skipped.push({ expenseId: expense.id, reason: 'Already synced to Xero' });
         continue;
       }
 
-      const target = resolveExpenseAccount(expense.category, ctx, chart.accounts);
+      const target = resolveExpenseAccount(expense.category, ctx, chart.accounts, fresh.rows[0].account_profile_id);
       if (!target.ok) {
         await recordSyncError(expense.id, target.error);
         details.failed.push({ expenseId: expense.id, error: target.error });
@@ -96,7 +105,8 @@ async function syncExpensesToXero(connection, expenses) {
           xeroInvoiceId: result.xeroInvoiceId,
           xeroInvoiceNumber: result.xeroInvoiceNumber,
           accountCode: target.code,
-          accountName: target.accountName
+          accountName: target.accountName,
+          profileName: target.profileName
         });
       } else {
         const message = result.rejectedByXero ? `Xero rejected the bill: ${result.error}` : result.error;

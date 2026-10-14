@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   CheckCircle, XCircle, ExternalLink, RefreshCw, Save, AlertTriangle, Upload,
-  Trash2, ChevronDown, ChevronUp, Info
+  Trash2, ChevronDown, ChevronUp, Info, Plus, Edit2
 } from 'lucide-react';
 import { formatCurrency } from '../utils/helpers';
 import api from '../services/api';
@@ -46,6 +46,15 @@ const XeroSettings = () => {
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // Account profiles: per-store mappings (e.g. Rent -> 3000 for Ktown, 3001
+  // for Gardena). '' selects the shared mappings every profile falls back to.
+  const [profiles, setProfiles] = useState([]);
+  const [unassignedEmployees, setUnassignedEmployees] = useState(0);
+  const [selectedProfile, setSelectedProfile] = useState('');
+  const [profileForm, setProfileForm] = useState(null); // { mode: 'create' | 'rename', name }
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [deleteProfileTarget, setDeleteProfileTarget] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
@@ -54,9 +63,10 @@ const XeroSettings = () => {
   const [syncingIds, setSyncingIds] = useState(new Set());
   const [bulkSyncing, setBulkSyncing] = useState(false);
 
-  // The organisation whose data is on screen. Responses for any other
-  // organisation (a slow request from before a switch) are dropped.
+  // The organisation and profile whose data is on screen. Responses for any
+  // other (a slow request from before a switch) are dropped.
   const tenantRef = useRef(null);
+  const profileRef = useRef('');
 
   // Check user role on mount
   useEffect(() => {
@@ -92,15 +102,19 @@ const XeroSettings = () => {
     }
   }, []);
 
+  const resetOverview = useCallback(() => {
+    setOverview(null);
+    setOverviewStatus('idle');
+    setEdits({});
+  }, []);
+
   const resetOrganisationData = useCallback(() => {
     setAllAccounts([]);
     setAccountsStatus('idle');
     setAccountsError(null);
-    setOverview(null);
-    setOverviewStatus('idle');
-    setEdits({});
+    resetOverview();
     setShowFullChart(false);
-  }, []);
+  }, [resetOverview]);
 
   const checkStatus = useCallback(async () => {
     try {
@@ -178,31 +192,61 @@ const XeroSettings = () => {
     }
   }, [handleXeroConnectionError]);
 
-  const loadOverview = useCallback(async (tenantId) => {
+  const loadOverview = useCallback(async (tenantId, profileId) => {
+    const current = () => tenantRef.current === tenantId && profileRef.current === profileId;
     setOverviewStatus('loading');
     try {
-      const { data } = await api.get('/xero/mappings', { params: { tenantId } });
-      if (tenantRef.current !== tenantId) return;
+      const { data } = await api.get('/xero/mappings', {
+        params: { tenantId, ...(profileId ? { profileId } : {}) }
+      });
+      if (!current()) return;
       setOverview(data);
       setOverviewStatus('loaded');
     } catch (error) {
-      if (tenantRef.current !== tenantId) return;
+      if (!current()) return;
       console.error('Error loading mappings:', error);
       setOverviewStatus('error');
       handleXeroConnectionError(error);
     }
   }, [handleXeroConnectionError]);
 
-  // Load the selected organisation's chart and mappings; never show one
-  // organisation's accounts under another's name
+  const loadProfiles = useCallback(async () => {
+    try {
+      const { data } = await api.get('/xero/profiles');
+      const list = data.profiles || [];
+      setProfiles(list);
+      setUnassignedEmployees(data.unassignedEmployees || 0);
+      // A profile deleted elsewhere: back to the shared mappings
+      setSelectedProfile(prev => (prev && !list.some(p => String(p.id) === prev) ? '' : prev));
+    } catch (error) {
+      console.error('Error loading account profiles:', error);
+    }
+  }, []);
+
+  // Load the selected organisation's chart; never show one organisation's
+  // accounts under another's name
   useEffect(() => {
     tenantRef.current = selectedTenant;
     resetOrganisationData();
     if (hasPermission && selectedTenant) {
       loadAccounts(selectedTenant);
-      loadOverview(selectedTenant);
     }
-  }, [selectedTenant, hasPermission, loadAccounts, loadOverview, resetOrganisationData]);
+  }, [selectedTenant, hasPermission, loadAccounts, resetOrganisationData]);
+
+  // ...and the mappings of the selected profile in it
+  useEffect(() => {
+    profileRef.current = selectedProfile;
+    resetOverview();
+    if (hasPermission && selectedTenant) {
+      loadOverview(selectedTenant, selectedProfile);
+    }
+  }, [selectedTenant, selectedProfile, hasPermission, loadOverview, resetOverview]);
+
+  useEffect(() => {
+    if (hasPermission && connected) {
+      loadProfiles();
+    }
+  }, [hasPermission, connected, loadProfiles]);
 
   const loadExpenses = useCallback(async () => {
     setLoadingExpenses(true);
@@ -286,6 +330,69 @@ const XeroSettings = () => {
       setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to change the Xero organisation' });
     } finally {
       setSwitchingOrg(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Account profiles
+  // ---------------------------------------------------------------------------
+  const selectedProfileInfo = profiles.find(p => String(p.id) === selectedProfile) || null;
+
+  const chooseProfile = (value) => {
+    if (value === selectedProfile) return;
+    if (Object.keys(edits).length > 0 &&
+        !window.confirm('You have unsaved mapping changes. Switch profile and discard them?')) {
+      return;
+    }
+    setProfileForm(null);
+    setSelectedProfile(value);
+  };
+
+  const submitProfileForm = async (e) => {
+    e.preventDefault();
+    const name = profileForm.name.trim();
+    if (!name) return;
+    if (profileForm.mode === 'create' && Object.keys(edits).length > 0 &&
+        !window.confirm('You have unsaved mapping changes. Create the profile and discard them?')) {
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      if (profileForm.mode === 'create') {
+        const { data } = await api.post('/xero/profiles', { name });
+        await loadProfiles();
+        setSelectedProfile(String(data.id));
+        setMessage({
+          type: 'success',
+          text: `Created the "${data.name}" profile. Map the categories that post to different accounts for it - the rest use the shared mappings. Then assign employees to it in User Management.`
+        });
+      } else {
+        await api.put(`/xero/profiles/${selectedProfile}`, { name });
+        await loadProfiles();
+        setMessage({ type: 'success', text: `Renamed the profile to "${name}".` });
+      }
+      setProfileForm(null);
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to save the profile' });
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const confirmDeleteProfile = async () => {
+    const target = deleteProfileTarget;
+    setDeleteProfileTarget(null);
+    if (!target) return;
+    setProfileBusy(true);
+    try {
+      await api.delete(`/xero/profiles/${target.id}`);
+      setSelectedProfile('');
+      await loadProfiles();
+      setMessage({ type: 'success', text: `Deleted the "${target.name}" profile and its mappings.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Failed to delete the profile' });
+    } finally {
+      setProfileBusy(false);
     }
   };
 
@@ -398,6 +505,7 @@ const XeroSettings = () => {
     if (entries.length === 0 || !selectedTenant) return;
 
     const tenantId = selectedTenant;
+    const profileId = selectedProfile;
     const failures = [];
     const failedKeys = new Set();
     let saved = 0;
@@ -407,7 +515,9 @@ const XeroSettings = () => {
       for (const [key, value] of entries) {
         try {
           if (value === '') {
-            await api.delete('/xero/mappings', { params: { tenantId, category: key } });
+            await api.delete('/xero/mappings', {
+              params: { tenantId, category: key, ...(profileId ? { profileId } : {}) }
+            });
           } else {
             const account = accountById.get(value);
             if (!account) continue;
@@ -415,7 +525,8 @@ const XeroSettings = () => {
               tenantId,
               category: key,
               accountId: account.accountId,
-              accountCode: account.code
+              accountCode: account.code,
+              profileId: profileId || null
             });
           }
           saved += 1;
@@ -426,10 +537,10 @@ const XeroSettings = () => {
         }
       }
 
-      if (tenantRef.current !== tenantId) return;
+      if (tenantRef.current !== tenantId || profileRef.current !== profileId) return;
       // Keep only the edits that failed, so they can be corrected and retried
       setEdits(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => failedKeys.has(k))));
-      await loadOverview(tenantId);
+      await loadOverview(tenantId, profileId);
 
       if (failures.length === 0) {
         setMessage({ type: 'success', text: `Saved ${saved} mapping change${saved === 1 ? '' : 's'}.` });
@@ -454,7 +565,11 @@ const XeroSettings = () => {
         disabled={saving}
         aria-label={`Xero account for ${label}`}
       >
-        <option value="">{mapping ? 'No account (remove mapping)' : 'Select account...'}</option>
+        <option value="">
+          {!mapping
+            ? 'Select account...'
+            : selectedProfile ? 'Remove (use the shared mapping)' : 'No account (remove mapping)'}
+        </option>
         {savedValue === SAVED_SENTINEL && (
           <option value={SAVED_SENTINEL}>
             {accountLabel(mapping.code, mapping.name)} - {mapping.problemText || 'not available in Xero'}
@@ -504,6 +619,14 @@ const XeroSettings = () => {
     }
 
     if (isDefaultRow) {
+      if (overview.inheritedDefault) {
+        return (
+          <p className="mapping-note">
+            Optional. Not set for this profile, so its unmapped categories use the shared default
+            account: {accountLabel(overview.inheritedDefault.code, overview.inheritedDefault.name)}.
+          </p>
+        );
+      }
       return (
         <p className="mapping-note">
           Optional. Used for any category without its own mapping. If left empty, expenses in an unmapped category are not sent to Xero until you map it.
@@ -512,11 +635,14 @@ const XeroSettings = () => {
     }
 
     if (effective) {
-      const via = effective.source === 'default'
-        ? 'the default account'
-        : effective.source === 'mapping'
-          ? `the mapping saved for "${effective.matchedKey}"`
-          : 'a fallback code set on the Expense Categories page';
+      const viaKey = effective.matchedKey !== key ? ` for "${effective.matchedKey}"` : '';
+      const via = {
+        profile_mapping: `this profile's mapping${viaKey}`,
+        profile_default: "this profile's default account",
+        mapping: selectedProfile ? `the shared mapping${viaKey} for all stores` : `the mapping saved for "${effective.matchedKey}"`,
+        default: selectedProfile ? 'the shared default account' : 'the default account',
+        expense_category: 'a fallback code set on the Expense Categories page'
+      }[effective.source] || 'another setting';
       if (effective.problem) {
         return (
           <p className="mapping-note mapping-note--warn">
@@ -537,7 +663,10 @@ const XeroSettings = () => {
     return (
       <p className="mapping-note mapping-note--warn">
         <AlertTriangle size={12} />
-        <span>Not mapped - expenses in this category are not sent to Xero until you choose an account (or set a default account).</span>
+        <span>
+          Not mapped{selectedProfile ? ' here or in the shared mappings' : ''} - expenses in this category are
+          not sent to Xero until you choose an account (or set a default account).
+        </span>
       </p>
     );
   };
@@ -714,6 +843,89 @@ const XeroSettings = () => {
             </p>
           </div>
 
+          <div className="profile-bar">
+            <div className="profile-bar__select">
+              <label className="form-label" htmlFor="xero-profile">Account profile</label>
+              <select
+                id="xero-profile"
+                className="form-input"
+                value={selectedProfile}
+                onChange={(e) => chooseProfile(e.target.value)}
+                disabled={saving || profileBusy}
+              >
+                <option value="">All stores (shared mappings)</option>
+                {profiles.map(p => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.name} ({p.employee_count} employee{p.employee_count === 1 ? '' : 's'})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="profile-bar__actions">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setProfileForm({ mode: 'create', name: '' })}
+                disabled={saving || profileBusy}
+              >
+                <Plus size={14} /> New profile
+              </button>
+              {selectedProfileInfo && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setProfileForm({ mode: 'rename', name: selectedProfileInfo.name })}
+                    disabled={saving || profileBusy}
+                  >
+                    <Edit2 size={14} /> Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => (selectedProfileInfo.employee_count > 0
+                      ? setMessage({
+                          type: 'warning',
+                          text: `${selectedProfileInfo.employee_count} employee${selectedProfileInfo.employee_count === 1 ? ' uses' : 's use'} the "${selectedProfileInfo.name}" profile. Assign them another profile in User Management before deleting it.`
+                        })
+                      : setDeleteProfileTarget(selectedProfileInfo))}
+                    disabled={saving || profileBusy}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </>
+              )}
+            </div>
+
+            {profileForm && (
+              <form className="profile-form" onSubmit={submitProfileForm}>
+                <input
+                  className="form-input"
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  placeholder="Profile name, e.g. Ktown"
+                  aria-label="Profile name"
+                  maxLength={100}
+                  autoFocus
+                />
+                <button type="submit" className="btn btn-primary btn-sm" disabled={profileBusy || !profileForm.name.trim()}>
+                  {profileForm.mode === 'create' ? 'Create profile' : 'Save name'}
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setProfileForm(null)}>
+                  Cancel
+                </button>
+              </form>
+            )}
+
+            <p className="mapping-section-hint">
+              {selectedProfileInfo
+                ? `Mappings for employees in the "${selectedProfileInfo.name}" profile. Map only the categories that post to different accounts for them (for example Rent); every other category uses the shared mapping.`
+                : 'Shared mappings apply to every profile unless a profile maps the category itself, and to employees without a profile. Use profiles when stores post the same expense to different accounts, then assign each employee a profile in User Management.'}
+              {profiles.length > 0 && unassignedEmployees > 0 &&
+                ` ${unassignedEmployees} active employee${unassignedEmployees === 1 ? ' has' : 's have'} no profile and use${unassignedEmployees === 1 ? 's' : ''} the shared mappings.`}
+            </p>
+          </div>
+
           {(accountsStatus === 'loading' || overviewStatus === 'loading') && (
             <div className="alert alert-info">
               <RefreshCw className="spinner" size={20} />
@@ -738,7 +950,7 @@ const XeroSettings = () => {
               <XCircle size={20} />
               <div>
                 <p>Failed to load the account mappings.</p>
-                <button className="btn btn-secondary btn-sm mt-2" onClick={() => loadOverview(selectedTenant)}>
+                <button className="btn btn-secondary btn-sm mt-2" onClick={() => loadOverview(selectedTenant, selectedProfile)}>
                   <RefreshCw size={14} /> Retry
                 </button>
               </div>
@@ -813,7 +1025,11 @@ const XeroSettings = () => {
                 <div className="mapping-row mapping-row--top mapping-row--default">
                   <label className="mapping-label">
                     Default account
-                    <span className="mapping-label-meta">for categories without a mapping</span>
+                    <span className="mapping-label-meta">
+                      {selectedProfileInfo
+                        ? `for ${selectedProfileInfo.name}'s categories without a mapping`
+                        : 'for categories without a mapping'}
+                    </span>
                   </label>
                   <div className="mapping-control">
                     {renderAccountSelect(DEFAULT_KEY, overview.defaultMapping, 'categories without a mapping')}
@@ -948,6 +1164,7 @@ const XeroSettings = () => {
                     <th>Date</th>
                     <th>Description</th>
                     <th>Submitted By</th>
+                    {profiles.length > 0 && <th>Profile</th>}
                     <th>Category</th>
                     <th>Amount</th>
                     <th>Xero Status</th>
@@ -967,6 +1184,9 @@ const XeroSettings = () => {
                         </div>
                       </td>
                       <td>{expense.submitted_by}</td>
+                      {profiles.length > 0 && (
+                        <td>{expense.account_profile_name || <span className="text-gray">Shared</span>}</td>
+                      )}
                       <td>{expense.category}</td>
                       <td>{formatCurrency(parseFloat(expense.amount))}</td>
                       <td>
@@ -1041,6 +1261,7 @@ const XeroSettings = () => {
           <li>Connect your Xero account using OAuth 2.0 (secure)</li>
           <li>Choose the Xero organisation expenses sync to</li>
           <li>Map your expense categories to accounts from that organisation's chart</li>
+          <li>If stores post the same expense to different accounts, create an account profile per store, map the categories that differ, and assign employees to it in User Management</li>
           <li>When expenses are approved, they are sent to Xero as bills</li>
           <li>Bills appear in Xero → Purchases → Awaiting Payment</li>
           <li>Process payments through Xero as usual</li>
@@ -1069,6 +1290,17 @@ const XeroSettings = () => {
         cancelLabel="Stay connected"
         onConfirm={disconnectFromXero}
         onCancel={() => setShowDisconnectConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={Boolean(deleteProfileTarget)}
+        variant="danger"
+        title={deleteProfileTarget ? `Delete the "${deleteProfileTarget.name}" profile?` : ''}
+        description="Its account mappings are deleted too. No employees use it, so nothing else changes."
+        confirmLabel="Delete profile"
+        cancelLabel="Keep it"
+        onConfirm={confirmDeleteProfile}
+        onCancel={() => setDeleteProfileTarget(null)}
       />
     </div>
   );

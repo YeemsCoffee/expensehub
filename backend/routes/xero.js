@@ -440,13 +440,135 @@ router.get('/accounts', authMiddleware, isAdminOrDeveloper, async (req, res) => 
   }
 });
 
+// ---------------------------------------------------------------------------
+// Account profiles: per-store category -> account mappings (e.g. Rent posts
+// to 3000 for Ktown and 3001 for Gardena). Employees are assigned a profile on
+// the User Management page; their expenses post with it.
+// ---------------------------------------------------------------------------
+
+/**
+ * The account profile named by a request: { profile } (null for the shared
+ * mappings) or { error } when the id is invalid or unknown.
+ */
+async function findProfile(value) {
+  if (value === undefined || value === null || value === '') return { profile: null };
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) return { error: 'Invalid account profile' };
+  const result = await db.query('SELECT id, name FROM xero_account_profiles WHERE id = $1', [id]);
+  return result.rows[0] ? { profile: result.rows[0] } : { error: 'That account profile no longer exists' };
+}
+
+function cleanProfileName(value) {
+  return String(value == null ? '' : value).trim().replace(/\s+/g, ' ');
+}
+
+// GET /api/xero/profiles - Account profiles with how many employees use each
+router.get('/profiles', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  try {
+    const [profiles, unassigned] = await Promise.all([
+      db.query(
+        `SELECT p.id, p.name,
+                COUNT(u.id) FILTER (WHERE u.deleted_at IS NULL)::int AS employee_count
+         FROM xero_account_profiles p
+         LEFT JOIN users u ON u.account_profile_id = p.id
+         GROUP BY p.id
+         ORDER BY LOWER(p.name)`
+      ),
+      db.query(
+        `SELECT COUNT(*)::int AS n FROM users
+         WHERE account_profile_id IS NULL AND deleted_at IS NULL AND is_active = true`
+      )
+    ]);
+    res.json({ profiles: profiles.rows, unassignedEmployees: unassigned.rows[0].n });
+  } catch (error) {
+    console.error('Get account profiles error:', error);
+    res.status(500).json({ error: 'Failed to fetch account profiles' });
+  }
+});
+
+// POST /api/xero/profiles - Create an account profile
+router.post('/profiles', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  const name = cleanProfileName(req.body && req.body.name);
+  if (!name) return res.status(400).json({ error: 'Profile name required' });
+  if (name.length > 100) return res.status(400).json({ error: 'Profile name is too long' });
+  try {
+    const result = await db.query(
+      'INSERT INTO xero_account_profiles (name) VALUES ($1) RETURNING id, name',
+      [name]
+    );
+    res.status(201).json({ ...result.rows[0], employee_count: 0 });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: `A profile named "${name}" already exists` });
+    }
+    console.error('Create account profile error:', error);
+    res.status(500).json({ error: 'Failed to create account profile' });
+  }
+});
+
+// PUT /api/xero/profiles/:id - Rename an account profile
+router.put('/profiles/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  const name = cleanProfileName(req.body && req.body.name);
+  if (!name) return res.status(400).json({ error: 'Profile name required' });
+  if (name.length > 100) return res.status(400).json({ error: 'Profile name is too long' });
+  try {
+    const found = await findProfile(req.params.id);
+    if (found.error) return res.status(404).json({ error: found.error });
+    const result = await db.query(
+      `UPDATE xero_account_profiles SET name = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 RETURNING id, name`,
+      [name, found.profile.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: `A profile named "${name}" already exists` });
+    }
+    console.error('Rename account profile error:', error);
+    res.status(500).json({ error: 'Failed to rename account profile' });
+  }
+});
+
+// DELETE /api/xero/profiles/:id - Delete a profile no employee uses (its
+// mappings go with it)
+router.delete('/profiles/:id', authMiddleware, isAdminOrDeveloper, async (req, res) => {
+  try {
+    const found = await findProfile(req.params.id);
+    if (found.error) return res.status(404).json({ error: found.error });
+
+    // Refused while employees use it: their expenses would silently switch to
+    // the shared mappings, i.e. possibly another store's accounts
+    const used = await db.query(
+      `SELECT COUNT(*)::int AS n FROM users
+       WHERE account_profile_id = $1 AND deleted_at IS NULL`,
+      [found.profile.id]
+    );
+    if (used.rows[0].n > 0) {
+      return res.status(409).json({
+        error: `${used.rows[0].n} employee${used.rows[0].n === 1 ? ' uses' : 's use'} the "${found.profile.name}" profile. Assign them another profile in User Management first.`
+      });
+    }
+
+    await db.query('DELETE FROM xero_account_profiles WHERE id = $1', [found.profile.id]);
+    res.json({ message: `Deleted the "${found.profile.name}" profile` });
+  } catch (error) {
+    console.error('Delete account profile error:', error);
+    res.status(500).json({ error: 'Failed to delete account profile' });
+  }
+});
+
 // GET /api/xero/mappings - For each expense category: what it is mapped to on
-// this page, and the account its expenses will actually post to.
+// this page, and the account its expenses will actually post to. With
+// profileId, for that account profile; without, the shared mappings.
 router.get('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const { tenantId } = req.query;
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID required' });
+    }
+    const found = await findProfile(req.query.profileId);
+    if (found.error) {
+      return res.status(404).json({ error: found.error });
     }
 
     // Validate against the live chart when Xero is reachable; still show the
@@ -459,7 +581,7 @@ router.get('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) => 
       if (chartResult.success) chart = chartResult.accounts;
     }
 
-    res.json(await buildMappingOverview(tenantId, chart));
+    res.json(await buildMappingOverview(tenantId, chart, found.profile ? found.profile.id : null));
 
   } catch (error) {
     console.error('Get mappings error:', error);
@@ -481,6 +603,12 @@ router.post('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) =>
     if (!key || key === '_') {
       return res.status(400).json({ error: 'Invalid category' });
     }
+
+    const found = await findProfile(req.body.profileId);
+    if (found.error) {
+      return res.status(404).json({ error: found.error });
+    }
+    const profileId = found.profile ? found.profile.id : null;
 
     const conn = await getActiveConnection(tenantId);
     if (!conn.connection) {
@@ -509,12 +637,14 @@ router.post('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) =>
       });
     }
 
-    // Upsert by normalised key; collapse duplicates saved under older key styles
+    // Upsert by normalised key within this profile (or the shared mappings);
+    // collapse duplicates saved under older key styles
     const existing = await db.query(
       `SELECT id, category FROM xero_account_mappings
        WHERE tenant_id = $1 AND (is_organization_wide = true OR user_id IS NULL)
+         AND account_profile_id IS NOT DISTINCT FROM $2
        ORDER BY updated_at DESC NULLS LAST, id DESC`,
-      [tenantId]
+      [tenantId, profileId]
     );
     const same = existing.rows.filter((r) => normalizeCategoryKey(r.category) === key);
 
@@ -539,16 +669,17 @@ router.post('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) =>
     } else {
       await db.query(
         `INSERT INTO xero_account_mappings (
-          user_id, tenant_id, category, xero_account_code, xero_account_name, xero_account_id, is_organization_wide
+          user_id, tenant_id, category, xero_account_code, xero_account_name, xero_account_id,
+          is_organization_wide, account_profile_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [null, tenantId, key, account.code, account.name, account.accountId, true]
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [null, tenantId, key, account.code, account.name, account.accountId, true, profileId]
       );
     }
 
     res.json({
       message: 'Account mapping saved successfully',
-      mapping: { category: key, code: account.code, name: account.name, accountId: account.accountId }
+      mapping: { category: key, code: account.code, name: account.name, accountId: account.accountId, profileId }
     });
 
   } catch (error) {
@@ -562,16 +693,23 @@ router.delete('/mappings', authMiddleware, isAdminOrDeveloper, async (req, res) 
   try {
     const tenantId = req.query.tenantId || (req.body && req.body.tenantId);
     const category = req.query.category || (req.body && req.body.category);
+    const profileParam = req.query.profileId !== undefined ? req.query.profileId : (req.body && req.body.profileId);
 
     if (!tenantId || !category) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    const found = await findProfile(profileParam);
+    if (found.error) {
+      return res.status(404).json({ error: found.error });
+    }
+
     const key = normalizeCategoryKey(category);
     const rows = await db.query(
       `SELECT id, category FROM xero_account_mappings
-       WHERE tenant_id = $1 AND (is_organization_wide = true OR user_id IS NULL)`,
-      [tenantId]
+       WHERE tenant_id = $1 AND (is_organization_wide = true OR user_id IS NULL)
+         AND account_profile_id IS NOT DISTINCT FROM $2`,
+      [tenantId, found.profile ? found.profile.id : null]
     );
     const ids = rows.rows
       .filter((r) => normalizeCategoryKey(r.category) === key)
@@ -623,7 +761,7 @@ router.post('/sync/:expenseId', authMiddleware, isAdminOrDeveloper, async (req, 
     if (result.synced === 1) {
       const posted = result.details.synced[0];
       return res.json({
-        message: `Expense synced to Xero (account ${posted.accountCode}${posted.accountName ? ` - ${posted.accountName}` : ''})`,
+        message: `Expense synced to Xero (account ${posted.accountCode}${posted.accountName ? ` - ${posted.accountName}` : ''}${posted.profileName ? `, ${posted.profileName} profile` : ''})`,
         xeroInvoiceId: posted.xeroInvoiceId,
         xeroInvoiceNumber: posted.xeroInvoiceNumber,
         accountCode: posted.accountCode
@@ -725,9 +863,11 @@ router.get('/expenses', authMiddleware, isAdminOrDeveloper, async (req, res) => 
     const result = await db.query(
       `SELECT e.id, e.description, e.amount, e.category, e.date, e.vendor_name,
               e.status, e.xero_invoice_id, e.xero_synced_at, e.xero_sync_error,
-              u.first_name || ' ' || u.last_name as submitted_by
+              u.first_name || ' ' || u.last_name as submitted_by,
+              p.name as account_profile_name
        FROM expenses e
        JOIN users u ON e.user_id = u.id
+       LEFT JOIN xero_account_profiles p ON p.id = u.account_profile_id
        WHERE e.status = 'approved'
        ORDER BY e.date DESC
        LIMIT 100`

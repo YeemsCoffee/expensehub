@@ -17,8 +17,11 @@ const Users = () => {
   const [editDetailsFormData, setEditDetailsFormData] = useState({
     firstName: '',
     lastName: '',
-    department: ''
+    department: '',
+    accountProfileId: ''
   });
+  // Xero account profiles (e.g. one per store); null until loaded or if unavailable
+  const [profiles, setProfiles] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -35,7 +38,8 @@ const Users = () => {
     employeeId: '',
     department: '',
     role: 'employee',
-    managerId: ''
+    managerId: '',
+    accountProfileId: ''
   });
   const [error, setError] = useState('');
 
@@ -58,6 +62,33 @@ const Users = () => {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  useEffect(() => {
+    api.get('/xero/profiles')
+      .then(({ data }) => setProfiles(data.profiles || []))
+      .catch((err) => {
+        // The rest of the page works without them; the field is just hidden
+        console.error('Error fetching account profiles:', err);
+        setProfiles(null);
+      });
+  }, []);
+
+  // Select for the Xero account profile an employee's expenses post with
+  const renderProfileSelect = (id, value, onChange) => (
+    <div className="form-group">
+      <label className="form-label" htmlFor={id}>Xero Account Profile</label>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="form-select">
+        <option value="">No profile (shared account mappings)</option>
+        {profiles.map((profile) => (
+          <option key={profile.id} value={profile.id}>{profile.name}</option>
+        ))}
+      </select>
+      <p className="form-hint">
+        Their expenses post to Xero using this profile's account mappings (for example, their store's accounts).
+        {profiles.length === 0 && ' Create profiles in Settings → Xero Integration.'}
+      </p>
+    </div>
+  );
 
   const handleEditClick = (user) => {
     setEditingUser(user);
@@ -96,7 +127,8 @@ const Users = () => {
     setEditDetailsFormData({
       firstName: user.first_name || '',
       lastName: user.last_name || '',
-      department: user.department || ''
+      department: user.department || '',
+      accountProfileId: user.account_profile_id ? String(user.account_profile_id) : ''
     });
     setShowEditDetailsModal(true);
     setError('');
@@ -105,7 +137,7 @@ const Users = () => {
   const handleCancelEditDetails = () => {
     setEditingUser(null);
     setShowEditDetailsModal(false);
-    setEditDetailsFormData({ firstName: '', lastName: '', department: '' });
+    setEditDetailsFormData({ firstName: '', lastName: '', department: '', accountProfileId: '' });
     setError('');
   };
 
@@ -124,7 +156,11 @@ const Users = () => {
       await api.put(`/users/${editingUser.id}`, {
         firstName,
         lastName,
-        department: editDetailsFormData.department.trim()
+        department: editDetailsFormData.department.trim(),
+        // Only when the profile field was shown, so it is never cleared by accident
+        ...(profiles ? {
+          accountProfileId: editDetailsFormData.accountProfileId ? Number(editDetailsFormData.accountProfileId) : null
+        } : {})
       });
 
       toast.success('User details updated');
@@ -149,7 +185,9 @@ const Users = () => {
       lastName: '',
       employeeId: '',
       department: '',
-      role: 'employee'
+      role: 'employee',
+      managerId: '',
+      accountProfileId: ''
     });
     setError('');
   };
@@ -198,6 +236,7 @@ const Users = () => {
       if (userData.managerId === '') {
         userData.managerId = null;
       }
+      userData.accountProfileId = userData.accountProfileId ? Number(userData.accountProfileId) : null;
       await api.post('/users', userData);
 
       // If a manager was assigned, also update the manager relationship
@@ -289,6 +328,7 @@ const Users = () => {
                 <th>Role</th>
                 <th>Manager</th>
                 <th>Department</th>
+                <th>Account Profile</th>
                 <th>Created</th>
                 <th>Actions</th>
               </tr>
@@ -296,7 +336,7 @@ const Users = () => {
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '40px' }}>
                     <p className="text-gray-500">No users found</p>
                   </td>
                 </tr>
@@ -326,13 +366,14 @@ const Users = () => {
                     </td>
                     <td>{user.manager_name || '-'}</td>
                     <td>{user.department || '-'}</td>
+                    <td>{user.account_profile_name || '-'}</td>
                     <td>{new Date(user.created_at).toLocaleDateString()}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           onClick={() => handleEditDetailsClick(user)}
                           className="btn-icon"
-                          title="Edit Name & Department"
+                          title="Edit Details & Account Profile"
                           aria-label={`Edit details for ${user.first_name} ${user.last_name}`}
                         >
                           <Edit2 size={16} />
@@ -501,6 +542,12 @@ const Users = () => {
                     Assign a manager for this user. Managers can approve their team members' expenses.
                   </p>
                 </div>
+
+                {profiles && renderProfileSelect(
+                  'create-account-profile',
+                  createFormData.accountProfileId,
+                  (value) => setCreateFormData({ ...createFormData, accountProfileId: value })
+                )}
 
                 <div className="modal-footer">
                   <button type="submit" className="btn btn-primary">
@@ -728,6 +775,12 @@ const Users = () => {
                     placeholder="Optional"
                   />
                 </div>
+
+                {profiles && renderProfileSelect(
+                  'edit-account-profile',
+                  editDetailsFormData.accountProfileId,
+                  (value) => setEditDetailsFormData({ ...editDetailsFormData, accountProfileId: value })
+                )}
 
                 <div className="modal-footer">
                   <button type="submit" className="btn btn-primary">
