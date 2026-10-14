@@ -174,16 +174,21 @@ const LEGACY_ALIASES = {
   utilities: 'utilities_telecom'
 };
 
-/** Keys to try for a category, current categories first. */
+/**
+ * Keys to try for a category.
+ *
+ * Aliases apply only to the exact lowercase ids the old OCR stored ('fuel',
+ * 'equipment', ...), never to names people typed ('Equipment' on a project
+ * budget line is its own category). When the alias target is an active
+ * category, the legacy id resolves exactly as that category - the one the
+ * Settings page shows it under - and nothing else.
+ */
 function candidateKeys(category, activeKeys) {
   const key = normalizeCategoryKey(category);
-  const alias = LEGACY_ALIASES[key];
-  const keys = alias && alias !== key ? [key, alias] : [key];
-  if (!activeKeys) return keys;
-  return [
-    ...keys.filter((k) => activeKeys.has(k)),
-    ...keys.filter((k) => !activeKeys.has(k))
-  ];
+  const alias = String(category) === key ? LEGACY_ALIASES[key] : undefined;
+  if (!alias) return [key];
+  if (activeKeys && activeKeys.has(alias)) return [alias];
+  return [key, alias];
 }
 
 // ---------------------------------------------------------------------------
@@ -252,11 +257,11 @@ async function loadMappingContext(tenantId) {
 function resolveCategoryAccount(category, ctx) {
   const keys = candidateKeys(category, ctx.activeKeys);
 
+  // Both sources for one key before moving to the next, so a category never
+  // resolves through a different key than the row it is shown under
   for (const key of keys) {
     const m = ctx.tenantMappings.get(key);
     if (m) return { ...m, source: 'mapping', matchedKey: key };
-  }
-  for (const key of keys) {
     const c = ctx.categoryCodes.get(key);
     if (c) return { storedKey: null, code: c.code, name: c.name, accountId: null, source: 'expense_category', matchedKey: key };
   }
@@ -324,6 +329,7 @@ function describeMapping(resolved, chart) {
   if (!resolved) return null;
   const base = {
     source: resolved.source,
+    matchedKey: resolved.matchedKey || null,
     storedKey: resolved.storedKey || null,
     code: resolved.code,
     name: resolved.name || null,
@@ -390,7 +396,8 @@ async function buildMappingOverview(tenantId, chart) {
   }
 
   for (const { category, expense_count: expenseCount } of usedResult.rows) {
-    if (candidateKeys(category).some((k) => rowKeys.has(k))) continue;
+    // Same keys resolution uses, so a folded legacy id posts like its row
+    if (candidateKeys(category, ctx.activeKeys).some((k) => rowKeys.has(k))) continue;
     const key = normalizeCategoryKey(category);
     rowKeys.add(key);
     rows.push({
@@ -411,7 +418,8 @@ async function buildMappingOverview(tenantId, chart) {
     orphans.push({
       key,
       ...describeMapping({ ...mapping, source: 'mapping' }, chart),
-      usedByOlderExpenses: Boolean(LEGACY_ALIASES[key])
+      // A legacy id's mapping is only consulted if its category no longer exists
+      usedByOlderExpenses: Boolean(LEGACY_ALIASES[key]) && !ctx.activeKeys.has(LEGACY_ALIASES[key])
     });
   }
 

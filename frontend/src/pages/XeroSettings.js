@@ -515,7 +515,9 @@ const XeroSettings = () => {
     if (effective) {
       const via = effective.source === 'default'
         ? 'the default account'
-        : 'a fallback code set on the Expense Categories page';
+        : effective.source === 'mapping'
+          ? `the mapping saved for "${effective.matchedKey}"`
+          : 'a fallback code set on the Expense Categories page';
       if (effective.problem) {
         return (
           <p className="mapping-note mapping-note--warn">

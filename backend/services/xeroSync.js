@@ -8,6 +8,9 @@ const db = require('../config/database');
 const xeroService = require('./xeroService');
 const { getChart, loadMappingContext, resolveExpenseAccount } = require('./xeroAccounts');
 
+// Advisory-lock namespace for "this expense is being posted to Xero"
+const XERO_SYNC_LOCK = 7340022;
+
 /** Store a failure on the expense so the Settings page can show it. */
 async function recordSyncError(expenseId, message) {
   await db.query(
@@ -45,7 +48,10 @@ async function syncExpensesToXero(connection, expenses) {
 
   xeroService.setAccessToken(connection.access_token, connection.refresh_token);
 
-  const chart = await getChart(tenantId);
+  // Always validate against the live chart. The cache is per process, so on
+  // a multi-instance deploy it can predate a mapping saved on another
+  // instance (e.g. to a just-created account). One call per sync batch.
+  const chart = await getChart(tenantId, { force: true });
   if (!chart.success) {
     const message = `Could not load the chart of accounts from Xero: ${chart.error}`;
     for (const expense of expenses) {
@@ -58,35 +64,49 @@ async function syncExpensesToXero(connection, expenses) {
   const ctx = await loadMappingContext(tenantId);
 
   for (const expense of expenses) {
-    if (expense.xero_invoice_id) {
-      details.skipped.push({ expenseId: expense.id, reason: 'Already synced to Xero' });
-      continue;
-    }
+    // Claim the expense for the whole post. Auto-sync on approval and a
+    // manual "Sync"/"Sync All" can run at the same moment; without this both
+    // would create a bill. The second waits, re-reads, and sees it is synced.
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [XERO_SYNC_LOCK, expense.id]);
+      const fresh = await client.query('SELECT xero_invoice_id FROM expenses WHERE id = $1', [expense.id]);
 
-    const target = resolveExpenseAccount(expense.category, ctx, chart.accounts);
-    if (!target.ok) {
-      await recordSyncError(expense.id, target.error);
-      details.failed.push({ expenseId: expense.id, error: target.error });
-      continue;
-    }
+      if (!fresh.rows[0] || fresh.rows[0].xero_invoice_id) {
+        details.skipped.push({ expenseId: expense.id, reason: 'Already synced to Xero' });
+        continue;
+      }
 
-    // xeroService is a shared singleton; re-assert this connection's token
-    // before each post in case another request changed it meanwhile.
-    xeroService.setAccessToken(connection.access_token, connection.refresh_token);
-    const result = await xeroService.syncExpenseToXero(tenantId, expense, { accountCode: target.code });
+      const target = resolveExpenseAccount(expense.category, ctx, chart.accounts);
+      if (!target.ok) {
+        await recordSyncError(expense.id, target.error);
+        details.failed.push({ expenseId: expense.id, error: target.error });
+        continue;
+      }
 
-    if (result.success) {
-      details.synced.push({
-        expenseId: expense.id,
-        xeroInvoiceId: result.xeroInvoiceId,
-        xeroInvoiceNumber: result.xeroInvoiceNumber,
-        accountCode: target.code,
-        accountName: target.accountName
-      });
-    } else {
-      const message = `Xero rejected the bill: ${result.error}`;
-      await recordSyncError(expense.id, message);
-      details.failed.push({ expenseId: expense.id, error: message });
+      // xeroService is a shared singleton; re-assert this connection's token
+      // before each post in case another request changed it meanwhile.
+      xeroService.setAccessToken(connection.access_token, connection.refresh_token);
+      const result = await xeroService.syncExpenseToXero(tenantId, expense, { accountCode: target.code });
+
+      if (result.success) {
+        details.synced.push({
+          expenseId: expense.id,
+          xeroInvoiceId: result.xeroInvoiceId,
+          xeroInvoiceNumber: result.xeroInvoiceNumber,
+          accountCode: target.code,
+          accountName: target.accountName
+        });
+      } else {
+        const message = result.rejectedByXero ? `Xero rejected the bill: ${result.error}` : result.error;
+        await recordSyncError(expense.id, message);
+        details.failed.push({ expenseId: expense.id, error: message });
+      }
+    } finally {
+      // Releases the advisory lock (transaction-scoped)
+      await client.query('COMMIT').catch(() => {});
+      client.release();
     }
   }
 

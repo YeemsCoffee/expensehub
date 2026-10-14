@@ -459,23 +459,40 @@ class XeroService {
         status: expense.status === 'approved' ? 'AUTHORISED' : 'DRAFT'
       };
 
-      const response = await this.xero.accountingApi.createInvoices(
-        tenantId,
-        { invoices: [bill] }
-      );
+      let createdBill;
+      try {
+        const response = await this.xero.accountingApi.createInvoices(
+          tenantId,
+          { invoices: [bill] }
+        );
+        createdBill = response.body.invoices[0];
+      } catch (error) {
+        const parsed = parseXeroError(error);
+        console.error(`Xero rejected the bill for expense ${expense.id}:`, parsed.message);
+        return { success: false, rejectedByXero: true, error: parsed.message, details: parsed.body };
+      }
 
-      const createdBill = response.body.invoices[0];
-
-      // Update expense with Xero info (and clear any earlier failure)
-      await db.query(
-        `UPDATE expenses
-         SET xero_invoice_id = $1,
-             xero_synced_at = CURRENT_TIMESTAMP,
-             xero_sync_error = NULL,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2`,
-        [createdBill.invoiceID, expense.id]
-      );
+      // The bill now exists in Xero. A failure from here on must not be
+      // reported as a rejection - that invites a retry and a duplicate bill.
+      try {
+        await db.query(
+          `UPDATE expenses
+           SET xero_invoice_id = $1,
+               xero_synced_at = CURRENT_TIMESTAMP,
+               xero_sync_error = NULL,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND xero_invoice_id IS NULL`,
+          [createdBill.invoiceID, expense.id]
+        );
+      } catch (dbError) {
+        console.error(`Bill ${createdBill.invoiceID} created in Xero for expense ${expense.id} but not recorded:`, dbError.message);
+        return {
+          success: false,
+          billCreated: true,
+          xeroInvoiceId: createdBill.invoiceID,
+          error: `Bill ${createdBill.invoiceNumber || createdBill.invoiceID} was created in Xero, but ExpenseHub could not record it (${dbError.message}). Check Xero before syncing this expense again, to avoid a duplicate bill.`
+        };
+      }
 
       return {
         success: true,
@@ -485,6 +502,7 @@ class XeroService {
       };
 
     } catch (error) {
+      // Before any bill was created (e.g. contact lookup/creation failed)
       const parsed = parseXeroError(error);
       console.error(`Error syncing expense ${expense.id} to Xero:`, parsed.message);
       return {

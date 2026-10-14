@@ -609,9 +609,12 @@ router.post('/sync-bulk', authMiddleware, isAdminOrDeveloper, async (req, res) =
 
     const result = await syncExpensesToXero(conn.connection, expensesResult.rows);
 
+    const already = result.skipped
+      ? ` ${result.skipped} ${result.skipped === 1 ? 'was' : 'were'} already synced.`
+      : '';
     const message = result.failed
-      ? `Synced ${result.synced} of ${expensesResult.rows.length} expenses. ${result.failed} could not be synced - see the Xero Status column for the reason.`
-      : `Synced ${result.synced} expense${result.synced === 1 ? '' : 's'} successfully`;
+      ? `Synced ${result.synced} of ${expensesResult.rows.length} expenses.${already} ${result.failed} could not be synced - see the Xero Status column for the reason.`
+      : `Synced ${result.synced} expense${result.synced === 1 ? '' : 's'}.${already}`;
 
     res.json({
       message,
