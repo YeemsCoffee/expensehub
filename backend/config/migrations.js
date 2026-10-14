@@ -319,17 +319,18 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] users.deleted_at column already exists - skipping');
     }
 
-    // 9. Xero organisation selection, per-grant tokens and mapping clean-up
-    console.log('[MIGRATION] Checking if xero_connections.grant_id column exists...');
-    const checkXeroGrantId = await db.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = 'xero_connections'
-      AND column_name = 'grant_id'
+    // 9. Xero organisation selection, per-grant tokens, OAuth state and
+    // mapping clean-up. Gated on the newest object it creates; every
+    // statement in it is safe to re-run.
+    console.log('[MIGRATION] Checking if xero_oauth_states table exists...');
+    const checkXeroOAuthStates = await db.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_name = 'xero_oauth_states'
       AND table_schema = 'public'
     `);
 
-    if (checkXeroGrantId.rows.length === 0) {
+    if (checkXeroOAuthStates.rows.length === 0) {
       console.log('📝 [MIGRATION] Applying Xero organisation/mapping migration...');
 
       const xeroOrgMigrationPath = path.join(__dirname, '../database/xero_org_selection_and_mapping_fixes.sql');
@@ -349,7 +350,7 @@ async function runMigrations() {
         console.warn('⚠️  [MIGRATION] Xero organisation/mapping migration file not found, skipping...');
       }
     } else {
-      console.log('✅ [MIGRATION] xero_connections.grant_id already exists - skipping');
+      console.log('✅ [MIGRATION] xero_oauth_states already exists - skipping');
     }
 
   } catch (error) {

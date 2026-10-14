@@ -11,8 +11,10 @@ const { getValidXeroConnection } = require('./xeroConnection');
 const { syncExpensesToXero, recordSyncError } = require('./xeroSync');
 
 const CONNECTION_ERRORS = {
-  reconnect_required: 'Xero connection expired - an admin must reconnect Xero in Settings → Xero Integration, then sync again',
-  no_default: 'Several Xero organisations are connected and none is chosen for syncing - choose one in Settings → Xero Integration, then sync again'
+  reconnect_required: (conn) =>
+    `The Xero connection${conn.tenantName ? ` to ${conn.tenantName}` : ''} expired - an admin must reconnect it in Settings → Xero Integration, then sync again`,
+  no_default: () =>
+    'No Xero organisation is chosen for syncing - choose one in Settings → Xero Integration, then sync again'
 };
 
 async function autoSyncExpenseToXero(expenseId) {
@@ -36,7 +38,8 @@ async function autoSyncExpenseToXero(expenseId) {
       if (conn.reason === 'not_connected') {
         return; // Xero not connected; nothing to do.
       }
-      const message = CONNECTION_ERRORS[conn.reason] || ('Xero token refresh failed: ' + conn.error);
+      const describe = CONNECTION_ERRORS[conn.reason];
+      const message = describe ? describe(conn) : ('Xero token refresh failed: ' + conn.error);
       console.error(`✗ [Xero auto-sync] ${message} (expense ${approvedExpense.id})`);
       await recordSyncError(approvedExpense.id, message);
       return;

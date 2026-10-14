@@ -36,7 +36,9 @@
  * Callers name a tenant, or get the admin-chosen default organisation
  * (xero_connections.is_default). It is never chosen by timestamp: that used to
  * make the Settings page and auto-sync use whichever row was written last,
- * often Xero's Demo Company.
+ * often Xero's Demo Company. Nor does it fall back to "the only organisation
+ * still connected" when the default's grant dies - that would quietly post to
+ * an organisation nobody chose.
  *
  * Note: xeroService is a module singleton whose XeroClient token set is
  * mutated by callers. Every row of a grant holds the same token, so callers
@@ -64,37 +66,62 @@ function grantKeyOf(row) {
 }
 
 /**
+ * The organisation the admin chose for syncing, whether or not it is
+ * currently connected: { tenantId, tenantName, active } or null if none was
+ * chosen. A dead grant deactivates the row but keeps is_default, so the choice
+ * survives until it is reconnected or the admin picks another organisation.
+ */
+async function getDefaultOrganisation() {
+  const chosen = await db.query(
+    `SELECT tenant_id, tenant_name FROM xero_connections
+     WHERE is_organization_wide = true AND is_default = true
+     ORDER BY is_active DESC, id DESC
+     LIMIT 1`
+  );
+  if (!chosen.rows[0]) return null;
+
+  const { tenant_id: tenantId, tenant_name: tenantName } = chosen.rows[0];
+  const live = await db.query(
+    `SELECT 1 FROM xero_connections
+     WHERE is_organization_wide = true AND is_active = true AND tenant_id = $1
+     LIMIT 1`,
+    [tenantId]
+  );
+  return { tenantId, tenantName, active: live.rows.length > 0 };
+}
+
+/**
  * The connection to use: { connection } or { reason }.
- * With a tenantId, that organisation. Without one, the default organisation;
- * if none is chosen, the only connected organisation; if several are
- * connected and none is chosen, reason 'no_default' (never a guess).
+ * With a tenantId, that organisation. Without one, the default organisation.
+ * If the default is no longer connected the reason is 'reconnect_required',
+ * and if none was chosen it is 'no_default' - expenses are never posted to
+ * some other organisation that happens to still be connected.
  */
 async function findConnection(tenantId) {
-  if (tenantId) {
-    const result = await db.query(
-      `SELECT * FROM xero_connections
-       WHERE is_organization_wide = true AND is_active = true AND tenant_id = $1
-       ORDER BY is_default DESC, id DESC
-       LIMIT 1`,
-      [tenantId]
-    );
-    return result.rows[0] ? { connection: result.rows[0] } : { reason: 'not_connected' };
+  if (!tenantId) {
+    const chosen = await getDefaultOrganisation();
+    if (!chosen) {
+      const anyActive = await db.query(
+        `SELECT 1 FROM xero_connections
+         WHERE is_organization_wide = true AND is_active = true
+         LIMIT 1`
+      );
+      return { reason: anyActive.rows.length > 0 ? 'no_default' : 'not_connected' };
+    }
+    if (!chosen.active) {
+      return { reason: 'reconnect_required', tenantName: chosen.tenantName };
+    }
+    tenantId = chosen.tenantId;
   }
 
   const result = await db.query(
     `SELECT * FROM xero_connections
-     WHERE is_organization_wide = true AND is_active = true
-     ORDER BY is_default DESC, id DESC`
+     WHERE is_organization_wide = true AND is_active = true AND tenant_id = $1
+     ORDER BY is_default DESC, id DESC
+     LIMIT 1`,
+    [tenantId]
   );
-  if (result.rows.length === 0) return { reason: 'not_connected' };
-
-  const chosen = result.rows.find((r) => r.is_default);
-  if (chosen) return { connection: chosen };
-
-  const tenantIds = new Set(result.rows.map((r) => r.tenant_id));
-  if (tenantIds.size === 1) return { connection: result.rows[0] };
-
-  return { reason: 'no_default' };
+  return result.rows[0] ? { connection: result.rows[0] } : { reason: 'not_connected' };
 }
 
 /**
@@ -192,16 +219,17 @@ async function refreshGrantUnderLock(connectionId) {
     if (isInvalidGrant(refreshResult)) {
       // The grant is dead (consumed, revoked, or >60 days unused). Nothing can
       // revive it and it covers every org in the grant, so deactivate them
-      // all; /status then reports disconnected and an admin reconnects.
+      // all. is_default is kept: syncing stops until the chosen organisation
+      // is reconnected, instead of moving to another one still connected.
       await client.query(
         `UPDATE xero_connections
-         SET is_active = false, is_default = false, updated_at = CURRENT_TIMESTAMP
+         SET is_active = false, updated_at = CURRENT_TIMESTAMP
          WHERE ${scope.where}`,
         [scope.param]
       );
       await client.query('COMMIT');
       console.error(`✗ [Xero] Refresh token rejected for tenant ${row.tenant_id}; grant marked inactive. Reconnect required.`);
-      return { connection: null, reason: 'reconnect_required', error: refreshResult.error };
+      return { connection: null, reason: 'reconnect_required', tenantName: row.tenant_name, error: refreshResult.error };
     }
 
     // Transient failure (network, Xero outage): leave the rows alone.
@@ -230,7 +258,7 @@ async function refreshGrantUnderLock(connectionId) {
 async function getValidXeroConnection({ tenantId } = {}) {
   const found = await findConnection(tenantId);
   if (!found.connection) {
-    return { connection: null, reason: found.reason };
+    return { connection: null, reason: found.reason, tenantName: found.tenantName };
   }
   const connection = found.connection;
 
@@ -269,7 +297,9 @@ function respondNotConnected(res, result) {
   switch (result.reason) {
     case 'reconnect_required':
       return res.status(409).json({
-        error: 'Your Xero connection has expired and must be reconnected.',
+        error: result.tenantName
+          ? `The Xero connection to ${result.tenantName} has expired and must be reconnected.`
+          : 'Your Xero connection has expired and must be reconnected.',
         code: 'XERO_RECONNECT_REQUIRED'
       });
     case 'refresh_failed':
@@ -280,7 +310,7 @@ function respondNotConnected(res, result) {
       });
     case 'no_default':
       return res.status(409).json({
-        error: 'Several Xero organisations are connected. Choose which one ExpenseHub syncs to in Settings → Xero Integration.',
+        error: 'No Xero organisation is chosen for syncing. Choose one in Settings → Xero Integration.',
         code: 'XERO_CHOOSE_ORG'
       });
     default:
@@ -291,4 +321,10 @@ function respondNotConnected(res, result) {
   }
 }
 
-module.exports = { getValidXeroConnection, respondNotConnected, isExpiringSoon, grantKeyOf };
+module.exports = {
+  getValidXeroConnection,
+  getDefaultOrganisation,
+  respondNotConnected,
+  isExpiringSoon,
+  grantKeyOf
+};

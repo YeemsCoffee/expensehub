@@ -2,7 +2,11 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 const { authMiddleware, isAdminOrDeveloper } = require('../middleware/auth');
-const { getValidXeroConnection, respondNotConnected } = require('../services/xeroConnection');
+const {
+  getValidXeroConnection,
+  getDefaultOrganisation,
+  respondNotConnected
+} = require('../services/xeroConnection');
 const {
   DEFAULT_KEY,
   annotateAccount,
@@ -20,6 +24,9 @@ const db = require('../config/database');
 // Serialises the OAuth callback and default-organisation changes so two of
 // them can never leave two default organisations.
 const XERO_ORG_LOCK = 7340021;
+
+// How long an admin has to finish signing in to Xero after clicking Connect
+const OAUTH_STATE_TTL_MINUTES = 15;
 
 /** Payload of a JWT without verifying it (the token came from Xero over TLS). */
 function decodeJwtPayload(token) {
@@ -59,11 +66,18 @@ async function setDefaultOrganisation(client, tenantId) {
 // GET /api/xero/connect - Initiate Xero OAuth flow (Admin/Developer only - organization-wide)
 router.get('/connect', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
-    // Store admin/developer user ID in state parameter for callback
-    const stateParam = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
+    // A random, single-use state stored server-side for this admin. The
+    // callback is not authenticated (Xero redirects the browser to it), so
+    // this is what proves a callback belongs to a flow an admin started here.
+    const state = crypto.randomBytes(32).toString('hex');
+    await db.query('DELETE FROM xero_oauth_states WHERE expires_at < CURRENT_TIMESTAMP');
+    await db.query(
+      `INSERT INTO xero_oauth_states (state, user_id, expires_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '${OAUTH_STATE_TTL_MINUTES} minutes')`,
+      [state, req.user.id]
+    );
 
-    // Get auth URL with state
-    const authUrl = await xeroService.getAuthorizationUrl(stateParam);
+    const authUrl = await xeroService.getAuthorizationUrl(state);
 
     res.json({
       authUrl: authUrl
@@ -78,25 +92,43 @@ router.get('/connect', authMiddleware, isAdminOrDeveloper, async (req, res) => {
 // GET /api/xero/callback - Handle OAuth callback from Xero
 router.get('/callback', async (req, res) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const fail = (reason) =>
+    res.redirect(`${frontendUrl}/#/xero-settings?connected=false&error=${encodeURIComponent(reason)}`);
   try {
-    const { code, state } = req.query;
+    const { code, error: xeroError } = req.query;
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
 
-    if (!code) {
-      return res.status(400).send('Authorization code missing');
+    // Consume the state: it must be one /connect issued, unexpired and unused
+    const claimed = state
+      ? await db.query(
+          `DELETE FROM xero_oauth_states WHERE state = $1
+           RETURNING state, user_id, expires_at > CURRENT_TIMESTAMP AS fresh`,
+          [state]
+        )
+      : { rows: [] };
+    const issued = claimed.rows[0];
+    if (!issued || !issued.fresh) {
+      return fail('This Xero sign-in has expired or was already used. Click "Connect to Xero" to start again.');
     }
 
-    // Decode state to get admin/developer user ID
-    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-    const connectedByUserId = stateData.userId;
+    if (xeroError) {
+      return fail(xeroError === 'access_denied' ? 'Access was not granted in Xero' : String(xeroError));
+    }
+    if (!code) {
+      return fail('Authorization code missing');
+    }
+
+    // The admin/developer who started this flow
+    const connectedByUserId = issued.user_id;
 
     // Build full callback URL for xero-node (it needs the full URL, not just the code)
     const callbackUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
 
-    // Exchange code for tokens (pass state so XeroClient can validate it)
-    const result = await xeroService.handleCallback(callbackUrl, state);
+    // Exchange code for tokens, checking the state against the one we issued
+    const result = await xeroService.handleCallback(callbackUrl, issued.state);
 
     if (!result.success) {
-      return res.status(500).send(`Failed to connect to Xero: ${result.error}`);
+      return fail(`Failed to connect to Xero: ${result.error}`);
     }
 
     // Only organisations can hold a chart of accounts (not practices etc.)
@@ -104,22 +136,37 @@ router.get('/callback', async (req, res) => {
       (t) => !t.tenantType || t.tenantType === 'ORGANISATION'
     );
     if (tenants.length === 0) {
-      return res.redirect(`${frontendUrl}/#/xero-settings?connected=false&error=${encodeURIComponent('No Xero organisation was authorised')}`);
+      return fail('No Xero organisation was authorised');
     }
 
     const ts = result.tokenSet;
     // All organisations authorised here share this one token set (one grant)
     const grantId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ((ts.expires_in || 1800) * 1000));
-    // The organisations the admin picked on Xero's consent screen this time.
-    // GET /connections returns every organisation ever connected to the app.
-    const authEventId = (decodeJwtPayload(ts.access_token) || {}).authentication_event_id || null;
+    const accessClaims = decodeJwtPayload(ts.access_token) || {};
+    const idClaims = decodeJwtPayload(ts.id_token) || {};
+    // The Xero user who signed in. GET /connections lists THIS user's
+    // connections to the app, not every organisation the app is connected to,
+    // so only this user's organisations can be reconciled against it.
+    const xeroUserId = idClaims.xero_userid || accessClaims.xero_userid || null;
+    // Identifies the organisations picked on Xero's consent screen this time
+    const authEventId = accessClaims.authentication_event_id || null;
 
     let needsChoice = false;
     const client = await db.pool.connect();
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [XERO_ORG_LOCK]);
+
+      // The organisation approved expenses sync to - also when its connection
+      // has died and it is waiting to be reconnected
+      const previous = await client.query(
+        `SELECT tenant_id FROM xero_connections
+         WHERE is_organization_wide = true AND is_default = true
+         ORDER BY is_active DESC, id DESC
+         LIMIT 1`
+      );
+      const previousDefault = previous.rows[0] ? previous.rows[0].tenant_id : null;
 
       for (const tenant of tenants) {
         const isDemo = Boolean(tenant.orgData && tenant.orgData.isDemoCompany);
@@ -147,8 +194,10 @@ router.get('/callback', async (req, res) => {
                  grant_id = $9,
                  xero_connection_id = $10,
                  is_demo_company = $11,
+                 xero_user_id = $12,
+                 is_default = false,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE id = $12`,
+             WHERE id = $13`,
             [
               ts.access_token,
               ts.refresh_token,
@@ -161,6 +210,7 @@ router.get('/callback', async (req, res) => {
               grantId,
               tenant.id || null,
               isDemo,
+              xeroUserId,
               existing.rows[0].id
             ]
           );
@@ -169,9 +219,9 @@ router.get('/callback', async (req, res) => {
             `INSERT INTO xero_connections (
               user_id, tenant_id, tenant_name, access_token, refresh_token,
               id_token, expires_at, token_type, scope, is_organization_wide, connected_by_user_id,
-              grant_id, xero_connection_id, is_demo_company
+              grant_id, xero_connection_id, is_demo_company, xero_user_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
             [
               null, // user_id is NULL for organization-wide
               tenant.tenantId,
@@ -186,48 +236,52 @@ router.get('/callback', async (req, res) => {
               connectedByUserId,
               grantId,
               tenant.id || null,
-              isDemo
+              isDemo,
+              xeroUserId
             ]
           );
         }
       }
 
-      // Organisations no longer connected to the app in Xero
+      // This Xero user's organisations that are no longer connected to the
+      // app. Rows from other Xero users (or from before xero_user_id was
+      // recorded) are left alone: their grants are still valid at Xero, and a
+      // dead one is detected (invalid_grant) when it is next used.
       const tenantIds = tenants.map((t) => t.tenantId);
-      await client.query(
-        `UPDATE xero_connections
-         SET is_active = false, is_default = false, updated_at = CURRENT_TIMESTAMP
-         WHERE is_organization_wide = true AND is_active = true
-           AND NOT (tenant_id = ANY($1::text[]))`,
-        [tenantIds]
-      );
-
-      // Choose the organisation to sync to:
-      //  - the single organisation picked in this consent, else
-      //  - the existing default if it is still connected, else
-      //  - the only connected organisation, else
-      //  - nobody: the Settings page asks the admin to choose.
-      const pickedNow = authEventId ? tenants.filter((t) => t.authEventId === authEventId) : [];
-      let defaultTenantId = null;
-      if (pickedNow.length === 1) {
-        defaultTenantId = pickedNow[0].tenantId;
-      } else {
-        const current = await client.query(
-          `SELECT tenant_id FROM xero_connections
-           WHERE is_organization_wide = true AND is_active = true AND is_default = true
-           LIMIT 1`
+      if (xeroUserId) {
+        await client.query(
+          `UPDATE xero_connections
+           SET is_active = false, updated_at = CURRENT_TIMESTAMP
+           WHERE is_organization_wide = true AND is_active = true
+             AND xero_user_id = $2
+             AND NOT (tenant_id = ANY($1::text[]))`,
+          [tenantIds, xeroUserId]
         );
-        if (current.rows[0]) {
-          defaultTenantId = current.rows[0].tenant_id;
-        } else if (new Set(tenantIds).size === 1) {
-          defaultTenantId = tenantIds[0];
-        }
       }
 
-      if (defaultTenantId) {
-        await setDefaultOrganisation(client, defaultTenantId);
+      // Choose the organisation to sync to. An existing choice is kept - a
+      // new consent never moves postings to another organisation; the admin
+      // switches with the selector. If it is not connected after this consent
+      // it stays chosen and the Settings page asks for it to be reconnected.
+      // Without a choice:
+      //  - the single organisation picked in this consent, else
+      //  - the only connected organisation, else
+      //  - nobody: the Settings page asks the admin to choose.
+      if (previousDefault) {
+        await setDefaultOrganisation(client, previousDefault);
       } else {
-        needsChoice = true;
+        const pickedNow = authEventId ? tenants.filter((t) => t.authEventId === authEventId) : [];
+        const connected = await client.query(
+          `SELECT DISTINCT tenant_id FROM xero_connections
+           WHERE is_organization_wide = true AND is_active = true`
+        );
+        if (pickedNow.length === 1) {
+          await setDefaultOrganisation(client, pickedNow[0].tenantId);
+        } else if (connected.rows.length === 1) {
+          await setDefaultOrganisation(client, connected.rows[0].tenant_id);
+        } else {
+          needsChoice = true;
+        }
       }
 
       await client.query('COMMIT');
@@ -266,16 +320,20 @@ router.get('/status', authMiddleware, isAdminOrDeveloper, async (req, res) => {
       return true;
     });
 
-    const chosen = connections.find((c) => c.is_default);
-    const defaultTenantId = chosen
-      ? chosen.tenant_id
-      : (connections.length === 1 ? connections[0].tenant_id : null);
+    // The same rule auto-sync uses (services/xeroConnection)
+    const chosen = await getDefaultOrganisation();
 
     res.json({
       connected: connections.length > 0,
       connections,
-      defaultTenantId,
-      needsDefault: connections.length > 1 && !chosen
+      // Set only while the chosen organisation is connected
+      defaultTenantId: chosen && chosen.active ? chosen.tenantId : null,
+      // The chosen organisation's connection died: nothing syncs until it is
+      // reconnected or another organisation is chosen
+      reconnectRequired: chosen && !chosen.active
+        ? { tenantId: chosen.tenantId, tenantName: chosen.tenantName }
+        : null,
+      needsDefault: connections.length > 0 && !chosen
     });
 
   } catch (error) {
@@ -332,10 +390,11 @@ router.post('/disconnect', authMiddleware, isAdminOrDeveloper, async (req, res) 
       await xeroService.revokeGrant(row.access_token, row.refresh_token);
     }
 
+    // Also forgets a chosen organisation that was waiting to be reconnected
     await db.query(
       `UPDATE xero_connections
        SET is_active = false, is_default = false, updated_at = CURRENT_TIMESTAMP
-       WHERE is_organization_wide = true AND is_active = true`
+       WHERE is_organization_wide = true AND (is_active = true OR is_default = true)`
     );
 
     res.json({ message: 'Disconnected from Xero successfully' });

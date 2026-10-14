@@ -28,6 +28,8 @@ const XeroSettings = () => {
   const [connections, setConnections] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [needsDefault, setNeedsDefault] = useState(false);
+  // The chosen organisation, when its connection has died: { tenantId, tenantName }
+  const [reconnectRequired, setReconnectRequired] = useState(null);
   const [switchingOrg, setSwitchingOrg] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
@@ -100,50 +102,13 @@ const XeroSettings = () => {
     setShowFullChart(false);
   }, []);
 
-  // The backend answers Xero-connection problems with a `code` so they are
-  // never confused with an ExpenseHub login problem. Returns true if handled.
-  const handleXeroConnectionError = useCallback((error) => {
-    const code = error.response?.data?.code;
-    if (code === 'XERO_RECONNECT_REQUIRED' || code === 'XERO_NOT_CONNECTED') {
-      tenantRef.current = null;
-      setConnected(false);
-      setConnections([]);
-      setSelectedTenant(null);
-      setNeedsDefault(false);
-      resetOrganisationData();
-      setExpenses([]);
-      setMessage({
-        type: 'error',
-        text: code === 'XERO_RECONNECT_REQUIRED'
-          ? 'Your Xero connection has expired and must be reconnected. Click "Connect to Xero" to sign in to Xero again - your account mappings are kept.'
-          : 'Not connected to Xero. Click "Connect to Xero" to get started.'
-      });
-      return true;
-    }
-    if (code === 'XERO_CHOOSE_ORG') {
-      tenantRef.current = null;
-      setSelectedTenant(null);
-      setNeedsDefault(true);
-      resetOrganisationData();
-      setMessage({ type: 'warning', text: error.response.data.error });
-      return true;
-    }
-    if (code === 'XERO_REFRESH_FAILED') {
-      setMessage({
-        type: 'error',
-        text: 'Could not reach Xero to refresh the connection. Please try again in a moment.'
-      });
-      return true;
-    }
-    return false;
-  }, [resetOrganisationData]);
-
   const checkStatus = useCallback(async () => {
     try {
       const { data } = await api.get('/xero/status');
       setConnected(Boolean(data.connected));
       setConnections(data.connections || []);
       setNeedsDefault(Boolean(data.needsDefault));
+      setReconnectRequired(data.reconnectRequired || null);
       // Always the organisation expenses sync to - never "whichever row was
       // written last", which used to show another org's chart
       setSelectedTenant(data.defaultTenantId || null);
@@ -157,6 +122,35 @@ const XeroSettings = () => {
       setLoading(false);
     }
   }, []);
+
+  // The backend answers Xero-connection problems with a `code` so they are
+  // never confused with an ExpenseHub login problem. Returns true if handled
+  // here. A temporary refresh failure (XERO_REFRESH_FAILED) is left to the
+  // caller, which shows its error where it can be retried.
+  const handleXeroConnectionError = useCallback((error) => {
+    const code = error.response?.data?.code;
+    if (code === 'XERO_RECONNECT_REQUIRED' || code === 'XERO_NOT_CONNECTED') {
+      setMessage({
+        type: 'error',
+        text: code === 'XERO_RECONNECT_REQUIRED'
+          ? `${error.response.data.error} Sign in to Xero again to reconnect it - your account mappings are kept.`
+          : 'Not connected to Xero. Click "Connect to Xero" to get started.'
+      });
+      // Only the organisations of the expired grant were disconnected; others
+      // may still be connected, so show the real state rather than assume
+      checkStatus();
+      return true;
+    }
+    if (code === 'XERO_CHOOSE_ORG') {
+      tenantRef.current = null;
+      setSelectedTenant(null);
+      setNeedsDefault(true);
+      resetOrganisationData();
+      setMessage({ type: 'warning', text: error.response.data.error });
+      return true;
+    }
+    return false;
+  }, [resetOrganisationData, checkStatus]);
 
   useEffect(() => {
     if (hasPermission) {
@@ -176,9 +170,11 @@ const XeroSettings = () => {
     } catch (error) {
       if (tenantRef.current !== tenantId) return;
       console.error('Error loading accounts:', error);
-      if (handleXeroConnectionError(error)) return;
+      // Never leave the spinner up: show the error with Retry. If the
+      // organisation changes as a result, switching it resets this card.
       setAccountsStatus('error');
       setAccountsError(error.response?.data?.error || 'Failed to load the chart of accounts from Xero.');
+      handleXeroConnectionError(error);
     }
   }, [handleXeroConnectionError]);
 
@@ -192,8 +188,8 @@ const XeroSettings = () => {
     } catch (error) {
       if (tenantRef.current !== tenantId) return;
       console.error('Error loading mappings:', error);
-      if (handleXeroConnectionError(error)) return;
       setOverviewStatus('error');
+      handleXeroConnectionError(error);
     }
   }, [handleXeroConnectionError]);
 
@@ -256,6 +252,7 @@ const XeroSettings = () => {
       setConnections([]);
       setConnected(false);
       setNeedsDefault(false);
+      setReconnectRequired(null);
       resetOrganisationData();
       setExpenses([]);
       setMessage({ type: 'success', text: 'Disconnected from Xero. Your account mappings are kept for when you reconnect.' });
@@ -280,6 +277,8 @@ const XeroSettings = () => {
       const name = connections.find(c => c.tenant_id === tenantId)?.tenant_name;
       setConnections(prev => prev.map(c => ({ ...c, is_default: c.tenant_id === tenantId })));
       setNeedsDefault(false);
+      // Choosing another organisation replaces one that needed reconnecting
+      setReconnectRequired(null);
       setSelectedTenant(tenantId);
       setMessage({ type: 'success', text: `Approved expenses will now sync to ${name || 'the selected organisation'}.` });
     } catch (error) {
@@ -576,6 +575,24 @@ const XeroSettings = () => {
 
   const MessageIcon = message ? (MESSAGE_ICONS[message.type] || XCircle) : null;
 
+  // The chosen organisation's connection died; syncing has stopped rather
+  // than moving to another organisation
+  const reconnectAlert = reconnectRequired && (
+    <div className="alert alert-warning mt-2">
+      <AlertTriangle size={18} />
+      <div>
+        <p>
+          The Xero connection to <strong>{reconnectRequired.tenantName}</strong>, the organisation
+          approved expenses sync to, has expired. Nothing is sent to Xero until it is
+          reconnected{connections.length > 0 ? ' or you choose another organisation above' : ''}.
+        </p>
+        <button className="btn btn-primary btn-sm mt-2" onClick={connectToXero}>
+          <ExternalLink size={14} /> Reconnect {reconnectRequired.tenantName}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="container">
       <div className="page-header">
@@ -601,16 +618,20 @@ const XeroSettings = () => {
               <XCircle size={16} />
               Not Connected
             </div>
-            <p className="text-gray mt-2">
-              Connect your Xero account to automatically sync approved expenses as bills.
-            </p>
-            <button
-              onClick={connectToXero}
-              className="btn btn-primary mt-4"
-            >
-              <ExternalLink size={16} />
-              Connect to Xero
-            </button>
+            {reconnectRequired ? reconnectAlert : (
+              <>
+                <p className="text-gray mt-2">
+                  Connect your Xero account to automatically sync approved expenses as bills.
+                </p>
+                <button
+                  onClick={connectToXero}
+                  className="btn btn-primary mt-4"
+                >
+                  <ExternalLink size={16} />
+                  Connect to Xero
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="xero-connection-status">
@@ -655,12 +676,14 @@ const XeroSettings = () => {
               </div>
             )}
 
+            {reconnectAlert}
+
             {needsDefault && (
               <div className="alert alert-warning mt-2">
                 <AlertTriangle size={18} />
                 <span>
-                  Several Xero organisations are connected. Choose the one ExpenseHub should sync to -
-                  until you do, approved expenses are not sent to Xero.
+                  Choose the Xero organisation ExpenseHub should sync to - until you do, approved
+                  expenses are not sent to Xero.
                 </span>
               </div>
             )}

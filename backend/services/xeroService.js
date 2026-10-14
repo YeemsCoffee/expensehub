@@ -76,15 +76,22 @@ class XeroService {
   /**
    * Handle OAuth callback and exchange code for tokens
    * @param {string} callbackUrl - Full callback URL with query parameters
-   * @param {string} state - State parameter for validation
+   * @param {string} expectedState - The state this app issued for the flow,
+   *   as looked up server-side by the caller. Never the request's own state:
+   *   openid-client compares the callback's state with this value.
    * @returns {Promise<Object>} Token set
    */
-  async handleCallback(callbackUrl, state) {
+  async handleCallback(callbackUrl, expectedState) {
     try {
-      // Set state in config for validation
-      if (state) {
-        this.xero.config.state = state;
+      if (!expectedState) {
+        throw new Error('OAuth state was not verified');
       }
+
+      // apiCallback reads config.state as its expected state. Create the
+      // OpenID client first so nothing is awaited between setting the state
+      // and that read (this client object is shared by concurrent requests).
+      await this.ensureOpenIdClient();
+      this.xero.config.state = expectedState;
 
       const tokenSet = await this.xero.apiCallback(callbackUrl);
 
