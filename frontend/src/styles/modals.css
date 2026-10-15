@@ -700,6 +700,16 @@
   border-bottom: 1px solid var(--color-neutral-200);
 }
 
+/* Sub-category rows sit indented under their category */
+.mapping-row--sub .mapping-label {
+  padding-left: var(--spacing-16);
+  font-weight: var(--font-weight-normal);
+}
+
+.mapping-sub-marker {
+  color: var(--color-text-secondary);
+}
+
 .mapping-row--removing {
   opacity: 0.55;
 }

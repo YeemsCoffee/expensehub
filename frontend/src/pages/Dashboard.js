@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DollarSign, Clock, CheckCircle, TrendingUp, FileText, PieChart, BarChart3, MapPin, Folder, Receipt, AlertCircle, RefreshCw, Building2, ChevronDown, ChevronUp } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, formatCategory } from '../utils/helpers';
 import api from '../services/api';
 
 const Dashboard = () => {
@@ -406,7 +406,7 @@ const Dashboard = () => {
                   <div>
                     <p className="expense-item-title">{expense.description}</p>
                     <p className="expense-item-meta">
-                      {expense.category}
+                      {formatCategory(expense)}
                       {expense.location_code && (
                         <>
                           <span className="expense-item-meta-separator">•</span>

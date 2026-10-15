@@ -3,7 +3,7 @@ import {
   CheckCircle, XCircle, ExternalLink, RefreshCw, Save, AlertTriangle, Upload,
   Trash2, ChevronDown, ChevronUp, Info, Plus, Edit2
 } from 'lucide-react';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, formatCategory } from '../utils/helpers';
 import api from '../services/api';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -453,7 +453,8 @@ const XeroSettings = () => {
   const accountById = useMemo(() => new Map(allAccounts.map(a => [a.accountId, a])), [allAccounts]);
   const hiddenCount = allAccounts.length - selectable.length;
 
-  const categoryRows = overview ? overview.rows.filter(r => r.kind === 'category') : [];
+  // Categories, each followed by its sub-categories (the API sends them in order)
+  const categoryRows = overview ? overview.rows.filter(r => r.kind === 'category' || r.kind === 'subcategory') : [];
   const expenseOnlyRows = overview ? overview.rows.filter(r => r.kind === 'expense_only') : [];
   const orphans = overview ? overview.orphans : [];
   const pendingCount = Object.keys(edits).length;
@@ -497,7 +498,9 @@ const XeroSettings = () => {
   const labelForKey = (key) => {
     if (key === DEFAULT_KEY) return 'Default account';
     const row = overview?.rows.find(r => r.key === key);
-    return row ? row.name : key;
+    if (row) return row.kind === 'subcategory' ? `${row.parentName} › ${row.name}` : row.name;
+    const orphan = overview?.orphans.find(o => o.key === key);
+    return orphan?.label || key;
   };
 
   const saveMappings = async () => {
@@ -635,13 +638,19 @@ const XeroSettings = () => {
     }
 
     if (effective) {
-      const viaKey = effective.matchedKey !== key ? ` for "${effective.matchedKey}"` : '';
+      // A sub-category without its own mapping uses its category's
+      const matchedLabel = effective.matchedKey === key
+        ? null
+        : (row.kind === 'subcategory' ? row.parentName : effective.matchedKey);
+      const viaKey = matchedLabel ? ` for "${matchedLabel}"` : '';
       const via = {
         profile_mapping: `this profile's mapping${viaKey}`,
         profile_default: "this profile's default account",
-        mapping: selectedProfile ? `the shared mapping${viaKey} for all stores` : `the mapping saved for "${effective.matchedKey}"`,
+        mapping: selectedProfile ? `the shared mapping${viaKey} for all stores` : `the mapping saved for "${matchedLabel}"`,
         default: selectedProfile ? 'the shared default account' : 'the default account',
-        expense_category: 'a fallback code set on the Expense Categories page'
+        expense_category: row.kind === 'subcategory'
+          ? `a fallback code set for "${row.parentName}" on the Expense Categories page`
+          : 'a fallback code set on the Expense Categories page'
       }[effective.source] || 'another setting';
       if (effective.problem) {
         return (
@@ -672,9 +681,16 @@ const XeroSettings = () => {
   };
 
   const renderMappingRow = (row) => (
-    <div key={row.key} className="mapping-row mapping-row--top">
+    <div
+      key={row.key}
+      className={`mapping-row mapping-row--top${row.kind === 'subcategory' ? ' mapping-row--sub' : ''}`}
+    >
       <label className="mapping-label">
+        {row.kind === 'subcategory' && <span className="mapping-sub-marker" aria-hidden="true">↳ </span>}
         {row.name}
+        {row.kind === 'subcategory' && (
+          <span className="mapping-label-meta">in {row.parentName}</span>
+        )}
         {row.kind === 'expense_only' && (
           <span className="mapping-label-meta">
             {row.expenseCount} approved expense{row.expenseCount === 1 ? '' : 's'}
@@ -1068,7 +1084,9 @@ const XeroSettings = () => {
                           key={o.key}
                           className={`mapping-row mapping-row--top${removing ? ' mapping-row--removing' : ''}`}
                         >
-                          <span className="mapping-label font-mono">{o.key}</span>
+                          <span className={`mapping-label${o.label && o.label !== o.key ? '' : ' font-mono'}`}>
+                            {o.label || o.key}
+                          </span>
                           <div className="mapping-control mapping-control--inline">
                             <span className="mapping-orphan-account">
                               {accountLabel(o.code, o.name)}
@@ -1187,7 +1205,7 @@ const XeroSettings = () => {
                       {profiles.length > 0 && (
                         <td>{expense.account_profile_name || <span className="text-gray">Shared</span>}</td>
                       )}
-                      <td>{expense.category}</td>
+                      <td>{formatCategory(expense)}</td>
                       <td>{formatCurrency(parseFloat(expense.amount))}</td>
                       <td>
                         {expense.xero_invoice_id ? (

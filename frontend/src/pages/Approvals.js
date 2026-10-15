@@ -7,6 +7,7 @@ import {
 import api from '../services/api';
 import { useToast } from '../components/Toast';
 import StatusBadge from '../components/StatusBadge';
+import { formatCategory } from '../utils/helpers';
 
 const Approvals = ({ user }) => {
   const toast = useToast();
@@ -300,7 +301,7 @@ const Approvals = ({ user }) => {
                     </div>
 
                     <div className="approval-meta">
-                      <span className="badge badge-info">{item.category}</span>
+                      <span className="badge badge-info">{formatCategory(item)}</span>
                       <span className="approval-date">
                         <Calendar size={14} />
                         {formatDate(item.date)}

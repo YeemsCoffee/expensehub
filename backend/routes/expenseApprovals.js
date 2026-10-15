@@ -22,6 +22,7 @@ const PENDING_SELECT = `
     e.amount,
     e.date,
     e.category,
+    sc.name as subcategory_name,
     e.cost_type,
     e.notes,
     e.vendor_name,
@@ -57,6 +58,7 @@ const PENDING_SELECT = `
   LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
   LEFT JOIN locations l ON e.location_id = l.id
   LEFT JOIN projects p ON e.project_id = p.id
+  LEFT JOIN expense_subcategories sc ON sc.id = e.subcategory_id
   WHERE e.status = 'pending'
 `;
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle, XCircle, Eye, ChevronRight } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, formatCategory } from '../utils/helpers';
 
 const SwipeableExpenseCard = ({ 
   expense, 
@@ -146,7 +146,7 @@ const SwipeableExpenseCard = ({
           <div className="expense-card-meta">
             <span className="expense-card-meta-item">
               <span className="meta-label">Category:</span>
-              <span className="meta-value">{expense.category}</span>
+              <span className="meta-value">{formatCategory(expense)}</span>
             </span>
             <span className="expense-card-meta-item">
               <span className="meta-label">Cost Center:</span>

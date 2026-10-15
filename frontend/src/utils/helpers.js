@@ -14,6 +14,14 @@ export const formatCurrency = (amount) => {
   }).format(value);
 };
 
+// "Supplies › Milk" for an expense with a sub-category, else just "Supplies"
+export const formatCategory = (expense) => {
+  if (!expense) return '';
+  return expense.subcategory_name
+    ? `${expense.category} › ${expense.subcategory_name}`
+    : expense.category;
+};
+
 export const getStatusColor = (status) => {
   switch(status) {
     case 'approved': return 'approved';

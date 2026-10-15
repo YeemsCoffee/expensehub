@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Filter, X, Download, Edit2, Trash2, XCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { EXPENSE_CATEGORIES } from '../utils/constants';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, formatCategory } from '../utils/helpers';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
 
@@ -244,7 +244,7 @@ const ExpenseHistory = () => {
     const rows = expenses.map(expense => [
       new Date(expense.date).toLocaleDateString(),
       expense.description,
-      expense.category,
+      formatCategory(expense),
       expense.cost_center_code,
       expense.location_code || '-',
       parseFloat(expense.amount).toFixed(2),
@@ -463,7 +463,7 @@ const ExpenseHistory = () => {
                         )}
                       </div>
                     </td>
-                    <td>{expense.category}</td>
+                    <td>{formatCategory(expense)}</td>
                     {isPrivileged && <td>{expense.submitted_by_name || '-'}</td>}
                     <td>{expense.cost_center_code}</td>
                     <td>{expense.location_code || '-'}</td>

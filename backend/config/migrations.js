@@ -3,6 +3,37 @@ const path = require('path');
 const db = require('../config/database');
 
 /**
+ * Apply a migration file unless `appliedSql` already returns a row. Failures
+ * are logged and do not stop the migrations after it.
+ */
+async function applyOnce(label, appliedSql, fileName) {
+  try {
+    const applied = await db.query(appliedSql);
+    if (applied.rows.length > 0) {
+      console.log(`✅ [MIGRATION] ${label} already applied - skipping`);
+      return;
+    }
+
+    const migrationPath = path.join(__dirname, '../database', fileName);
+    if (!fs.existsSync(migrationPath)) {
+      console.warn(`⚠️  [MIGRATION] ${label} file not found, skipping...`);
+      return;
+    }
+
+    console.log(`📝 [MIGRATION] Applying ${label}...`);
+    await Promise.race([
+      db.query(fs.readFileSync(migrationPath, 'utf8')),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Migration timeout')), 10000)
+      )
+    ]);
+    console.log(`✅ [MIGRATION] ${label} applied successfully!`);
+  } catch (error) {
+    console.error(`⚠️  [MIGRATION] ${label} failed (non-fatal):`, error.message);
+  }
+}
+
+/**
  * Run database migrations on startup
  * This ensures all required tables exist before the app starts
  */
@@ -319,71 +350,32 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] users.deleted_at column already exists - skipping');
     }
 
+    // 9-11 apply independently: one failing must not stop the others (and
+    // 11, which expense lists depend on, must not wait on the Xero ones).
+    // Each is skipped once the newest object it creates exists; every
+    // statement in them is safe to re-run.
+
     // 9. Xero organisation selection, per-grant tokens, OAuth state and
-    // mapping clean-up. Gated on the newest object it creates; every
-    // statement in it is safe to re-run.
-    console.log('[MIGRATION] Checking if xero_oauth_states table exists...');
-    const checkXeroOAuthStates = await db.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_name = 'xero_oauth_states'
-      AND table_schema = 'public'
-    `);
-
-    if (checkXeroOAuthStates.rows.length === 0) {
-      console.log('📝 [MIGRATION] Applying Xero organisation/mapping migration...');
-
-      const xeroOrgMigrationPath = path.join(__dirname, '../database/xero_org_selection_and_mapping_fixes.sql');
-
-      if (fs.existsSync(xeroOrgMigrationPath)) {
-        const xeroOrgMigrationSQL = fs.readFileSync(xeroOrgMigrationPath, 'utf8');
-
-        await Promise.race([
-          db.query(xeroOrgMigrationSQL),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Migration timeout')), 10000)
-          )
-        ]);
-
-        console.log('✅ [MIGRATION] Xero organisation/mapping migration applied successfully!');
-      } else {
-        console.warn('⚠️  [MIGRATION] Xero organisation/mapping migration file not found, skipping...');
-      }
-    } else {
-      console.log('✅ [MIGRATION] xero_oauth_states already exists - skipping');
-    }
+    // mapping clean-up
+    await applyOnce(
+      'Xero organisation/mapping migration',
+      "SELECT 1 FROM information_schema.tables WHERE table_name = 'xero_oauth_states' AND table_schema = 'public'",
+      'xero_org_selection_and_mapping_fixes.sql'
+    );
 
     // 10. Xero account profiles (per-store category -> account mappings)
-    console.log('[MIGRATION] Checking if xero_account_profiles table exists...');
-    const checkAccountProfiles = await db.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_name = 'xero_account_profiles'
-      AND table_schema = 'public'
-    `);
+    await applyOnce(
+      'Xero account profiles migration',
+      "SELECT 1 FROM information_schema.tables WHERE table_name = 'xero_account_profiles' AND table_schema = 'public'",
+      'add_xero_account_profiles.sql'
+    );
 
-    if (checkAccountProfiles.rows.length === 0) {
-      console.log('📝 [MIGRATION] Applying Xero account profiles migration...');
-
-      const profilesMigrationPath = path.join(__dirname, '../database/add_xero_account_profiles.sql');
-
-      if (fs.existsSync(profilesMigrationPath)) {
-        const profilesMigrationSQL = fs.readFileSync(profilesMigrationPath, 'utf8');
-
-        await Promise.race([
-          db.query(profilesMigrationSQL),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Migration timeout')), 10000)
-          )
-        ]);
-
-        console.log('✅ [MIGRATION] Xero account profiles migration applied successfully!');
-      } else {
-        console.warn('⚠️  [MIGRATION] Xero account profiles migration file not found, skipping...');
-      }
-    } else {
-      console.log('✅ [MIGRATION] xero_account_profiles already exists - skipping');
-    }
+    // 11. Expense sub-categories
+    await applyOnce(
+      'Expense sub-categories migration',
+      "SELECT 1 FROM information_schema.tables WHERE table_name = 'expense_subcategories' AND table_schema = 'public'",
+      'add_expense_subcategories.sql'
+    );
 
   } catch (error) {
     // Don't crash the app if migration fails

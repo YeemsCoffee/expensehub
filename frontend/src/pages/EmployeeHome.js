@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, DollarSign, Clock, CheckCircle, AlertCircle, Calendar, ChevronRight } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, formatCategory } from '../utils/helpers';
 import api from '../services/api';
 
 const RECENT_LIMIT = 5;
@@ -218,7 +218,7 @@ const EmployeeHome = ({ onNavigate }) => {
                   <div className="expense-details">
                     <h3 className="expense-title">{expense.description}</h3>
                     <p className="expense-meta">
-                      {expense.category}
+                      {formatCategory(expense)}
                       {expense.vendor_name && ` • ${expense.vendor_name}`}
                     </p>
                   </div>

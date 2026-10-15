@@ -861,13 +861,14 @@ router.get('/organization', authMiddleware, isAdminOrDeveloper, async (req, res)
 router.get('/expenses', authMiddleware, isAdminOrDeveloper, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT e.id, e.description, e.amount, e.category, e.date, e.vendor_name,
+      `SELECT e.id, e.description, e.amount, e.category, sc.name as subcategory_name, e.date, e.vendor_name,
               e.status, e.xero_invoice_id, e.xero_synced_at, e.xero_sync_error,
               u.first_name || ' ' || u.last_name as submitted_by,
               p.name as account_profile_name
        FROM expenses e
        JOIN users u ON e.user_id = u.id
        LEFT JOIN xero_account_profiles p ON p.id = u.account_profile_id
+       LEFT JOIN expense_subcategories sc ON sc.id = e.subcategory_id
        WHERE e.status = 'approved'
        ORDER BY e.date DESC
        LIMIT 100`
