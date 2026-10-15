@@ -25,9 +25,11 @@ router.get('/', authMiddleware, isAdminOrDeveloper, async (req, res) => {
     const result = await db.query(
       `SELECT u.id, u.email, u.first_name, u.last_name, u.employee_id,
               u.department, u.role, u.is_active, u.created_at, u.manager_id,
-              m.first_name || ' ' || m.last_name as manager_name
+              m.first_name || ' ' || m.last_name as manager_name,
+              u.account_profile_id, p.name as account_profile_name
        FROM users u
        LEFT JOIN users m ON u.manager_id = m.id
+       LEFT JOIN xero_account_profiles p ON p.id = u.account_profile_id
        WHERE u.deleted_at IS NULL
        ORDER BY u.created_at DESC
        LIMIT $1 OFFSET $2`,
@@ -50,7 +52,8 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
   body('lastName').notEmpty().trim(),
   body('employeeId').notEmpty().trim(),
   body('role').isIn(['employee', 'manager', 'admin', 'developer']),
-  body('managerId').optional({ nullable: true }).isInt()
+  body('managerId').optional({ nullable: true }).isInt(),
+  body('accountProfileId').optional({ nullable: true }).isInt({ min: 1 })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -58,7 +61,14 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, employeeId, department, role, managerId } = req.body;
+    const { email, password, firstName, lastName, employeeId, department, role, managerId, accountProfileId } = req.body;
+
+    if (accountProfileId) {
+      const profile = await db.query('SELECT id FROM xero_account_profiles WHERE id = $1', [accountProfileId]);
+      if (profile.rows.length === 0) {
+        return res.status(400).json({ error: 'That account profile no longer exists' });
+      }
+    }
 
     // Check if user already exists
     const userExists = await db.query(
@@ -93,10 +103,10 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
 
     // Create user
     const result = await db.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, employee_id, department, role, manager_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO users (email, password_hash, first_name, last_name, employee_id, department, role, manager_id, account_profile_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, email, first_name, last_name, employee_id, department, role, manager_id, created_at`,
-      [email, passwordHash, firstName, lastName, employeeId, department || null, role, managerId || null]
+      [email, passwordHash, firstName, lastName, employeeId, department || null, role, managerId || null, accountProfileId || null]
     );
 
     const user = result.rows[0];
@@ -124,7 +134,9 @@ router.post('/', authMiddleware, isAdminOrDeveloper, [
 router.put('/:id', authMiddleware, isAdminOrDeveloper, [
   body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty'),
   body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty'),
-  body('department').optional({ nullable: true }).trim()
+  body('department').optional({ nullable: true }).trim(),
+  // Xero account profile (e.g. the employee's store); null for none
+  body('accountProfileId').optional({ nullable: true }).isInt({ min: 1 })
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -132,10 +144,18 @@ router.put('/:id', authMiddleware, isAdminOrDeveloper, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, department } = req.body;
+    const { firstName, lastName, department, accountProfileId } = req.body;
 
-    if (firstName === undefined && lastName === undefined && department === undefined) {
+    if (firstName === undefined && lastName === undefined && department === undefined &&
+        accountProfileId === undefined) {
       return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    if (accountProfileId) {
+      const profile = await db.query('SELECT id FROM xero_account_profiles WHERE id = $1', [accountProfileId]);
+      if (profile.rows.length === 0) {
+        return res.status(400).json({ error: 'That account profile no longer exists' });
+      }
     }
 
     const result = await db.query(
@@ -143,15 +163,18 @@ router.put('/:id', authMiddleware, isAdminOrDeveloper, [
        SET first_name = COALESCE($1, first_name),
            last_name = COALESCE($2, last_name),
            department = CASE WHEN $3::boolean THEN NULLIF($4, '') ELSE department END,
+           account_profile_id = CASE WHEN $6::boolean THEN $7::int ELSE account_profile_id END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $5 AND deleted_at IS NULL
-       RETURNING id, email, first_name, last_name, employee_id, department, role`,
+       RETURNING id, email, first_name, last_name, employee_id, department, role, account_profile_id`,
       [
         firstName ?? null,
         lastName ?? null,
         department !== undefined, // whether to touch department at all
         department ?? null,
-        req.params.id
+        req.params.id,
+        accountProfileId !== undefined, // whether to touch the profile at all
+        accountProfileId ? Number(accountProfileId) : null
       ]
     );
 
@@ -169,7 +192,8 @@ router.put('/:id', authMiddleware, isAdminOrDeveloper, [
         lastName: user.last_name,
         employeeId: user.employee_id,
         department: user.department,
-        role: user.role
+        role: user.role,
+        accountProfileId: user.account_profile_id
       }
     });
   } catch (error) {

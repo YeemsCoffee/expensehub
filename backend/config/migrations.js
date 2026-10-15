@@ -353,6 +353,38 @@ async function runMigrations() {
       console.log('✅ [MIGRATION] xero_oauth_states already exists - skipping');
     }
 
+    // 10. Xero account profiles (per-store category -> account mappings)
+    console.log('[MIGRATION] Checking if xero_account_profiles table exists...');
+    const checkAccountProfiles = await db.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_name = 'xero_account_profiles'
+      AND table_schema = 'public'
+    `);
+
+    if (checkAccountProfiles.rows.length === 0) {
+      console.log('📝 [MIGRATION] Applying Xero account profiles migration...');
+
+      const profilesMigrationPath = path.join(__dirname, '../database/add_xero_account_profiles.sql');
+
+      if (fs.existsSync(profilesMigrationPath)) {
+        const profilesMigrationSQL = fs.readFileSync(profilesMigrationPath, 'utf8');
+
+        await Promise.race([
+          db.query(profilesMigrationSQL),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Migration timeout')), 10000)
+          )
+        ]);
+
+        console.log('✅ [MIGRATION] Xero account profiles migration applied successfully!');
+      } else {
+        console.warn('⚠️  [MIGRATION] Xero account profiles migration file not found, skipping...');
+      }
+    } else {
+      console.log('✅ [MIGRATION] xero_account_profiles already exists - skipping');
+    }
+
   } catch (error) {
     // Don't crash the app if migration fails
     // (tables might already exist, database unavailable, or timeout)
