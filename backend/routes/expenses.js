@@ -31,6 +31,35 @@ const MAX_LIMIT = 200;
 const parseLimit = (value) => Math.min(Math.max(parseInt(value, 10) || DEFAULT_LIMIT, 1), MAX_LIMIT);
 const parseOffset = (value) => Math.max(parseInt(value, 10) || 0, 0);
 
+/**
+ * Check the sub-category chosen for an expense: it must exist, belong to the
+ * expense's category and be active (an expense may keep the inactive one it
+ * already has). Returns { id } (null for none) or { error }.
+ */
+async function checkSubcategory(subcategoryId, categoryName, keepId = null) {
+  if (subcategoryId === undefined || subcategoryId === null || subcategoryId === '') {
+    return { id: null };
+  }
+  const result = await db.query(
+    `SELECT s.id, s.name, s.is_active, c.name AS category_name
+     FROM expense_subcategories s
+     JOIN expense_categories c ON c.id = s.category_id
+     WHERE s.id = $1`,
+    [subcategoryId]
+  );
+  const sub = result.rows[0];
+  if (!sub) {
+    return { error: 'That sub-category no longer exists' };
+  }
+  if (String(sub.category_name).toLowerCase() !== String(categoryName || '').toLowerCase()) {
+    return { error: `"${sub.name}" is not a sub-category of "${categoryName}"` };
+  }
+  if (!sub.is_active && Number(keepId) !== sub.id) {
+    return { error: `The sub-category "${sub.name}" is no longer in use` };
+  }
+  return { id: sub.id };
+}
+
 // Get all expenses for current user (or all expenses for admin/developer)
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -59,7 +88,8 @@ router.get('/', authMiddleware, async (req, res) => {
              p.code as project_code, p.name as project_name,
              u.first_name || ' ' || u.last_name as approved_by_name,
              submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
-             submitter.email as submitted_by_email
+             submitter.email as submitted_by_email,
+             sc.name as subcategory_name
     `;
 
     const fromClause = `
@@ -69,6 +99,7 @@ router.get('/', authMiddleware, async (req, res) => {
       LEFT JOIN projects p ON e.project_id = p.id
       LEFT JOIN users u ON e.approved_by = u.id
       LEFT JOIN users submitter ON e.user_id = submitter.id
+      LEFT JOIN expense_subcategories sc ON sc.id = e.subcategory_id
     `;
 
     // Build the WHERE clause once so the count and the page use identical filters
@@ -175,13 +206,15 @@ router.get('/:id', authMiddleware, async (req, res) => {
              p.code as project_code, p.name as project_name,
              u.first_name || ' ' || u.last_name as approved_by_name,
              submitter.first_name || ' ' || submitter.last_name as submitted_by_name,
-             submitter.email as submitted_by_email
+             submitter.email as submitted_by_email,
+             sc.name as subcategory_name
       FROM expenses e
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
       LEFT JOIN users u ON e.approved_by = u.id
       LEFT JOIN users submitter ON e.user_id = submitter.id
+      LEFT JOIN expense_subcategories sc ON sc.id = e.subcategory_id
       WHERE e.id = $1`;
 
     const params = [req.params.id];
@@ -210,6 +243,7 @@ router.post('/', authMiddleware, [
   body('date').isISO8601().toDate(),
   body('description').notEmpty().trim(),
   body('category').notEmpty().trim(),
+  body('subcategoryId').optional({ nullable: true }).isInt({ min: 1 }),
   body('amount').isFloat({ min: 0.01 }),
   body('subtotal').optional().isFloat({ min: 0 }),
   body('tax').optional().isFloat({ min: 0 }),
@@ -236,6 +270,11 @@ router.post('/', authMiddleware, [
       locationId, projectId, wbsElementId, costType, paymentMethod,
       vendorName, glAccount, notes, isReimbursable
     } = req.body;
+
+    const subcategory = await checkSubcategory(req.body.subcategoryId, category);
+    if (subcategory.error) {
+      return res.status(400).json({ error: subcategory.error });
+    }
 
     // Auto-determine cost type if not provided
     // Project expenses default to CAPEX
@@ -264,16 +303,18 @@ router.post('/', authMiddleware, [
         date, description, category, amount, subtotal, tax, tip, cost_type,
         payment_method, vendor_name, gl_account, notes, is_reimbursable,
         approval_rule_id, approval_chain, current_approval_level,
-        status, approved_at
+        status, approved_at${subcategory.id ? ', subcategory_id' : ''}
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23${subcategory.id ? ', $24' : ''})
       RETURNING *`,
       [
         req.user.id, costCenterId, locationId, projectId, wbsElementId,
         date, description, category, amount, subtotal, tax, tip, finalCostType,
         paymentMethod, vendorName, glAccount, notes, isReimbursable || false,
         approvalRuleId, approvalChain ? JSON.stringify(approvalChain) : null, currentApprovalLevel,
-        status, approvedAt
+        status, approvedAt,
+        // Only referenced when chosen, so submitting works before the migration
+        ...(subcategory.id ? [subcategory.id] : [])
       ]
     );
 
@@ -317,6 +358,7 @@ router.put('/:id', authMiddleware, [
   body('date').optional().isISO8601().toDate(),
   body('description').optional().trim(),
   body('category').optional().trim(),
+  body('subcategoryId').optional({ nullable: true }).isInt({ min: 1 }),
   body('amount').optional().isFloat({ min: 0.01 }),
   body('costCenterId').optional().isInt(),
   body('locationId').optional().isInt(),
@@ -339,10 +381,10 @@ router.put('/:id', authMiddleware, [
     // Check if expense exists (admin/developer can edit any expense)
     let checkQuery, checkParams;
     if (isPrivileged) {
-      checkQuery = 'SELECT status, user_id FROM expenses WHERE id = $1';
+      checkQuery = 'SELECT * FROM expenses WHERE id = $1';
       checkParams = [req.params.id];
     } else {
-      checkQuery = 'SELECT status, user_id FROM expenses WHERE id = $1 AND user_id = $2';
+      checkQuery = 'SELECT * FROM expenses WHERE id = $1 AND user_id = $2';
       checkParams = [req.params.id, req.user.id];
     }
 
@@ -362,6 +404,22 @@ router.put('/:id', authMiddleware, [
       locationId, projectId, costType, paymentMethod,
       vendorName, glAccount, notes, isReimbursable
     } = req.body;
+
+    // The sub-category must belong to the (possibly new) category. Changing
+    // the category without choosing a sub-category drops the old one.
+    const before = checkResult.rows[0];
+    const finalCategory = category ? category : before.category;
+    let subcategoryUpdate = null; // { id } when subcategory_id is written
+    if (req.body.subcategoryId !== undefined) {
+      const sub = await checkSubcategory(req.body.subcategoryId, finalCategory, before.subcategory_id);
+      if (sub.error) {
+        return res.status(400).json({ error: sub.error });
+      }
+      subcategoryUpdate = { id: sub.id };
+    } else if (before.subcategory_id &&
+               String(finalCategory).toLowerCase() !== String(before.category).toLowerCase()) {
+      subcategoryUpdate = { id: null };
+    }
 
     // If the amount or cost center of a still-pending expense changes, the
     // approval rule (and therefore the chain) may change too.  Recompute it
@@ -409,6 +467,7 @@ router.put('/:id', authMiddleware, [
            status = $17,
            approved_at = $18,
            approved_by = NULL,` : ''}
+           ${subcategoryUpdate ? `subcategory_id = $${rerouted ? 19 : 15},` : ''}
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $14
        RETURNING *`,
@@ -422,7 +481,8 @@ router.put('/:id', authMiddleware, [
           rerouted.approvalChain ? JSON.stringify(rerouted.approvalChain) : null,
           rerouted.approvalChain ? 'pending' : 'approved',
           rerouted.approvalChain ? null : new Date()
-        ] : [])
+        ] : []),
+        ...(subcategoryUpdate ? [subcategoryUpdate.id] : [])
       ]
     );
 
@@ -522,7 +582,8 @@ router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) =>
              u.employee_id,
              cc.code as cost_center_code, cc.name as cost_center_name,
              l.code as location_code, l.name as location_name,
-             p.code as project_code, p.name as project_name
+             p.code as project_code, p.name as project_name,
+             sc.name as subcategory_name
     `;
 
     const fromClause = `
@@ -531,6 +592,7 @@ router.get('/pending/all', authMiddleware, isManagerOrAdmin, async (req, res) =>
       LEFT JOIN cost_centers cc ON e.cost_center_id = cc.id
       LEFT JOIN locations l ON e.location_id = l.id
       LEFT JOIN projects p ON e.project_id = p.id
+      LEFT JOIN expense_subcategories sc ON sc.id = e.subcategory_id
     `;
 
     // Build the WHERE clause once so the count and the page use identical filters

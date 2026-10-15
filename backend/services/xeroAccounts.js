@@ -148,6 +148,14 @@ function clearChartCache() {
 const DEFAULT_KEY = '__default__';
 
 /**
+ * Mapping key for a sub-category. By id, so renaming a sub-category keeps
+ * its mapping, and two categories may both have one called "Other".
+ */
+function subcategoryKey(id) {
+  return `sub:${id}`;
+}
+
+/**
  * Same normalisation the Settings page has always used for its category ids
  * ("Meals & Entertainment" -> "meals_entertainment"), so existing saved
  * mappings keep matching.
@@ -202,13 +210,14 @@ function candidateKeys(category, activeKeys) {
  *  profileMappings: profileId -> Map like tenantMappings, for mappings saved
  *                   for one account profile (e.g. one store)
  *  profileNames:    profileId -> name
+ *  subcategories:   id -> { name, is_active, category_id, category_name }
  *  categoryCodes:   normalizedKey -> { code, name }
  *                   (expense_categories.xero_account_code, set on the Expense
  *                   Categories page; a fallback, shown on the Settings page)
  *  activeKeys:      keys of the active expense categories
  */
 async function loadMappingContext(tenantId) {
-  const [mappingRows, categoryRows, profileRows] = await Promise.all([
+  const [mappingRows, categoryRows, profileRows, subcategoryRows] = await Promise.all([
     db.query(
       `SELECT *
        FROM xero_account_mappings
@@ -220,7 +229,13 @@ async function loadMappingContext(tenantId) {
       `SELECT name, xero_account_code, xero_account_name, is_active
        FROM expense_categories`
     ).catch(() => ({ rows: [] })),
-    db.query('SELECT id, name FROM xero_account_profiles').catch(() => ({ rows: [] }))
+    db.query('SELECT id, name FROM xero_account_profiles').catch(() => ({ rows: [] })),
+    db.query(
+      `SELECT s.id, s.name, s.is_active, s.category_id, c.name AS category_name
+       FROM expense_subcategories s
+       JOIN expense_categories c ON c.id = s.category_id
+       ORDER BY s.display_order, LOWER(s.name)`
+    ).catch(() => ({ rows: [] }))
   ]);
 
   const tenantMappings = new Map();
@@ -245,6 +260,7 @@ async function loadMappingContext(tenantId) {
   }
 
   const profileNames = new Map(profileRows.rows.map((p) => [p.id, p.name]));
+  const subcategories = new Map(subcategoryRows.rows.map((r) => [r.id, r]));
 
   const categoryCodes = new Map();
   const activeKeys = new Set();
@@ -259,7 +275,7 @@ async function loadMappingContext(tenantId) {
     }
   }
 
-  return { tenantMappings, profileMappings, profileNames, categoryCodes, activeKeys };
+  return { tenantMappings, profileMappings, profileNames, subcategories, categoryCodes, activeKeys };
 }
 
 /** The mappings saved for one profile (empty if none or no profile). */
@@ -270,23 +286,32 @@ function profileScope(ctx, profileId) {
 /**
  * Which account a category posts to, before checking the live chart.
  * Order, most specific first:
- *   the profile's mapping for the category -> the shared mapping for it ->
- *   the Expense Categories page code -> the profile's default account ->
- *   the shared default account.
+ *   1. the profile's own mappings: its sub-category mapping, then its
+ *      category mapping (a store's own accounts win over shared ones, so a
+ *      store's spend never lands outside its accounts);
+ *   2. the shared mappings: sub-category, then category, each before the
+ *      category's Expense Categories page code;
+ *   3. the profile's default account, then the shared default account.
  * Returns null when nothing is configured; there is deliberately no hardcoded
  * fallback.
  *
  * @param {number|null} profileId  the employee's account profile, if any
+ * @param {number|null} subcategoryId  the expense's sub-category, if any
  */
-function resolveCategoryAccount(category, ctx, profileId = null) {
+function resolveCategoryAccount(category, ctx, profileId = null, subcategoryId = null) {
   const keys = candidateKeys(category, ctx.activeKeys);
+  if (subcategoryId) keys.unshift(subcategoryKey(subcategoryId));
   const own = profileScope(ctx, profileId);
 
-  // Every source for one key before moving to the next, so a category never
-  // resolves through a different key than the row it is shown under
+  if (own) {
+    for (const key of keys) {
+      const p = own.get(key);
+      if (p) return { ...p, source: 'profile_mapping', matchedKey: key };
+    }
+  }
+  // Both shared sources for one key before moving to the next, so a category
+  // never resolves through a different key than the row it is shown under
   for (const key of keys) {
-    const p = own && own.get(key);
-    if (p) return { ...p, source: 'profile_mapping', matchedKey: key };
     const m = ctx.tenantMappings.get(key);
     if (m) return { ...m, source: 'mapping', matchedKey: key };
     const c = ctx.categoryCodes.get(key);
@@ -347,11 +372,13 @@ function sourceSuffix(source, profileName) {
  *
  * @param {number|null} profileId  the account profile of the employee who
  *   submitted the expense, if any
+ * @param {number|null} subcategoryId  the expense's sub-category, if any
  */
-function resolveExpenseAccount(category, ctx, chart, profileId = null) {
-  const label = category || '(none)';
+function resolveExpenseAccount(category, ctx, chart, profileId = null, subcategoryId = null) {
+  const sub = subcategoryId && ctx.subcategories ? ctx.subcategories.get(Number(subcategoryId)) : null;
+  const label = `${category || '(none)'}${sub ? ` › ${sub.name}` : ''}`;
   const profileName = profileId ? (ctx.profileNames && ctx.profileNames.get(Number(profileId))) || null : null;
-  const resolved = resolveCategoryAccount(category, ctx, profileName ? profileId : null);
+  const resolved = resolveCategoryAccount(category, ctx, profileName ? profileId : null, sub ? sub.id : null);
   if (!resolved) {
     return {
       ok: false,
@@ -414,7 +441,7 @@ async function buildMappingOverview(tenantId, chart, profileId = null) {
 
   const [categoryResult, usedResult] = await Promise.all([
     db.query(
-      `SELECT name FROM expense_categories
+      `SELECT id, name FROM expense_categories
        WHERE is_active = true
        ORDER BY display_order, name`
     ).catch(() => ({ rows: [] })),
@@ -434,7 +461,7 @@ async function buildMappingOverview(tenantId, chart, profileId = null) {
   const rows = [];
   const rowKeys = new Set();
 
-  for (const { name } of categoryResult.rows) {
+  for (const { id, name } of categoryResult.rows) {
     const key = normalizeCategoryKey(name);
     if (rowKeys.has(key)) continue;
     rowKeys.add(key);
@@ -445,6 +472,22 @@ async function buildMappingOverview(tenantId, chart, profileId = null) {
       mapping: describeMapping(directMapping(ctx, key, profileId), chart),
       effective: describeMapping(resolveCategoryAccount(name, ctx, profileId), chart)
     });
+
+    // Its active sub-categories, right under it. Unmapped ones post with
+    // the category's account.
+    for (const sub of ctx.subcategories.values()) {
+      if (sub.category_id !== id || !sub.is_active) continue;
+      const subKey = subcategoryKey(sub.id);
+      rowKeys.add(subKey);
+      rows.push({
+        key: subKey,
+        name: sub.name,
+        parentName: name,
+        kind: 'subcategory',
+        mapping: describeMapping(directMapping(ctx, subKey, profileId), chart),
+        effective: describeMapping(resolveCategoryAccount(name, ctx, profileId, sub.id), chart)
+      });
+    }
   }
 
   for (const { category, expense_count: expenseCount } of usedResult.rows) {
@@ -467,8 +510,12 @@ async function buildMappingOverview(tenantId, chart, profileId = null) {
   const orphans = [];
   for (const [key, mapping] of scope) {
     if (key === DEFAULT_KEY || rowKeys.has(key)) continue;
+    const subId = /^sub:(\d+)$/.test(key) ? Number(key.slice(4)) : null;
+    const sub = subId ? ctx.subcategories.get(subId) : null;
     orphans.push({
       key,
+      // Sub-categories that were deactivated (or whose category was)
+      label: sub ? `${sub.category_name} › ${sub.name}${sub.is_active ? '' : ' (inactive)'}` : key,
       ...describeMapping({ ...mapping, source: profileId ? 'profile_mapping' : 'mapping' }, chart),
       // A legacy id's mapping is only consulted if its category no longer exists
       usedByOlderExpenses: Boolean(LEGACY_ALIASES[key]) && !ctx.activeKeys.has(LEGACY_ALIASES[key])
@@ -497,6 +544,7 @@ async function buildMappingOverview(tenantId, chart, profileId = null) {
 module.exports = {
   DEFAULT_KEY,
   LEGACY_ALIASES,
+  subcategoryKey,
   accountGroup,
   accountProblem,
   isSelectableAccount,

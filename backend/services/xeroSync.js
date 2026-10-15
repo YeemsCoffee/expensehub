@@ -24,10 +24,11 @@ async function recordSyncError(expenseId, message) {
 /**
  * Post expenses to the organisation of `connection`.
  *
- * Each expense's account is resolved from its category and the account profile
- * of the employee who submitted it (stores post the same kind of expense to
- * different accounts), and checked against the organisation's live chart of
- * accounts before anything is posted. An
+ * Each expense's account is resolved from its category (and sub-category, if
+ * it has one) and the account profile of the employee who submitted it
+ * (stores post the same kind of expense to different accounts), and checked
+ * against the organisation's live chart of accounts before anything is
+ * posted. An
  * expense whose category is unmapped, or mapped to an account that is
  * archived, deleted or not postable, fails with an explanation instead of
  * being posted to an account nobody chose.
@@ -87,7 +88,9 @@ async function syncExpensesToXero(connection, expenses) {
         continue;
       }
 
-      const target = resolveExpenseAccount(expense.category, ctx, chart.accounts, fresh.rows[0].account_profile_id);
+      const target = resolveExpenseAccount(
+        expense.category, ctx, chart.accounts, fresh.rows[0].account_profile_id, expense.subcategory_id
+      );
       if (!target.ok) {
         await recordSyncError(expense.id, target.error);
         details.failed.push({ expenseId: expense.id, error: target.error });

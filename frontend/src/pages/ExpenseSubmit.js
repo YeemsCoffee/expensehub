@@ -12,6 +12,11 @@ const ExpenseSubmit = () => {
   const [costCenters, setCostCenters] = useState([]);
   const [locations, setLocations] = useState([]);
   const [categories, setCategories] = useState(EXPENSE_CATEGORIES);
+  // Active sub-categories by lower-cased category name
+  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
+  // When editing: the expense's own sub-category, kept selectable even if it
+  // has since been deactivated
+  const [loadedSubcategory, setLoadedSubcategory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReceiptUpload, setShowReceiptUpload] = useState(false);
@@ -28,6 +33,7 @@ const ExpenseSubmit = () => {
     date: new Date().toISOString().split('T')[0], // Default to today
     description: '',
     category: '',
+    subcategoryId: '',
     amount: '',
     subtotal: '',
     tax: '',
@@ -117,6 +123,9 @@ const ExpenseSubmit = () => {
       setLocations(Array.isArray(locResponse.data) ? locResponse.data : []);
       if (catResponse && Array.isArray(catResponse.data) && catResponse.data.length > 0) {
         setCategories(catResponse.data.map(c => c.name));
+        setSubcategoriesByCategory(Object.fromEntries(
+          catResponse.data.map(c => [c.name.toLowerCase(), c.subcategories || []])
+        ));
       }
 
       setLoading(false);
@@ -155,6 +164,7 @@ const ExpenseSubmit = () => {
             date: expense.date?.split('T')[0] || new Date().toISOString().split('T')[0],
             description: expense.description || '',
             category: expense.category || '',
+            subcategoryId: expense.subcategory_id?.toString() || '',
             amount: expense.amount?.toString() || '',
             subtotal: expense.subtotal?.toString() || '',
             tax: expense.tax?.toString() || '',
@@ -165,6 +175,10 @@ const ExpenseSubmit = () => {
             notes: expense.notes || '',
             isReimbursable: expense.is_reimbursable || false
           });
+
+          setLoadedSubcategory(expense.subcategory_id
+            ? { id: expense.subcategory_id, name: expense.subcategory_name, category: expense.category }
+            : null);
 
           // Load receipt if exists
           if (expense.receipt_id) {
@@ -186,7 +200,10 @@ const ExpenseSubmit = () => {
   }, [toast]);
 
   const handleInputChange = (field, value) => {
-    setNewExpense({ ...newExpense, [field]: value });
+    const next = { ...newExpense, [field]: value };
+    // A sub-category belongs to one category
+    if (field === 'category' && value !== newExpense.category) next.subcategoryId = '';
+    setNewExpense(next);
     saveSmartDefaults(field, value);
 
     // Smart category suggestion based on vendor
@@ -236,6 +253,7 @@ const ExpenseSubmit = () => {
       tax: extractedData.tax?.toString() || prev.tax,
       tip: extractedData.tip?.toString() || prev.tip,
       category: matchedCategory || prev.category,
+      subcategoryId: matchedCategory && matchedCategory !== prev.category ? '' : prev.subcategoryId,
       description: extractedData.description || prev.description,
       notes: extractedData.notes || prev.notes
     }));
@@ -266,6 +284,10 @@ const ExpenseSubmit = () => {
       toast.error('Please fill in all required fields');
       return;
     }
+    if (subcategoryOptions.length > 0 && !newExpense.subcategoryId) {
+      toast.error(`Please choose a sub-category for ${newExpense.category}`);
+      return;
+    }
 
     // If reimbursable and not confirmed, show confirmation modal
     if (newExpense.isReimbursable && !reimbursableConfirmed) {
@@ -290,6 +312,7 @@ const ExpenseSubmit = () => {
         date: newExpense.date,
         description: newExpense.description,
         category: newExpense.category,
+        subcategoryId: newExpense.subcategoryId ? parseInt(newExpense.subcategoryId) : null,
         amount: parseFloat(newExpense.amount),
         costCenterId: parseInt(newExpense.costCenterId),
         locationId: newExpense.locationId ? parseInt(newExpense.locationId) : null,
@@ -329,6 +352,7 @@ const ExpenseSubmit = () => {
           date: new Date().toISOString().split('T')[0],
           description: '',
           category: '',
+          subcategoryId: '',
           amount: '',
           subtotal: '',
           tax: '',
@@ -352,6 +376,15 @@ const ExpenseSubmit = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Sub-categories of the chosen category (plus, when editing, the one the
+  // expense already has if it was deactivated since)
+  const activeSubcategories = subcategoriesByCategory[(newExpense.category || '').toLowerCase()] || [];
+  const subcategoryOptions = loadedSubcategory &&
+    loadedSubcategory.category === newExpense.category &&
+    !activeSubcategories.some(sc => sc.id === loadedSubcategory.id)
+    ? [...activeSubcategories, { id: loadedSubcategory.id, name: `${loadedSubcategory.name} (no longer offered)` }]
+    : activeSubcategories;
 
   if (loading) {
     return (
@@ -486,6 +519,26 @@ const ExpenseSubmit = () => {
               <p className="expense-form-hint">{suggestedCategory}</p>
             )}
           </div>
+
+          {subcategoryOptions.length > 0 && (
+            <div className="expense-form-group">
+              <label className="expense-form-label" htmlFor="expense-subcategory">
+                Sub-category <span className="required-indicator">*</span>
+              </label>
+              <select
+                id="expense-subcategory"
+                value={newExpense.subcategoryId}
+                onChange={(e) => handleInputChange('subcategoryId', e.target.value)}
+                className="expense-form-select"
+                required
+              >
+                <option value="">Select a sub-category</option>
+                {subcategoryOptions.map((sc) => (
+                  <option key={sc.id} value={String(sc.id)}>{sc.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="expense-form-group expense-form-grid-full">
             <label className="expense-form-label">

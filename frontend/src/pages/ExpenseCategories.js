@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, ArrowUp, ArrowDown, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ArrowUp, ArrowDown, CheckCircle, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
 
@@ -11,6 +11,12 @@ const ExpenseCategories = () => {
   const [formData, setFormData] = useState({ name: '', xero_account_code: '', xero_account_name: '' });
   const [saving, setSaving] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  // Sub-categories: which category's panel is open, its "add" input, and
+  // the sub-category being renamed ({ id, name })
+  const [expandedId, setExpandedId] = useState(null);
+  const [newSubName, setNewSubName] = useState('');
+  const [editingSub, setEditingSub] = useState(null);
+  const [subBusy, setSubBusy] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -126,6 +132,65 @@ const ExpenseCategories = () => {
     } catch (err) {
       toast.error('Failed to reorder categories');
     }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Sub-categories
+  // ---------------------------------------------------------------------------
+  const toggleExpanded = (categoryId) => {
+    setExpandedId(prev => (prev === categoryId ? null : categoryId));
+    setNewSubName('');
+    setEditingSub(null);
+  };
+
+  const runSubAction = async (action, successMessage) => {
+    setSubBusy(true);
+    try {
+      await action();
+      if (successMessage) toast.success(successMessage);
+      await fetchCategories();
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update sub-category');
+      return false;
+    } finally {
+      setSubBusy(false);
+    }
+  };
+
+  const handleAddSub = async (e, category) => {
+    e.preventDefault();
+    const name = newSubName.trim();
+    if (!name) return;
+    const ok = await runSubAction(
+      () => api.post(`/expense-categories/${category.id}/subcategories`, { name }),
+      `Added "${name}" to ${category.name}`
+    );
+    if (ok) setNewSubName('');
+  };
+
+  const handleRenameSub = async (e) => {
+    e.preventDefault();
+    const name = editingSub.name.trim();
+    if (!name) return;
+    const ok = await runSubAction(
+      () => api.put(`/expense-categories/subcategories/${editingSub.id}`, { name }),
+      'Sub-category renamed'
+    );
+    if (ok) setEditingSub(null);
+  };
+
+  const handleToggleSub = (sub) => runSubAction(
+    () => api.put(`/expense-categories/subcategories/${sub.id}`, { is_active: !sub.is_active }),
+    `"${sub.name}" ${sub.is_active ? 'deactivated' : 'activated'}`
+  );
+
+  const handleDeleteSub = (sub) => {
+    if (!window.confirm(`Delete the sub-category "${sub.name}"? This cannot be undone.`)) return;
+    runSubAction(
+      () => api.delete(`/expense-categories/subcategories/${sub.id}`),
+      `"${sub.name}" deleted`
+    );
   };
 
   const cancelForm = () => {
@@ -275,6 +340,7 @@ const ExpenseCategories = () => {
               <tr>
                 <th style={{ width: '40px' }}>Order</th>
                 <th>Category Name</th>
+                <th>Sub-categories</th>
                 <th>Fallback Xero Code</th>
                 <th>Xero Account Name</th>
                 <th>Status</th>
@@ -282,8 +348,13 @@ const ExpenseCategories = () => {
               </tr>
             </thead>
             <tbody>
-              {categories.map((category, index) => (
-                <tr key={category.id} style={{ opacity: category.is_active ? 1 : 0.5 }}>
+              {categories.map((category, index) => {
+                const subs = category.subcategories || [];
+                const activeSubs = subs.filter(sc => sc.is_active).length;
+                const expanded = expandedId === category.id;
+                return (
+                <React.Fragment key={category.id}>
+                <tr style={{ opacity: category.is_active ? 1 : 0.5 }}>
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <button onClick={() => handleReorder(category, 'up')} disabled={index === 0}
@@ -297,6 +368,23 @@ const ExpenseCategories = () => {
                     </div>
                   </td>
                   <td style={{ fontWeight: '500' }}>{category.name}</td>
+                  <td>
+                    <button
+                      onClick={() => toggleExpanded(category.id)}
+                      aria-expanded={expanded}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                        padding: '0.25rem 0.5rem', border: '1px solid #d1d5db',
+                        borderRadius: '0.25rem', background: 'white', color: '#374151',
+                        cursor: 'pointer', fontSize: '0.75rem'
+                      }}
+                    >
+                      {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                      {subs.length === 0
+                        ? 'Add'
+                        : `${activeSubs} active${subs.length > activeSubs ? `, ${subs.length - activeSubs} inactive` : ''}`}
+                    </button>
+                  </td>
                   <td>
                     {category.xero_account_code ? (
                       <span style={{ padding: '0.25rem 0.5rem', borderRadius: '0.25rem', background: '#f0fdf4', color: '#10b981', fontSize: '0.875rem', fontWeight: '500' }}>
@@ -350,7 +438,100 @@ const ExpenseCategories = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+
+                {expanded && (
+                  <tr>
+                    <td></td>
+                    <td colSpan="6" style={{ background: '#f9fafb', padding: '0.75rem 1rem' }}>
+                      <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#6b7280' }}>
+                        Sub-categories of <strong>{category.name}</strong>. When a category has active sub-categories,
+                        employees must pick one when they submit an expense. Each can be mapped to its own Xero account
+                        in Settings → Xero Integration; otherwise it posts to {category.name}'s account.
+                      </p>
+
+                      {subs.length > 0 && (
+                        <ul style={{ listStyle: 'none', margin: '0 0 0.75rem', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                          {subs.map(sub => (
+                            <li key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', opacity: sub.is_active ? 1 : 0.6 }}>
+                              {editingSub && editingSub.id === sub.id ? (
+                                <form onSubmit={handleRenameSub} style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                                  <input
+                                    type="text"
+                                    value={editingSub.name}
+                                    onChange={(e) => setEditingSub({ ...editingSub, name: e.target.value })}
+                                    aria-label={`New name for ${sub.name}`}
+                                    maxLength={100}
+                                    autoFocus
+                                    style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                                  />
+                                  <button type="submit" disabled={subBusy || !editingSub.name.trim()}
+                                    style={{ padding: '0.25rem 0.5rem', border: 'none', borderRadius: '0.25rem', background: '#2B4628', color: 'white', cursor: 'pointer', fontSize: '0.75rem' }}>
+                                    Save
+                                  </button>
+                                  <button type="button" onClick={() => setEditingSub(null)}
+                                    style={{ padding: '0.25rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.25rem', background: 'white', color: '#6b7280', cursor: 'pointer', fontSize: '0.75rem' }}>
+                                    Cancel
+                                  </button>
+                                </form>
+                              ) : (
+                                <span style={{ fontSize: '0.875rem', minWidth: '10rem' }}>{sub.name}</span>
+                              )}
+                              <button onClick={() => handleToggleSub(sub)} disabled={subBusy}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                                  padding: '0.125rem 0.5rem', border: 'none', borderRadius: '0.25rem',
+                                  background: sub.is_active ? '#f0fdf4' : '#fee2e2',
+                                  color: sub.is_active ? '#10b981' : '#ef4444',
+                                  cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600'
+                                }}
+                              >
+                                {sub.is_active ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                                {sub.is_active ? 'Active' : 'Inactive'}
+                              </button>
+                              {!(editingSub && editingSub.id === sub.id) && (
+                                <button onClick={() => setEditingSub({ id: sub.id, name: sub.name })} disabled={subBusy}
+                                  aria-label={`Rename ${sub.name}`}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.125rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.25rem', background: 'white', color: '#374151', cursor: 'pointer', fontSize: '0.75rem' }}>
+                                  <Edit2 size={12} /> Rename
+                                </button>
+                              )}
+                              <button onClick={() => handleDeleteSub(sub)} disabled={subBusy}
+                                aria-label={`Delete ${sub.name}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.125rem 0.5rem', border: '1px solid #ef4444', borderRadius: '0.25rem', background: 'white', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem' }}>
+                                <Trash2 size={12} /> Delete
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <form onSubmit={(e) => handleAddSub(e, category)} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          type="text"
+                          value={newSubName}
+                          onChange={(e) => setNewSubName(e.target.value)}
+                          placeholder={`New sub-category of ${category.name}`}
+                          aria-label={`New sub-category of ${category.name}`}
+                          maxLength={100}
+                          style={{ flex: '1 1 220px', maxWidth: '320px', padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}
+                        />
+                        <button type="submit" disabled={subBusy || !newSubName.trim()}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                            padding: '0.375rem 0.75rem', border: 'none', borderRadius: '0.375rem',
+                            background: subBusy || !newSubName.trim() ? '#d1d5db' : '#2B4628', color: 'white',
+                            cursor: subBusy || !newSubName.trim() ? 'not-allowed' : 'pointer', fontSize: '0.8125rem'
+                          }}
+                        >
+                          <Plus size={14} /> Add sub-category
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}
